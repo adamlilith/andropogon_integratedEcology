@@ -33,7 +33,7 @@ say('###########################################################################
 ag_vect <- vect('./data/occurrence_data/andropogon_gerardi_occurrences_with_environment.gpkg')
 ag_vect <- ag_vect[!is.na(ag_vect$any_ag_quality1to3), ]
 
-preds <- c(paste0('bio', c(1:7, 10:12, 15, 18:19)), 'gdd_5_deg', 'climatic_moisture_index', 'pet_warmest_quarter_mm', 'aridity')
+preds <- c(paste0('bio', c(1:7, 10:12, 15, 18:19)), 'gdd_5_deg', 'climatic_moisture_index', 'pet_warmest_quarter_mm', 'aridity', 'ph', 'cec', 'sand', 'silt', 'clay', 'soc')
 vars <- as.data.frame(ag_vect)
 vars <- vars[ , preds]
 vars <- vars[complete.cases(vars), ]

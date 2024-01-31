@@ -3,8 +3,8 @@
 ###
 ### This script compiles occurrence data and environmental data for modeling the biogeographic distribution of Andropogon gerardi (Poaceae). We will use county-level occurrence data compiled by Smith et al. (2017 Global Change Biology), coupled with climate data from AdaptWest.
 ###
-### source('C:/Ecology/Drive/Research/Andropogon/Andropogon/andropogon_integratedEcology/sdm_00_compile_occurrence_and_environmental_data.r')
-### source('E:/Adam/Research/Andropogon/Andropogon/andropogon_integratedEcology/sdm_00_compile_occurrence_and_environmental_data.r')
+### source('C:/Adam/R/andropogon_integratedEcology/sdm_00_compile_occurrence_and_environmental_data.r')
+### source('E:/Adam/R/andropogon_integratedEcology/sdm_00_compile_occurrence_and_environmental_data.r')
 ###
 ### CONTENTS ###
 ### setup ###
@@ -16,8 +16,8 @@
 
 rm(list = ls())
 
-drive <- 'C:/Ecology/Drive/'
-# drive <- 'E:/Adam/'
+# drive <- 'C:/Adam/'
+drive <- 'E:/Adam/'
 
 setwd(paste0(drive, '/Research/Andropogon/Andropogon'))
 
@@ -36,8 +36,8 @@ say('#########################################################')
 # * Total annual precipitation (BIO 12)
 # * Potential solar radiation (from SAGA)
 
-### port data
-#############
+### port data from Smith et al. 2017
+####################################
 
 # from Smith et al. 2017
 load(paste0(drive, '/Research/Andropogon/Analysis - Phenotype Modeling/Species Records V3/!13d GADM Ver 2 - Multipart - North America - WORLDCLIM Ver 2 Rel June 1 2016 & AG Pheno and Geno Records & Removed Lake Counties.Rdata'))
@@ -58,28 +58,42 @@ names(occs)[names(occs) == 'poaRec'] <- 'num_poaceae_records'
 names(occs)[names(occs) == 'agDensity'] <- 'ag_density'
 names(occs)[names(occs) == 'poaDensity'] <- 'poa_density'
 
-### extract BIOCLIM, GDD, PET, and elevation variables
-######################################################
-say('extract BIOCLIM, GDD, PET, and elevation variables', level = 2)
+### extract solar insolation
+############################
+say('extract solar GDD, BIOCLIMs, insolation, elevation', level = 2)
 
-# Average values across counties, using weighted means.
+# insolation
+target_dates <- c('1990-03-01', '1990-09-30')
+target_dates <- as.Date(target_dates)
+target_dates <- seq(target_dates[1], target_dates[2], by = '1 day')
 
+insol <- rast('F:/Ecology/Potential Annual Insolation (SAGA)/Based on ClimateNA 7.03 from SAGA 9.3.0/Annual_Insolation_1990_kW_hr_per_m2.tif')
+target_rast_names <- paste0('Annual Insolation.', target_dates)
+insol <- insol[[target_rast_names]]
+insol <- sum(insol)
+names(insol) <- 'insolation_1990_growing_season_kWh_per_m2'
+
+# BIOCLIMs
 bc <- rast(paste0(drive, '/Research Data/AdaptWest Climate/ClimateNA v7.3/1961-2020/bioclim_variables_1961_2020.tif'))
 
+# GDD
 gdd5 <- rast(paste0(drive, '/Research Data/AdaptWest Climate/ClimateNA v7.3/1961-2020/gdd5.tif'))
 names(gdd5) <- 'gdd_5_deg'
 
+# CMI
 cmi <- rast(paste0(drive, '/Research Data/AdaptWest Climate/ClimateNA v7.3/1961-2020/climaticMoistureIndex.tif'))
 names(cmi) <- 'climatic_moisture_index'
 
+# PET
 pet <- rast(paste0(drive, '/Research Data/AdaptWest Climate/ClimateNA v7.3/1961-2020/petExtremes.tif'))
 pet <- pet[[c('PETWarmestQuarter')]]
 names(pet) <- 'pet_warmest_quarter_mm'
 
+# elevation
 elevation <- rast(paste0(drive, '/Research Data/AdaptWest Climate/ClimateNA v7.3/elevation.tif'))
 names(elevation) <- 'elevation_m'
 
-env <- c(bc, gdd5, cmi, pet, elevation)
+env <- c(bc, gdd5, cmi, pet, insol, elevation)
 
 occs <- project(occs, env)
 env_at_occs_by_cell <- extract(env, occs, weights = TRUE)
@@ -128,6 +142,8 @@ occs$aridity <- occs$bio1 / occs$bio12
 ##########################
 say('extract soil variables', level = 2)
 
+# Rasters are too fine resolution to extract across a county then average without running into memory issues. To fix this, we'll crop the raster to the county extent (plus a buffer), then extract from there.
+
 # Average values across counties, using weighted means.
 
 ph <- rast(paste0(drive, '/Research Data/SoilGrids/SoilGrids 2.0/phh2o_0-5cm_mean_northAmerica.tif'))
@@ -144,54 +160,56 @@ names(silt) <- 'silt'
 names(sand) <- 'sand'
 names(soc) <- 'SOC'
 
+
 ph <- ph / 10
 cec <- cec / 1000
-clay <- cec / 1000
+clay <- clay / 1000
 silt <- silt / 1000
 sand <- sand / 1000
 soc <- soc / 100
 
-stop('The following code runs into a memory error. I think this occurs because the cells are very small and it is trying to extract from all rasters at once. Need to try one raster at a time.')
-
+vars <- c('pH', 'CEC', 'clay', 'silt', 'sand', 'SOC')
 soil <- c(ph, cec, clay, silt, sand, soc)
+names(soil) <- vars
 occs <- project(occs, soil)
 
-soil_at_occs_by_cell <- extract(soil, occs, weights = TRUE)
+occs$soc <- occs$sand <- occs$silt <- occs$clay <- occs$cec <- occs$ph <- NA_real_
 
-# calculate weighted average values
-# weights are proportion of each cell covered by the polygon
-env_at_occs <- data.frame()
+for (i in 1:nrow(occs)) {
 
-vars <- names(env_at_occs_by_cell)
-vars <- vars[vars %notin% c('ID', 'weight')]
-IDs <- unique(env_at_occs_by_cell$ID)
+	say(i, ' ', nrow(occs))
 
-for (ID in IDs) {
-
-	vals <- rep(NA_real_, length(vars))
-	names(vals) <- vars
+	county <- occs[i]
+	county <- buffer(county, 500)
+	county <- ext(county)
+	county <- as.polygons(county, crs = crs(occs))
 	
-	weight <- env_at_occs_by_cell$weight[env_at_occs_by_cell$ID == ID]
-	weight_sum <- sum(weight, na.rm = TRUE)
-	
+	county_soils <- crop(soil, county)
+	county_soils <- extract(county_soils, county, weights = TRUE, ID = FALSE)
+
 	for (var in vars) {
 	
-		var_vals <- env_at_occs_by_cell[env_at_occs_by_cell$ID == ID, var]
-		val <- sum(var_vals * weight, na.rm = TRUE) / weight_sum
-
-		vals[[var]] <- val
+		county_soils[ , var] <- county_soils[ , var] * county_soils$weight
 	
 	}
 	
-	vals <- round(vals, 2)
-	vals <- rbind(vals)
-	env_at_occs <- rbind(env_at_occs, vals, make.row.names = FALSE)
+	county_soils <- colSums(county_soils, na.rm = TRUE)
+	for (var in vars) {
+	
+		county_soils[[var]] <- county_soils[[var]] / county_soils[['weight']]
+	
+	}
+	
+	occs$soc[i] <- county_soils[['SOC']]
+	occs$sand[i] <- county_soils[['sand']]
+	occs$silt[i] <- county_soils[['silt']]
+	occs$clay[i] <- county_soils[['clay']]
+	occs$cec[i] <- county_soils[['CEC']]
+	occs$ph[i] <- county_soils[['pH']]
 
 }
 
-occs <- cbind(occs, env_at_occs)
-
-occs <- project(occs, getCRS('wgs84'))
+occs <- project(occs, insol)
 writeVector(occs, './data/occurrence_data/andropogon_gerardi_occurrences_with_environment2.gpkg', overwrite = TRUE)
 
 ### meta-data
@@ -229,7 +247,8 @@ sink('./data/occurrence_data/andropogon_gerardi_occurrences_with_environment_REA
 	say('aridity .................. meat annual temperature / total annual precipitation (deg C / mm)')
 	
 	say('SOIL DATA from SoilGrids Version 2.0 (https://www.isric.org/explore/soilgrids/soilgrids-access)', pre = 1)
-	say('ph ....................... pH')
+	say('All values are for depth 0 to 5 cm.')
+	say('ph ....................... pH, measured in water')
 	say('CEC ...................... cation exchange capacity, meq/100 g of soil')
 	say('sand, silt, clay ......... unit-less (proportion: [0, 1])')
 	say('SOC ...................... soil organic carbon (kg of C / m2 ???)')
