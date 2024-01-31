@@ -4,7 +4,7 @@
 ### This script constructs a non-integrated model for AG geographic distribution.
 ###
 ### source('C:/Ecology/Drive/Research/Andropogon/Andropogon/andropogon_integratedEcology/sdm_02_nonintegrated_model_n_mixture.r')
-### source('E:/Adam/Research/Andropogon/Andropogon/andropogon_integratedEcology/sdm_02_nonintegrated_model_n_mixture.r')
+### source('E:/Adam/R/andropogon_integratedEcology/sdm_02_nonintegrated_model_n_mixture.r')
 ###
 ### CONTENTS ###
 ### setup ###
@@ -17,8 +17,8 @@
 
 rm(list = ls())
 
-drive <- 'C:/Ecology/Drive/'
-# drive <- 'E:/Adam/'
+# drive <- 'C:/Ecology/Drive/'
+drive <- 'E:/Adam/'
 
 .libPaths(paste0(drive, '/R/libraries'))
 setwd(paste0(drive, '/Research/Andropogon/Andropogon'))
@@ -41,7 +41,8 @@ say('##############################')
                      # 'pet_warmest_quarter_mm', 'gdd_5_deg',
                      # 'climatic_moisture_index')
 
-predictor_names <- c('bio2', 'bio7', 'bio12', 'bio15', 'aridity')
+# predictor_names <- c('bio2', 'bio7', 'bio12', 'bio15', 'aridity') # without soil
+predictor_names <- c('aridity', 'bio7', 'bio2', 'sand', 'bio12', 'bio15', 'cec', 'soc', 'silt') # with soil
 
 say('We are using predictors: ', paste(predictor_names, collapse = ' '))
 
@@ -49,7 +50,7 @@ say('##########################')
 say('### non-integrated SDM ###')
 say('##########################')
 
-say('This model is for the spatial distribution of AG. Currently, it assumes distribution is driven only by climate. We should later consider adding soil. Occurrences are at the county level, so county area is used as an offset.', breaks = 60)
+say('This model is for the spatial distribution of AG. Currently, it assumes distribution is driven only by climate. Occurrences are at the county level, so county area is used as an offset.', breaks = 60)
 
 ### load data
 ag_vect <- vect('./data/occurrence_data/andropogon_gerardi_occurrences_with_environment.gpkg')
@@ -279,6 +280,7 @@ ag_vect_focus$quant_col[ag_vect_focus$lambda_mean >= quants[3] & ag_vect_focus$l
 ag_vect_focus$quant_col[ag_vect_focus$lambda_mean >= quants[4]] <- alpha('forestgreen', 1)
 
 nam <- vect(paste0(drive, '/Research Data/GADM/Version 4.1/High Res North America Level 1 sans Great Lakes SpatVector WGS84.gpkg'))
+nam <- project(nam, ag_vect)
 png('./outputs/sdm_lambda.png', width = 1200, height = 1000, res = 300)
 
 	par(oma = rep(0, 4), mar = rep(0, 4))
