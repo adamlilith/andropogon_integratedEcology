@@ -8,8 +8,9 @@
 ###
 ### CONTENTS ###
 ### setup ###
-### user-defined constants ###
-
+### non-integrated SDM ###
+### model diagnostics ###
+### map of current distribution ###
 
 #############
 ### setup ###
@@ -26,33 +27,59 @@ setwd(paste0(drive, '/Research/Andropogon/Andropogon'))
 library(bayesplot) # graphing
 library(coda) # Bayesian diagnostics
 library(nimble) # Bayes
-library(nimbleHMC) # Hamiltonian Monte Carlo samplers
+# library(nimbleHMC) # Hamiltonian Monte Carlo samplers
 library(omnibus)
 library(scales) # for plotting transparency
 library(terra) # spatial objects
 
-say('##############################')
-say('### user-defined constants ###')
-say('##############################')
-
-# predictor terms selected using glmnet
-# predictor_names <- c('bio2', 'bio3', 'bio4', 'bio5', 'bio6', 
-                     # 'bio7', 'bio10', 'bio12', 'bio15', 'bio18', 'bio19', 
-                     # 'pet_warmest_quarter_mm', 'gdd_5_deg',
-                     # 'climatic_moisture_index')
-
-# predictor_names <- c('bio2', 'bio7', 'bio12', 'bio15', 'aridity') # without soil
-predictor_names <- c('aridity', 'bio7', 'bio2', 'sand', 'bio12', 'bio15', 'cec', 'soc', 'silt') # with soil
-
-say('We are using predictors: ', paste(predictor_names, collapse = ' '))
-
+sink('./outputs/nonintegrated_sdm.txt', split = TRUE)
+say()
 say('##########################')
 say('### non-integrated SDM ###')
 say('##########################')
+say(date(), post = 1)
 
-say('This model is for the spatial distribution of AG. Currently, it assumes distribution is driven only by climate. Occurrences are at the county level, so county area is used as an offset.', breaks = 60)
+say('This model is for the spatial distribution of AG. Currently, it assumes distribution is driven only by climate. Occurrences are at the county level, so county area is used as an offset.', breaks = 60, post = 1)
 
-### load data
+### MCMC settings
+niter <- 40000
+nburnin <- 20000
+thin <- 20
+nchains <- 4
+
+say('MCMC settings:', level = 2)
+say('niter ......', niter)
+say('nburnin ... ', nburnin)
+say('thin .......', thin)
+say('nchains ... ', nchains, post = 1)
+
+### model predictors and terms
+say('Predictors and model formula:', level = 2)
+
+predictor_names <- c('aridity', 'bio7', 'bio2', 'sand', 'bio12', 'bio15', 'cec', 'soc', 'silt')
+say('We are using predictors: ', paste(predictor_names, collapse = ' '), post = 1)
+
+preselected_model_terms <- read.csv('./outputs/sig_coeffs_elastic_net_2024_02_20.csv')
+
+# get vector of linear predictors... we need to ensure all predictors appear at least as linear terms to respect marginality
+terms <- preselected_model_terms$term
+terms <- terms[terms %notin% c('(Intercept)', 'log_area_km2')]
+linear_terms <- gsub(terms, pattern = 'I\\(', replacement = '')
+linear_terms <- gsub(linear_terms, pattern = '\\^2)', replacement = '')
+linear_terms <- strsplit(linear_terms, ':')
+linear_terms <- unlist(linear_terms)
+linear_terms <- unique(linear_terms)
+linear_terms <- sort(linear_terms)
+
+# get non-linear terms
+terms <- terms[terms %notin% linear_terms]
+
+# create model formula
+form <- paste0(' ~ 1 + log_area_km2 +', paste(c(linear_terms, terms), collapse = ' + '))
+say('Model formula:')
+say(form, post = 1, breaks = 80)
+
+### load AG data
 ag_vect <- vect('./data/occurrence_data/andropogon_gerardi_occurrences_with_environment.gpkg')
 
 fields <- c('area_km2', 'any_ag_quality1to3', 'num_poaceae_records', predictor_names)
@@ -65,7 +92,7 @@ ag_vect_focus <- ag_vect[completes, ]
 
 ### collate data
 
-### county area
+### county area... used as an offset to make underlying model fit an IPP
 area_km2 <- ag_focus$area_km2
 log_area_km2 <- log(area_km2)
 log_area_km2_scaled <- scale(log_area_km2)
@@ -74,42 +101,26 @@ log_area_scale <- attributes(log_area_km2_scaled)$`scaled:scale`
 
 log_area_km2_scaled <- log_area_km2_scaled[ , 1]
 
-### number of Poaceae records
+### number of Poaceae records... used to model sampling bias
 log_num_poaceae_records <- log1p(ag_focus$num_poaceae_records) # log(x + 1)
 log_num_poaceae_records_scaled <- scale(log_num_poaceae_records)
 log_num_poaceae_records_scaled <- log_num_poaceae_records_scaled[ , 1]
 
-### PCA on predictors
-x_raw <- as.data.frame(ag_focus[ , predictor_names])
-x_scaled <- scale(x_raw)
-centers <- attributes(x_scaled)$`scaled:center`
-scales <- attributes(x_scaled)$`scaled:scale`
-
-### construct model matrix
-form <- paste0('~ 1 + ',
-	paste(predictor_names, sep = '', collapse = ' + '),
-	' + ',
-	paste('I(', predictor_names, '^2)', sep = '', collapse = ' + ')
-)
-
-for (i in 1:(length(predictor_names) - 1)) {
-	for (j in (i + 1):length(predictor_names)) {
-		form <- paste0(form, ' + ', predictor_names[i], ':', predictor_names[j])
-	}
-}
+### subset, scale, and manipulate predictors into model frame
 form <- as.formula(form)
+x_raw <- as.data.frame(ag_focus[ , c('area_km2', predictor_names)])
+log_area_km2 <- log(x_raw$area_km2)
+log_area_km2 <- data.frame(log_area_km2 = log_area_km2)
+x_raw$area_km2 <- NULL
+x_raw <- cbind(log_area_km2, x_raw)
+x_raw_scaled <- scale(x_raw)
+x_raw_scaled <- as.data.frame(x_raw_scaled)
+x <- model.matrix(form, as.data.frame(x_raw_scaled))
 
-x <- model.matrix(form, as.data.frame(x_scaled))
-
-# okay, we've just made the data frame with all the predictors we're going to
-# use. Now we're going to run the SDM in Nimble
-
-##########################################
-
-### make nimble lists (data, constants, initializations)
-
+### inputs for nimble
+say('Inputs:', level = 2)
 data <- list(
-	y = ag_focus$any_ag_quality1to3
+	y = ag_focus$any_ag_quality1to3 # number of AG records in each county
 )
 
 n_counties <- nrow(ag_focus)
@@ -119,7 +130,6 @@ constants <- list(
   n_counties = n_counties,
   n_sdm_terms = n_sdm_terms,
   x = x,
-  log_area_km2_scaled = log_area_km2_scaled,
   log_num_poaceae_records_scaled = log_num_poaceae_records_scaled
 )
 
@@ -132,42 +142,53 @@ inits <- list(
   lambda = 100 * ag_focus$any_ag_quality1to3
 )
 
+say('Data:')
+print(str(data))
+
+say('Constants:', pre = 1)
+print(str(constants))
+
+say('Initializations:', pre = 1)
+print(str(inits))
+
 ### define model
+say('nimbleCode():', level = 2)
 model_code <- nimbleCode({
   
-  # priors
-  beta[1] ~ dnorm(0, sd = 10) # intercept... not regularized
-  for (j in 2:n_sdm_terms) {
-    beta[j] ~ ddexp(0, rate = 1) # regularization toward 0
-    # beta[j] ~ dnorm(0, sd = 10) # broad prior
-  }
-  
-  alpha0_sampling ~ dnorm(0, sd = 10)
-  alpha_area ~ dnorm(0, sd = 10)
-  alpha_poaceae ~ dnorm(0, sd = 10)
-  
-  # likelihood
-  for (i in 1:n_counties) {    # this specifies estimates be made for each county
-    
-	### actual abundance (latent--unobserved)
-    N[i] ~ dpois(lambda[i])
-    
-	# relationship between latent abundance and environment
-	log(lambda[i]) <- inprod(beta[1:n_sdm_terms], x[i, 1:n_sdm_terms])
+	# priors for relationship to environment
+	beta[1] ~ dnorm(0, sd = 10) # intercept... not regularized
+	for (j in 2:n_sdm_terms) {
+		beta[j] ~ ddexp(0, rate = 1) # regularization toward 0
+		# beta[j] ~ dnorm(0, sd = 10) # broad prior
+	}
 
-	### observed number of AG
-	y[i] ~ dbin(prob = p[i], size = N[i])
-	
-	# sampling bias
-	logit(p[i]) <- alpha0_sampling +
+	# priors for sampling bias
+	alpha0_sampling ~ dnorm(0, sd = 10)
+	alpha_area ~ dnorm(0, sd = 10)
+	alpha_poaceae ~ dnorm(0, sd = 10)
+
+	# likelihood
+	for (i in 1:n_counties) {    # this specifies estimates be made for each county
+		
+		### actual abundance (latent--unobserved)
+		N[i] ~ dpois(lambda[i])
+
+		# relationship between latent abundance and environment
+		log(lambda[i]) <- inprod(beta[1:n_sdm_terms], x[i, 1:n_sdm_terms])
+
+		### observed number of AG
+		y[i] ~ dbin(prob = p[i], size = N[i])
+
+		# sampling bias
+		logit(p[i]) <- alpha0_sampling +
 		alpha_area * log_area_km2_scaled[i] +
 		alpha_poaceae * log_num_poaceae_records_scaled[i]
 
-  }
-  
+	}
   
 })
 
+say('nimbleModel():', level = 2)
 model_species <- nimbleModel(
 	code = model_code, # our model
 	constants = constants, # constants
@@ -178,12 +199,11 @@ model_species <- nimbleModel(
 	# buildDerivs = TRUE # need for Hamiltonian Monte Carlo
 )
 
+say('$initializeInfo() and $calculate():', level = 2)
 model_species$initializeInfo()
 model_species$calculate()
 
-set.seed(2069)
-
-say('Turn on WAIC for final runs!')
+say('configureMCMC():', level = 2)
 monitors <- c('beta', 'alpha0_sampling', 'alpha_area', 'alpha_poaceae', 'lambda')
 conf <- configureMCMC(
   model_species,
@@ -202,10 +222,10 @@ compiled <- compileNimble(model_species, build, showCompilerOutput = FALSE)
 
 chains <- runMCMC(
   compiled$build,
-  niter = 40000,
-  nburnin = 20000,
-  thin = 20,
-  nchains = 4,
+  niter = niter,
+  nburnin = nburnin,
+  thin = thin,
+  nchains = nchains,
   inits = inits,
   progressBar = TRUE,
   samplesAsCodaMCMC = TRUE,
@@ -214,95 +234,105 @@ chains <- runMCMC(
   perChainWAIC = FALSE
 )
 
-saveRDS(chains, './outputs/sdm_chains.rds')
+saveRDS(chains, './outputs/nonintegrated_sdm_chains.rds')
 
-# graphing trace plots for all betas
-png('./outputs/sdm_beta_trace.png', width = 1800, height = 1200)
-pars <- paste0('beta[', 1:n_sdm_terms, ']')
-print(mcmc_trace(chains$samples, pars = pars))
-dev.off()
+say(date())
+sink()
 
-# graphing trace plots for all "extra" betas
-png('./outputs/sdm_beta_extra_trace.png', width = 1500, height = 800)
-pars <- c('alpha0_sampling', 'alpha_poaceae', 'alpha_area')
-print(mcmc_trace(chains$samples, pars = pars))
-dev.off()
+# say('#########################')
+# say('### model diagnostics ###')
+# say('#########################')
 
-# graphing density plots for all betas
-png('./outputs/sdm_beta_density.png', width = 1800, height = 1200)
-pars <- paste0('beta[', 1:n_sdm_terms, ']')
-print(mcmc_dens_overlay(chains$samples, pars = pars))
-dev.off()
+# load('./outputs/sdm_chains.rds')
 
-# graphing trace plots for all "extra" betas
-png('./outputs/sdm_beta_extra_density.png', width = 2000, height = 800)
-pars <- c('alpha0_sampling', 'alpha_poaceae', 'alpha_area')
-print(mcmc_dens_overlay(chains$samples, pars = pars))
-dev.off()
+# # graphing trace plots for all betas
+# png('./outputs/sdm_beta_trace.png', width = 1800, height = 1200)
+# pars <- paste0('beta[', 1:n_sdm_terms, ']')
+# print(mcmc_trace(chains$samples, pars = pars))
+# dev.off()
 
-# # graph the posterior probability of occurrence
-# pars <- paste0('beta[', 1:3, ']')
-# #mcmc_combo(chains$samples, pars = 'lambda[1]')
-# mcmc_combo(chains$samples, pars = pars)
-# #dev.off()
+# # graphing trace plots for all "extra" betas
+# png('./outputs/sdm_beta_extra_trace.png', width = 1500, height = 800)
+# pars <- c('alpha0_sampling', 'alpha_poaceae', 'alpha_area')
+# print(mcmc_trace(chains$samples, pars = pars))
+# dev.off()
 
-################
-# now we have a 'chains' object with the lambda's, which are the county-level 
-# probability of occurrence
+# # graphing density plots for all betas
+# png('./outputs/sdm_beta_density.png', width = 1800, height = 1200)
+# pars <- paste0('beta[', 1:n_sdm_terms, ']')
+# print(mcmc_dens_overlay(chains$samples, pars = pars))
+# dev.off()
 
-# str(chains)
-# corner(chains$summary$all.chains)
-# head(chains$summary$all.chains, 40)
+# # graphing trace plots for all "extra" betas
+# png('./outputs/sdm_beta_extra_density.png', width = 2000, height = 800)
+# pars <- c('alpha0_sampling', 'alpha_poaceae', 'alpha_area')
+# print(mcmc_dens_overlay(chains$samples, pars = pars))
+# dev.off()
 
-### map of current distribution
-###############################
+# # # graph the posterior probability of occurrence
+# # pars <- paste0('beta[', 1:3, ']')
+# # #mcmc_combo(chains$samples, pars = 'lambda[1]')
+# # mcmc_combo(chains$samples, pars = pars)
+# # #dev.off()
 
-# subset chain summary to just the lambda's associated with background sites
-summary <- chains$summary$all.chains
+# ################
+# # now we have a 'chains' object with the lambda's, which are the county-level 
+# # probability of occurrence
 
-which_lambda <- grepl(rownames(summary), pattern = 'lambda')
-lambda <- summary[which_lambda, ]
+# # str(chains)
+# # corner(chains$summary$all.chains)
+# # head(chains$summary$all.chains, 40)
 
-# # get just counties with data
-ag_vect_focus$lambda_mean <- lambda[ , 'Mean']
-ag_vect_focus$lambda_0.05ci <- lambda[ , '95%CI_low']
-ag_vect_focus$lambda_0.95ci <- lambda[ , '95%CI_upp']
-ag_vect_focus$lambda_ci <- ag_vect_focus$lambda_0.95ci - ag_vect_focus$lambda_0.05ci
+# say('###################################')
+# say('### map of current distribution ###')
+# say('###################################')
 
-ag_vect_outline <- crop(ag_vect, ext(ag_vect_focus))
+# # subset chain summary to just the lambda's associated with background sites
+# summary <- chains$summary$all.chains
 
-quants <- quantile(ag_vect_focus$lambda_mean, c(0.25, 0.5, 0.75, 0.95))
-ag_vect_focus$quant_col <- NA
-ag_vect_focus$quant_col[ag_vect_focus$lambda_mean < quants[1]] <- 'gray90'
-ag_vect_focus$quant_col[ag_vect_focus$lambda_mean >= quants[1] & ag_vect_focus$lambda_mean < quants[2]] <- alpha('forestgreen', 0.25)
-ag_vect_focus$quant_col[ag_vect_focus$lambda_mean >= quants[2] & ag_vect_focus$lambda_mean < quants[3]] <- alpha('forestgreen', 0.5)
-ag_vect_focus$quant_col[ag_vect_focus$lambda_mean >= quants[3] & ag_vect_focus$lambda_mean < quants[4]] <- alpha('forestgreen', 0.75)
-ag_vect_focus$quant_col[ag_vect_focus$lambda_mean >= quants[4]] <- alpha('forestgreen', 1)
+# which_lambda <- grepl(rownames(summary), pattern = 'lambda')
+# lambda <- summary[which_lambda, ]
 
-nam <- vect(paste0(drive, '/Research Data/GADM/Version 4.1/High Res North America Level 1 sans Great Lakes SpatVector WGS84.gpkg'))
-nam <- project(nam, ag_vect)
-png('./outputs/sdm_lambda.png', width = 1200, height = 1000, res = 300)
+# # # get just counties with data
+# ag_vect_focus$lambda_mean <- lambda[ , 'Mean']
+# ag_vect_focus$lambda_0.05ci <- lambda[ , '95%CI_low']
+# ag_vect_focus$lambda_0.95ci <- lambda[ , '95%CI_upp']
+# ag_vect_focus$lambda_ci <- ag_vect_focus$lambda_0.95ci - ag_vect_focus$lambda_0.05ci
 
-	par(oma = rep(0, 4), mar = rep(0, 4))
+# ag_vect_outline <- crop(ag_vect, ext(ag_vect_focus))
 
-	plot(ag_vect_focus, col = NA, border = NA)
-	plot(ag_vect, col = 'gray95', border = NA, add = TRUE)
-	col <- ag_vect_focus$quant_col
-	plot(ag_vect_focus, col = col, border = NA, lwd = 0.01, add = TRUE)
-	plot(nam, border = 'gray65', lwd = 0.01, add = TRUE)
+# quants <- quantile(ag_vect_focus$lambda_mean, c(0.25, 0.5, 0.75, 0.95))
+# ag_vect_focus$quant_col <- NA
+# ag_vect_focus$quant_col[ag_vect_focus$lambda_mean < quants[1]] <- 'gray90'
+# ag_vect_focus$quant_col[ag_vect_focus$lambda_mean >= quants[1] & ag_vect_focus$lambda_mean < quants[2]] <- alpha('forestgreen', 0.25)
+# ag_vect_focus$quant_col[ag_vect_focus$lambda_mean >= quants[2] & ag_vect_focus$lambda_mean < quants[3]] <- alpha('forestgreen', 0.5)
+# ag_vect_focus$quant_col[ag_vect_focus$lambda_mean >= quants[3] & ag_vect_focus$lambda_mean < quants[4]] <- alpha('forestgreen', 0.75)
+# ag_vect_focus$quant_col[ag_vect_focus$lambda_mean >= quants[4]] <- alpha('forestgreen', 1)
 
-dev.off()
+# nam <- vect(paste0(drive, '/Research Data/GADM/Version 4.1/High Res North America Level 1 sans Great Lakes SpatVector WGS84.gpkg'))
+# nam <- project(nam, ag_vect)
+# png('./outputs/sdm_lambda.png', width = 1200, height = 1000, res = 300)
 
-png('./outputs/sdm_lambda_90ci_vs_mean.png', width = 1200, height = 1000, res = 300)
+	# par(oma = rep(0, 4), mar = rep(0, 4))
 
-	par(oma = rep(0, 4), mar = rep(0, 4))
+	# plot(ag_vect_focus, col = NA, border = NA)
+	# plot(ag_vect, col = 'gray95', border = NA, add = TRUE)
+	# col <- ag_vect_focus$quant_col
+	# plot(ag_vect_focus, col = col, border = NA, lwd = 0.01, add = TRUE)
+	# plot(nam, border = 'gray65', lwd = 0.01, add = TRUE)
 
-	plot(ag_vect_focus, col = NA, border = NA)
-	plot(ag_vect, col = 'gray95', border = NA, add = TRUE)
-	col <- ag_vect_focus$lambda_ci / ag_vect_focus$lambda_mean
-	col <- col - min(col)
-	col <- col / max(col)
-	plot(ag_vect_focus, col = alpha('darkred', col), border = NA, lwd = 0.01, add = TRUE)
-	plot(nam, border = 'gray65', lwd = 0.01, add = TRUE)
+# dev.off()
 
-dev.off()
+# png('./outputs/sdm_lambda_90ci_vs_mean.png', width = 1200, height = 1000, res = 300)
+
+	# par(oma = rep(0, 4), mar = rep(0, 4))
+
+	# plot(ag_vect_focus, col = NA, border = NA)
+	# plot(ag_vect, col = 'gray95', border = NA, add = TRUE)
+	# col <- ag_vect_focus$lambda_ci / ag_vect_focus$lambda_mean
+	# col <- col - min(col)
+	# col <- col / max(col)
+	# plot(ag_vect_focus, col = alpha('darkred', col), border = NA, lwd = 0.01, add = TRUE)
+	# plot(nam, border = 'gray65', lwd = 0.01, add = TRUE)
+
+# dev.off()
