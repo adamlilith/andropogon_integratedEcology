@@ -3,7 +3,7 @@
 ###
 ### This script constructs a non-integrated model for AG geographic distribution.
 ###
-### source('C:/Ecology/Drive/Research/Andropogon/Andropogon/andropogon_integratedEcology/sdm_02_nonintegrated_model_n_mixture.r')
+### source('C:/Ecology/R/andropogon_integratedEcology/sdm_02_nonintegrated_model_n_mixture.r')
 ### source('E:/Adam/R/andropogon_integratedEcology/sdm_02_nonintegrated_model_n_mixture.r')
 ###
 ### CONTENTS ###
@@ -18,8 +18,8 @@
 
 rm(list = ls())
 
-# drive <- 'C:/Ecology/Drive/'
-drive <- 'E:/Adam/'
+drive <- 'C:/Ecology/'
+# drive <- 'E:/Adam/'
 
 .libPaths(paste0(drive, '/R/libraries'))
 setwd(paste0(drive, '/Research/Andropogon/Andropogon'))
@@ -42,9 +42,9 @@ say(date(), post = 1)
 say('This model is for the spatial distribution of AG. Currently, it assumes distribution is driven only by climate. Occurrences are at the county level, so county area is used as an offset.', breaks = 60, post = 1)
 
 ### MCMC settings
-niter <- 40000
-nburnin <- 20000
-thin <- 20
+niter <- 90000
+nburnin <- 10000
+thin <- 80
 nchains <- 4
 
 say('MCMC settings:', level = 2)
@@ -56,10 +56,11 @@ say('nchains ... ', nchains, post = 1)
 ### model predictors and terms
 say('Predictors and model formula:', level = 2)
 
-predictor_names <- c('aridity', 'bio7', 'bio2', 'sand', 'bio12', 'bio15', 'cec', 'soc', 'silt')
+# predictor_names <- c('aridity', 'bio7', 'bio2', 'sand', 'bio12', 'bio15', 'cec', 'soc', 'silt')
+predictor_names <- c('aridity', 'bio7', 'ph', 'sand', 'bio12', 'bio15', 'cec', 'soc', 'silt')
 say('We are using predictors: ', paste(predictor_names, collapse = ' '), post = 1)
 
-preselected_model_terms <- read.csv('./outputs/sig_coeffs_elastic_net_2024_02_20.csv')
+preselected_model_terms <- read.csv('./outputs/sig_coeffs_elastic_net_2024_06_04.csv')
 
 # get vector of linear predictors... we need to ensure all predictors appear at least as linear terms to respect marginality
 terms <- preselected_model_terms$term
@@ -153,6 +154,7 @@ print(str(inits))
 
 ### define model
 say('nimbleCode():', level = 2)
+say('We assume an N-mixture model (latent, real abundance ~ Poisson, and observations ~ binomial draws from latent abundance.')
 model_code <- nimbleCode({
   
 	# priors for relationship to environment
@@ -180,8 +182,7 @@ model_code <- nimbleCode({
 		y[i] ~ dbin(prob = p[i], size = N[i])
 
 		# sampling bias
-		logit(p[i]) <- alpha0_sampling +
-		alpha_area * log_area_km2_scaled[i] + alpha_poaceae * log_num_poaceae_records_scaled[i]
+		logit(p[i]) <- alpha0_sampling + alpha_area * log_area_km2_scaled[i] + alpha_poaceae * log_num_poaceae_records_scaled[i]
 
 	}
   
