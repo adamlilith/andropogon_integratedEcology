@@ -3,8 +3,8 @@
 ###
 ### This script calibrates and evaluates a Hierarchical Modeling of Species Communities (HMSC) model for microbes associated with Andropogon gerardi.
 ###
-### source('C:/Ecology/Research/Andropogon/Andropogon/andropogon_integratedEcology/hmsc_vs_microbes/microbes_02_hmsc_vs_microbes.r')
-### source('E:/Adam/Research/Andropogon/Andropogon/andropogon_integratedEcology/hmsc_vs_microbes/microbes_02_hmsc_vs_microbes.r')
+### source('C:/Ecology/Research/Andropogon/Andropogon/andropogon_integratedEcology/hmsc_vs_microbes/microbes_02_run_hmsc_model.r')
+### source('E:/Adam/Research/Andropogon/Andropogon/andropogon_integratedEcology/hmsc_vs_microbes/microbes_02_run_hmsc_model.r')
 ###
 ### CONTENTS ###
 ### setup ###
@@ -16,7 +16,7 @@
 ### parameter estimates ###
 ### predictions ###
 ### create rasters of predictions ###
-### make maps for supplemental figures ###
+### make maps of predicted abundance for each taxon ###
 
 #############
 ### setup ###
@@ -25,11 +25,11 @@
 rm(list = ls())
 set.seed(1)
 
-drive <- 'C:/Ecology/'
-# drive <- 'E:/Adam/'
+# drive <- 'C:/Ecology/'
+drive <- 'E:/Adam/'
 
-workDir <- 'C:/Ecology/Research/Andropogon/Andropogon/'
-# workDir <- 'E:/Adam/Research/Andropogon/Andropogon/'
+# workDir <- 'C:/Ecology/Research/Andropogon/Andropogon/'
+workDir <- 'E:/Adam/Research/Andropogon/Andropogon/'
 
 setwd(workDir)
 
@@ -52,9 +52,11 @@ library(viridis) # colors
 ### settings ###
 ################
 
-	output_subfolder <- 'hmsc_[sampling_linear]_[climate_linear_quadratic]_[soil_linear_quadratic]_[traits]_[sans_phylo]_[poisson]'
+	# output_subfolder <- 'hmsc_[sampling_linear]_[climate_linear_quadratic]_[soil_linear_quadratic]_[ag_linear_quadratic]_[sans_traits]_[sans_phylo]_[poisson]'
+	output_subfolder <- 'hmsc_[sampling_linear]_[climate_linear_quadratic_ia]_[soil_linear_quadratic]_[ag]_[sans_traits]_[sans_phylo]_[sans_sac]_[poisson]'
 
 	quant_common_species <- 0.5 # analyze species with sum of all abundances across sites >= this quantile
+	# quant_common_species <- 0 # analyze species with sum of all abundances across sites >= this quantile
 
 	# response <- 'lognormal poisson' # gives very extreme values
 	response <- 'poisson'
@@ -62,42 +64,18 @@ library(viridis) # colors
 	x_formula <- ~ + sampling_ppt_mm +
 		summer_tmean_C +
 		annual_ppt_mm + I(annual_ppt_mm^2) +
+		summer_tmean_C:annual_ppt_mm +
 		ppt_cv + I(ppt_cv^2) +
-		pH + I(pH^2) + soc + I(soc^2) + soil_n + I(soil_n^2) + clay + I(clay^2) + sand + I(clay^2)
-	predictors <- c('sampling_ppt_mm', 'summer_tmean_C', 'annual_ppt_mm', 'ppt_cv', 'pH', 'soc', 'soil_n', 'clay', 'sand')
+		pH + I(pH^2) + soc + I(soc^2) + soil_n + I(soil_n^2) + clay + I(clay^2) + sand + I(clay^2) +
+		ag_lambda
+	predictors <- c('sampling_ppt_mm', 'summer_tmean_C', 'annual_ppt_mm', 'ppt_cv', 'pH', 'soc', 'soil_n', 'clay', 'sand', 'ag_lambda')
+	# predictors <- c('sampling_ppt_mm', 'summer_tmean_C', 'annual_ppt_mm', 'ppt_cv', 'pH', 'ag_lambda')
 	
-	# x_formula <- ~ + sampling_ppt_mm +
-	# 	summer_tmean_C + I(summer_tmean_C^2) +
-	# 	annual_ppt_mm + I(annual_ppt_mm^2) +
-	# 	ppt_cv + I(ppt_cv^2)
-	# predictors <- c('sampling_ppt_mm', 'summer_tmean_C', 'annual_ppt_mm', 'ppt_cv')
-	
-	# x_formula <- ~ sampling_ppt_mm + summer_tmean_C + annual_ppt_mm + summer_tmean_C:annual_ppt_mm + ppt_cv + I(summer_tmean_C^2) + I(annual_ppt_mm^2) + I(ppt_cv^2)
-	# predictors <- c('sampling_ppt_mm', 'summer_tmean_C', 'annual_ppt_mm', 'ppt_cv')
+	# include_traits <- TRUE
+	include_traits <- FALSE
 
-	# x_formula <- ~ sampling_ppt_mm + summer_tmean_C + annual_ppt_mm + summer_tmean_C:annual_ppt_mm + ppt_cv + I(summer_tmean_C^2) + I(annual_ppt_mm^2) + I(ppt_cv^2) + pH
-	# predictors <- c('sampling_ppt_mm', 'summer_tmean_C', 'annual_ppt_mm', 'ppt_cv', 'pH')
-
-	# x_formula <- ~ sampling_ppt_mm + summer_tmean_C + annual_ppt_mm + summer_tmean_C:annual_ppt_mm + ppt_cv + pH
-	# predictors <- c('sampling_ppt_mm', 'summer_tmean_C', 'annual_ppt_mm', 'ppt_cv', 'pH')
-
-	# x_formula <- ~ sampling_ppt_mm + summer_tmean_C + annual_ppt_mm + summer_tmean_C:annual_ppt_mm + ppt_cv + pH + I(pH^2)
-	# predictors <- c('sampling_ppt_mm', 'summer_tmean_C', 'annual_ppt_mm', 'ppt_cv', 'pH')
-
-	# x_formula <- ~ sampling_ppt_mm + summer_tmean_C + I(summer_tmean_C^2) + annual_ppt_mm + summer_tmean_C:annual_ppt_mm + ppt_cv + pH
-	# predictors <- c('sampling_ppt_mm', 'summer_tmean_C', 'annual_ppt_mm', 'ppt_cv', 'pH')
-
-	# x_formula <- ~ sampling_ppt_mm + summer_tmean_C + I(summer_tmean_C^2) + annual_ppt_mm + I(annual_ppt_mm^2) + summer_tmean_C:annual_ppt_mm + ppt_cv + I(ppt_cv^2)
-	# predictors <- c('sampling_ppt_mm', 'summer_tmean_C', 'annual_ppt_mm', 'ppt_cv')
-
-	# x_formula <- ~ sampling_ppt_mm + summer_tmean_C + I(summer_tmean_C^2) + annual_ppt_mm + I(annual_ppt_mm^2) + ppt_cv + I(ppt_cv^2)
-	# predictors <- c('sampling_ppt_mm', 'summer_tmean_C', 'annual_ppt_mm', 'ppt_cv')
-
-	include_traits <- TRUE
-	# include_traits <- FALSE
-
-	# include_phylogeny <- TRUE # include phylogeny
-	include_phylogeny <- FALSE # do not include
+	include_phylogeny <- TRUE # include phylogeny
+	# include_phylogeny <- FALSE # do not include
 
 	# number of MCMC iterations in the final result (ie, not number of total MCMC iterations!)
 	samples <- 1000
@@ -107,10 +85,10 @@ library(viridis) # colors
 	transient <- NULL
 
 	# thinning rate
-	thin <- 10
+	thin <- 100
 
 	nParallel <- 1 # default: nParallel = nChains, set to 1 to disable parallel execution, values >1 --> no sampling!?!
-	nChains <- 2
+	nChains <- 4
 
 	nfolds <- 4 # folds for cross-validation
 
@@ -147,36 +125,37 @@ say('###################')
 
 	### site-by-species abundances/occurrence data ###
 	##################################################
+	say('abundance data', level = 3)
 
 	# Column names are improper--need 'R-friendly' columns (no spaces) that correspond to each taxon.
 	# We also need the column names to be 'class_rID~~~', with domain and phylum excluded because the
 	# inclusion of a phylogeny will assume column names are as such.
-	abundances <- read.csv('./data/data_from_sonny/compiled_for_modeling_with_hmsc/species_rhz_26JUL2024.csv',  as.is = FALSE, check.names = FALSE)
+	abundances <- read.csv('./data/data_from_sonny/compiled_for_modeling_with_hmsc/2024_07_26_erica/species_rhz_26JUL2024.csv',  as.is = FALSE, check.names = FALSE)
 	
-	# add abundances across columns that represent the same taxon
-	taxon_names <- colnames(abundances)
-	taxon_names <- taxon_names[taxon_names %notin% c('my.id', 'id')]
-	rID_positions <- regexpr(taxon_names, pattern = 'rID_')
-	taxon_names <- substr(taxon_names, 1, rID_positions - 1)
-	taxon_names <- trimws(taxon_names)
-	unique_taxa <- unique(taxon_names)
+	# # add abundances across columns that represent the same taxon
+	# taxon_names <- colnames(abundances)
+	# taxon_names <- taxon_names[taxon_names %notin% c('my.id', 'id')]
+	# rID_positions <- regexpr(taxon_names, pattern = 'rID_')
+	# taxon_names <- substr(taxon_names, 1, rID_positions - 1)
+	# taxon_names <- trimws(taxon_names)
+	# unique_taxa <- unique(taxon_names)
 
-	collapsed_abundances <- abundances[ , c('my.id', 'id')]
-	for (i in seq_along(unique_taxa)) {
+	# collapsed_abundances <- abundances[ , c('my.id', 'id')]
+	# for (i in seq_along(unique_taxa)) {
 	
-		taxon <- unique_taxa[i]
-		columns_with_taxon <- which(taxon_names == taxon) + 2 # add 2 because of 'my.id' and 'id' columns
-		this_abund <- abundances[ , columns_with_taxon, drop = FALSE]
-		this_abund <- rowSums(this_abund)
-		this_abund <- data.frame(this_abund)
-		colnames(this_abund) <- taxon
+		# taxon <- unique_taxa[i]
+		# columns_with_taxon <- which(taxon_names == taxon) + 2 # add 2 because of 'my.id' and 'id' columns
+		# this_abund <- abundances[ , columns_with_taxon, drop = FALSE]
+		# this_abund <- rowSums(this_abund)
+		# this_abund <- data.frame(this_abund)
+		# colnames(this_abund) <- taxon
 		
-		collapsed_abundances <- cbind(collapsed_abundances, this_abund)
+		# collapsed_abundances <- cbind(collapsed_abundances, this_abund)
 	
-	}
+	# }
 
 	# make nice taxon names
-	taxa <- colnames(collapsed_abundances)
+	taxa <- colnames(abundances)
 	taxa <- strsplit(taxa, split = ' ')
 
 	new_names <- rep(NA_character_, length(taxa))
@@ -198,23 +177,69 @@ say('###################')
 	}
 
 	new_names <- trimws(new_names)
-	names(collapsed_abundances) <- new_names
+	names(abundances) <- new_names
 
 	# create response matrix with abundances
-	Y <- collapsed_abundances[ , colnames(collapsed_abundances) %notin% c('my.id', 'id')]
+	Y <- abundances[ , colnames(abundances) %notin% c('my.id', 'id')]
 	Y <- as.matrix(Y)
 
 	### site-by-environment data
 	############################
+	say('environmental data', level = 3)
 
 	site_by_env <- fread('./data/data_from_sonny/compiled_for_modeling_with_hmsc/environment_rhz_26JUL2024.csv')
-	names(site_by_env)[names(site_by_env) == 'SoilC'] <- 'soc'
-	names(site_by_env)[names(site_by_env) == 'SoilN'] <- 'soil_n'
-	names(site_by_env)[names(site_by_env) == 'CLAY'] <- 'clay'
-	names(site_by_env)[names(site_by_env) == 'SAND'] <- 'sand'
+
+	# names(site_by_env)[names(site_by_env) == 'x-coordinate'] <- 'longitude'
+	# names(site_by_env)[names(site_by_env) == 'y-coordinate'] <- 'latitude'
+	# names(site_by_env)[names(site_by_env) == 'SoilC'] <- 'soc'
+	# names(site_by_env)[names(site_by_env) == 'SoilN'] <- 'soil_n'
+	# names(site_by_env)[names(site_by_env) == 'CLAY'] <- 'clay'
+	# names(site_by_env)[names(site_by_env) == 'SAND'] <- 'sand'
+
+		### add SDM-estimated suitability of Andropogon gerardi as predictor
+		####################################################################
+
+		# load spatial vector with AG presences
+		# we will need to 1) burn the suitability values into this
+		# and then 2) extract the suitability values to sampled sites,
+		# and finally, 3) covert this to a raster so we can make predictions
+
+		terms <- terms(x_formula)
+		terms <- attr(terms, 'term.labels')
+		if ('ag_lambda' %in% terms) {
+
+			# SDM output (posterior estimates from non-integrated SDM)
+			sdm_chains <- readRDS('./outputs_loretta/noinintegrated_sdm_with_bio2_without_pH/nonintegrated_sdm_chains.rds')
+			sdm_summary <- sdm_chains$summary$all.chains
+
+			which_lambda <- grepl(rownames(sdm_summary), pattern = 'lambda')
+			lambda <- sdm_summary[which_lambda, ]
+
+			# spatial vector into which to burn posteriors
+			ag_vect <- vect('./data/occurrence_data/andropogon_gerardi_occurrences_with_environment.gpkg')
+
+			ag <- as.data.frame(ag_vect)
+			completes <- complete.cases(as.data.frame(ag_vect))
+			ag_focus <- ag[completes, ]
+			ag_vect_focus <- ag_vect[completes, ]
+			
+			# remove table... makes things faster
+			for (i in ncol(ag_vect_focus):1) ag_vect_focus[ , i] <- NULL
+
+			# attach mean of posteriors to vector
+			ag_vect_focus$lambda_mean <- lambda[ , 'Mean']
+			
+			# extract AG suitability to sampled sites
+			site_by_env_vect <- vect(site_by_env, geom = c('longitude', 'latitude'), crs = getCRS('WGS84'))
+			site_by_env_vect <- project(site_by_env_vect, ag_vect_focus)
+
+			sample_site_lambdas <- extract(ag_vect_focus, site_by_env_vect)
+			site_by_env$ag_lambda <- sample_site_lambdas$lambda_mean
+		
+		}
 
 	site_by_env$id <- as.factor(site_by_env$id)
-	site_by_env$sampling_ppt_mm <- log1p(site_by_env$sampling_ppt_mm) # skewed
+	site_by_env$sampling_ppt_mm <- log1p(site_by_env$sampling_ppt_mm) # unskew
 
 	site_by_env <- site_by_env[ , ..predictors]
 	site_by_env <- scale(site_by_env)
@@ -223,50 +248,53 @@ say('###################')
 	env_scales <- attr(site_by_env, 'scaled:scale')
 
 	site_by_env <- as.data.frame(site_by_env)
-
+	
 	### phylogenetic data ###
 	#########################
+	say('phylogenetic data', level = 3)
 
-	taxonomy_traits <- read.csv('./data/data_from_sonny/compiled_for_modeling_with_hmsc/traits_rhz_26JUL2024.csv', as.is = FALSE)
+	taxonomy_traits <- read.csv('./data/data_from_sonny/compiled_for_modeling_with_hmsc/2024_07_26_erica/traits_rhz_26JUL2024.csv', as.is = FALSE)
 	taxonomy_traits$intercept <- 1
 
-	# 'species' names must match those from Y
-	taxa <- taxonomy_traits[ , c('Domain', 'Phylum', 'Class')]
-	taxa <- apply(taxa, 2, gsub, pattern = 'd__', replacement = '')
-	taxa <- apply(taxa, 2, gsub, pattern = 'p__', replacement = '')
-	taxa <- apply(taxa, 2, gsub, pattern = 'c__', replacement = '')
-	taxa <- apply(taxa, 2, gsub, pattern = '__', replacement = 'unknown')
-	taxa <- apply(taxa, 2, gsub, pattern = '-', replacement = '_')
-	taxa <- apply(taxa, 2, trimws)
-	taxa_together <- apply(taxa, 1, paste, collapse = '_')
+	# # 'species' names must match those from Y
+	# taxa <- taxonomy_traits[ , c('Domain', 'Phylum', 'Class')]
+	# taxa <- apply(taxa, 2, gsub, pattern = 'd__', replacement = '')
+	# taxa <- apply(taxa, 2, gsub, pattern = 'p__', replacement = '')
+	# taxa <- apply(taxa, 2, gsub, pattern = 'c__', replacement = '')
+	# taxa <- apply(taxa, 2, gsub, pattern = '__', replacement = 'unknown')
+	# taxa <- apply(taxa, 2, gsub, pattern = '-', replacement = '_')
+	# taxa <- apply(taxa, 2, trimws)
+	# taxa_together <- apply(taxa, 1, paste, collapse = '_')
 	
-	taxonomy_traits$taxon <- taxa_together
+	# taxonomy_traits$taxon <- taxa_together
 
-	taxonomy_traits$Domain <- taxa[ , 'Domain']
-	taxonomy_traits$Phylum <- taxa[ , 'Phylum']
-	taxonomy_traits$Class <- taxa[ , 'Class']
+	# taxonomy_traits$Domain <- taxa[ , 'Domain']
+	# taxonomy_traits$Phylum <- taxa[ , 'Phylum']
+	# taxonomy_traits$Class <- taxa[ , 'Class']
 
-	# remove rows with duplicated taxa
-	dups <- duplicated(taxa_together)
-	taxonomy_traits <- taxonomy_traits[!dups, ]
+	# # remove rows with duplicated taxa
+	# dups <- duplicated(taxa_together)
+	# taxonomy_traits <- taxonomy_traits[!dups, ]
 
-	taxonomy_traits$Domain <- factor(taxonomy_traits$Domain)
-	taxonomy_traits$Phylum <- factor(taxonomy_traits$Phylum)
-	taxonomy_traits$Class <- factor(taxonomy_traits$Class)
+	# taxonomy_traits$Domain <- factor(taxonomy_traits$Domain)
+	# taxonomy_traits$Phylum <- factor(taxonomy_traits$Phylum)
+	# taxonomy_traits$Class <- factor(taxonomy_traits$Class)
 
-	rownames(taxonomy_traits) <- taxonomy_traits$taxon
+	# rownames(taxonomy_traits) <- taxonomy_traits$taxon
 
-	# check that columns of Y have same names as phylogeny
-	stopifnot(colnames(Y) == taxonomy_traits$taxon) # no need for manual inspection
+	# # check that columns of Y have same names as phylogeny
+	# stopifnot(colnames(Y) == taxonomy_traits$taxon) # no need for manual inspection
 
 	### select species
 	##################
+	say('select species', level = 3)
 
 	total_abundances <- colSums(Y)
 	threshold_abundance <- quantile(total_abundances, quant_common_species)
 
+	# select most common species
 	selected_species <- which(total_abundances >= threshold_abundance)
-
+	
 	Y <- Y[ , selected_species]
 	taxonomy_traits <- taxonomy_traits[taxonomy_traits$taxon %in% colnames(Y), ]
 	traits <- taxonomy_traits[ , c('intercept', 'in_bulk'), drop = FALSE]
@@ -275,8 +303,9 @@ say('###################')
 
 	### study design
 	################
+	say('study design', level = 3)
 
-	study_design <- read.csv('./data/data_from_sonny/compiled_for_modeling_with_hmsc/studyDesign_rhz_26JUL2024.csv')
+	study_design <- read.csv('./data/data_from_sonny/compiled_for_modeling_with_hmsc/2024_07_26_erica/studyDesign_rhz_26JUL2024.csv')
 
 	study_design$site <- factor(study_design$site)
 	study_design$id <- factor(study_design$id)
@@ -289,6 +318,7 @@ say('###################')
 
 	### taxonomic tree
 	##################
+	say('taxonomic tree', level = 3)
 
 	if (include_phylogeny) {
 
@@ -302,8 +332,57 @@ say('###################')
 		
 	}
 
+	### graphs of abundance vs each environmental variable
+	######################################################
+	say('graphs of abundance vs each environmental variable', level = 3)
+	
+	# make a set of plots showing abundance vs each predictor
+	# one plot per taxon
+	# all plots for the same predictor compiled into a multi-panel plot
+	# this multi-panel plot is saved as a file, one per predictor
+	
+	n_panel_rows <- 5 # number of rows of subpanels
+	n_panel_cols <- 8 # number of columns of subpanels
+	n_panels <- n_panel_rows * n_panel_cols
+	n_actual_panels <- min(n_panels, ncol(Y))
+	for (pred in predictors) {
+	
+		abund_vs_predictors <- list()
+		for (i in seq_len(n_actual_panels)) {
+		
+			taxon <- colnames(Y)[i]
+			x <- site_by_env[ , pred]
+			x <- fields::unscale(x, env_centers[[pred]], env_scales[[pred]])
+			data <- data.frame(x = x, abundance = Y[ , i] + 1)
+			
+			in_bulk_indicator <- taxonomy_traits$in_bulk[taxon == taxonomy_traits$taxon]
+			in_bulk_color <- ifelse(in_bulk_indicator, 'lightgoldenrodyellow', 'lightgreen')
+			
+			abund_vs_predictors[[i]] <- ggplot(data, aes(x = x, y = abundance)) +
+				geom_point() +
+				geom_smooth(formula = y ~ x, method = 'lm', color = 'red', se = FALSE) +
+				geom_smooth(formula = y ~ x + I(x^2), method = 'lm', se = FALSE) +
+				xlab(pred) + ylab('abundance') +
+				scale_y_log10() +
+				ggtitle(taxon) +
+				theme(
+					panel.background = element_rect(fill = in_bulk_color),
+					title = element_text(size = 4),
+					axis.title = element_text(size = 5),
+					axis.text = element_text(size = 4)
+				)
+		
+		}
+		
+		abund_vs_predictors <- plot_grid(plotlist = abund_vs_predictors, ncol = n_panel_cols, nrow = n_panel_rows)
+		ggsave(abund_vs_predictors, filename = paste0('./outputs_sonny/', output_subfolder, '/abundance_vs_', pred, '.png'), width = 12, height = 8, dpi = 200)
+	
+	}
+
 	### construct model
 	###################
+
+	say('construct model', level = 3)
 
 	# arguments to Hmsc (always included)
 	args <- list(
@@ -347,6 +426,7 @@ say('#################')
 
 	### MCMC
 	########
+	say('MCMC', level = 3)
 
 	fit <- sampleMcmc(
 		hM = model, samples = samples, thin = thin,
@@ -369,7 +449,7 @@ say('##########################')
 	nr <- fit$nr
 
 	### Gelman-Rubin diagnostics (R-hat)
-	# We want all Rhat + upper CI values to be <=1.1
+	# We want all R-hat + upper CI values to be <=1.1
 
 	sink(paste0('./outputs_sonny/', output_subfolder, '/model_convergence.txt'), split = TRUE)
 	say('ASSESSING MODEL CONVERGENCE')
@@ -377,30 +457,68 @@ say('##########################')
 
 	say('Beta:', pre = 1)
 	rhat_beta <- gelman.diag(posteriors$Beta, multivariate = FALSE)$psrf
+	say('Mean R-hat: ', mean(rhat_beta[ , 1]))
 	say('Maximum R-hat: ', max(rhat_beta[ , 1]))
 	say('Maximum R-hat + upper CI: ', max(rowSums(rhat_beta)))
+
+	rhat_beta <- as.data.frame(rhat_beta)
+	names(rhat_beta)[1] <- 'estimate'
+	rhat_plot <- ggplot(rhat_beta, aes(x = estimate)) +
+		geom_histogram(binwidth = 0.5, fill = '#69b3a2', color = '#e9ecef') +
+		geom_vline(xintercept = 1.1) +
+		ggtitle('Betas')
+		
+	ggsave(rhat_plot, file = paste0('./outputs_sonny/', output_subfolder, '/rhat_betas.png'), width = 12, height = 8, dpi = 150)
 	
 	say('Gamma:', pre = 1)
 	rhat_gamma <- gelman.diag(posteriors$Gamma, multivariate = FALSE)$psrf
+	say('Mean R-hat: ', mean(rhat_gamma[ , 1]))
 	say('Maximum R-hat: ', max(rhat_gamma[ , 1]))
 	say('Maximum R-hat + upper CI: ', max(rowSums(rhat_gamma)))
 	
+	rhat_gamma <- as.data.frame(rhat_gamma)
+	names(rhat_gamma)[1] <- 'estimate'
+	rhat_plot <- ggplot(rhat_beta, aes(x = estimate)) +
+		geom_histogram(binwidth = 0.5, fill = '#69b3a2', color = '#e9ecef') +
+		geom_vline(xintercept = 1.1) +
+		ggtitle('Gammas')
+
+	ggsave(rhat_plot, file = paste0('./outputs_sonny/', output_subfolder, '/rhat_gamma.png'), width = 12, height = 8, dpi = 150)
+
 	if (include_phylogeny) {
 
 		say('Rho (phylogeny):', pre = 1)
 		rhat_rho <- gelman.diag(posteriors$Rho, multivariate = FALSE)$psrf
+		say('Mean R-hat: ', mean(rhat_rho[ , 1]))
 		say('Maximum R-hat: ', max(rhat_rho[ , 1]))
 		say('Maximum R-hat + upper CI: ', max(rowSums(rhat_rho)))
 		
+		rhat_gamma <- as.data.frame(rhat_rho)
+		names(rhat_rho)[1] <- 'estimate'
+		rhat_plot <- ggplot(rhat_rho, aes(x = estimate)) +
+			geom_histogram(binwidth = 0.5, fill = '#69b3a2', color = '#e9ecef') +
+			geom_vline(xintercept = 1.1) +
+			ggtitle('Rhos')
+		ggsave(rhat_plot, file = paste0('./outputs_sonny/', output_subfolder, '/rhat_rho.png'), width = 12, height = 8, dpi = 150)
+
 	}
 
 	if (nr > 0) {
 		
 		say('Omega (traits)', pre = 1)
 		rhat_omega <- gelman.diag(posteriors$Omega[[1]], multivariate = FALSE)$psrf
+		say('Mean R-hat: ', mean(rhat_omega[ , 1]))
 		say('Maximum R-hat: ', max(rhat_omega[ , 1]))
 		say('Maximum R-hat + upper CI: ', max(rowSums(rhat_omega)))
 		
+		rhat_omega <- as.data.frame(rhat_omega)
+		names(rhat_omega)[1] <- 'estimate'
+		rhat_plot <- ggplot(rhat_omega, aes(x = estimate)) +
+			geom_histogram(binwidth = 0.5, fill = '#69b3a2', color = '#e9ecef') +
+			geom_vline(xintercept = 1.1) +
+			ggtitle('Omegas')
+		ggsave(rhat_plot, file = paste0('./outputs_sonny/', output_subfolder, '/rhat_omega.png'), width = 12, height = 8, dpi = 150)
+
 		# # spatial random effects
 		# if (nr > 0) {
 		# 	for (j in 1:nr) {
@@ -411,6 +529,14 @@ say('##########################')
 		# 			say('Alpha ', j, ':')
 		# 			say(rhat[, 1])
 					
+					# rhat_sre <- as.data.frame(rhat)
+					# names(rhat_sre)[1] <- 'estimate'
+					# rhat_plot <- ggplot(rhat_sre, aes(x = estimate)) +
+						# geom_histogram(binwidth = 0.5, fill = '#69b3a2', color = '#e9ecef') +
+						# geom_vline(xintercept = 1.1) +
+						# ggtitle(paste('Alpha', j))
+					# ggsave(rhat_plot, file = paste0('./outputs_sonny/', output_subfolder, '/rhat_alpha_', j, '.png'), width = 12, height = 8, dpi = 150)
+
 		# 		}
 		# 	}
 		# }
@@ -419,55 +545,55 @@ say('##########################')
 	
 	sink()
 
-# say('########################')
-# say('### assess model fit ###')
-# say('########################')
+say('########################')
+say('### assess model fit ###')
+say('########################')
 
-# 	# level at which to conduct cross-validation
-# 	# NB we need to use at least a site-level random effect
-# 	cv.level <- 'site'
+	# level at which to conduct cross-validation
+	# NB we need to use at least a site-level random effect
+	cv.level <- 'site'
 
-# 	# predictions without/with cross-validation
-# 	partition <- createPartition(fit, nfolds = nfolds, column = cv.level)
-# 	preds <- computePredictedValues(fit, verbose = FALSE)
-# 	preds_cv <- computePredictedValues(fit, partition = partition, verbose = FALSE)
+	# predictions without/with cross-validation
+	partition <- createPartition(fit, nfolds = nfolds, column = cv.level)
+	preds <- computePredictedValues(fit, verbose = FALSE)
+	preds_cv <- computePredictedValues(fit, partition = partition, verbose = FALSE)
 
-# 	model_fit <- evaluateModelFit(hM = fit, predY = preds)
-# 	model_fit_cv <- evaluateModelFit(hM = fit, predY = preds_cv)
-# 	waic <- computeWAIC(fit)
+	model_fit <- evaluateModelFit(hM = fit, predY = preds)
+	model_fit_cv <- evaluateModelFit(hM = fit, predY = preds_cv)
+	waic <- computeWAIC(fit)
 	
-# 	say('WAIC: ', waic)
+	say('WAIC: ', waic)
 	
-# 	metrics <- c('RMSE', 'O.RMSE', 'C.RMSE', 'SR2', 'C.SR2')
-# 	fit_plots <- list()
-# 	for (metric in metrics) {
+	metrics <- c('RMSE', 'O.RMSE', 'C.RMSE', 'SR2', 'C.SR2')
+	fit_plots <- list()
+	for (metric in metrics) {
 		
-# 		# focal values
-# 		vals <- model_fit[[metric]]
-# 		vals_cv <- model_fit_cv[[metric]]
+		# focal values
+		vals <- model_fit[[metric]]
+		vals_cv <- model_fit_cv[[metric]]
 		
-# 		df <- data.frame(x = vals, y = vals_cv)
+		df <- data.frame(x = vals, y = vals_cv)
 		
-# 		# axis limits
-# 		lower <- min(vals, vals_cv)
-# 		upper <- max(vals, vals_cv)
-# 		lims <- c(lower, upper)
-# 		lims <- pretty(lims)
-# 		lims <- c(lims[1], lims[length(lims)])
+		# axis limits
+		lower <- min(vals, vals_cv)
+		upper <- max(vals, vals_cv)
+		lims <- c(lower, upper)
+		lims <- pretty(lims)
+		lims <- c(lims[1], lims[length(lims)])
 
-# 		fit_plots[[length(fit_plots) + 1]] <- ggplot(df) +
-# 			geom_point(mapping = aes(x = x, y = y), size = 3) +
-# 			xlim(lims[1], lims[2]) + ylim(lims[1], lims[2]) + coord_fixed() +
-# 			geom_abline(slope = 1, intercept = 0) +
-# 			xlab('Explanatory power') + ylab('Predictive power') +
-# 			ggtitle(metric)
+		fit_plots[[length(fit_plots) + 1]] <- ggplot(df) +
+			geom_point(mapping = aes(x = x, y = y), size = 3) +
+			xlim(lims[1], lims[2]) + ylim(lims[1], lims[2]) + coord_fixed() +
+			geom_abline(slope = 1, intercept = 0) +
+			xlab('Explanatory power') + ylab('Predictive power') +
+			ggtitle(metric)
 	
-# 	}
+	}
 	
-# 	all_fit_plots <- plot_grid(plotlist = fit_plots) +
-# 		theme(plot.background = element_rect(fill = 'white'))
+	all_fit_plots <- plot_grid(plotlist = fit_plots) +
+		theme(plot.background = element_rect(fill = 'white'))
 
-# 	ggsave(all_fit_plots, file = paste0(./outputs_sonny/', output_subfolder, '/model_fit.png'), width = 14, height = 10, dpi = 300)
+	ggsave(all_fit_plots, file = paste0('./outputs_sonny/', output_subfolder, '/', model_fit.png), width = 14, height = 10, dpi = 300)
 
 say('###########################')
 say('### parameter estimates ###')
@@ -487,30 +613,13 @@ say('###########################')
 
 		say(model_term)
 
-		# # make nice names for taxa
-		# cols <- colnames(samples[[i]])
-		# cols <- grepl(cols, pattern = model_term)
-		# cols <- colnames(samples[[i]])[cols]
-		
-		# # rename columns with domain, phylum
-		# cols <- gsub(cols, pattern = '\\]', replacement = '')
-		# cols <- strsplit(cols, split = ', ')
-		# cols <- do.call(rbind, cols)
-		# cols <- cols[ , 2]
-		
-		# domains <- taxonomy_traits$Domain[match(cols, taxonomy_traits$taxon)]
-		# phyla <- taxonomy_traits$Phylum[match(cols, taxonomy_traits$taxon)]
-		
-		# cols <- paste(domains, phyla, cols, sep = ': ')
-		# cols <- gsub(cols, pattern = '_', replacement = ' ')
-
 		pars <- paste0('B[', model_term, ', ', taxonomy_traits$taxon, ']')
-		if (grepl(model_term, pattern = '\\^2')) {
-			regx <- '\\^2)'
-			caterpillars <- mcmc_intervals(samples, pars = pars, regex_pars = regx)
-		} else {
+		# if (grepl(model_term, pattern = '\\^2')) {
+			# regx <- '\\^2)'
+			# caterpillars <- mcmc_intervals(samples, pars = pars, regex_pars = regx)
+		# } else {
 			caterpillars <- mcmc_intervals(samples, pars = pars)
-		}
+		# }
 
 		model_term_nice <- model_term
 		model_term_nice <- gsub(model_term_nice, pattern = 'I\\(', replacement = '')
@@ -630,6 +739,20 @@ say('###################')
 
 	### obtain rasters for predictors
 	conus_env <- readRDS('./outputs_sonny/conus_environment_as_per_prism_aggregated_by_16.rds')
+	
+	# add AG suitability as a predictor if it's in the model
+	terms <- terms(x_formula)
+	terms <- attr(terms, 'term.labels')
+	if ('ag_lambda' %in% terms) {
+
+		conus_env_vect <- vect(conus_env, geom = c('x', 'y'), crs = getCRS('NAD83'))
+		ag_vect_focus_nad83 <- project(ag_vect_focus, conus_env_vect)
+		ag_lambda <- extract(ag_vect_focus_nad83, conus_env_vect)
+		conus_env$ag_lambda <- ag_lambda$lambda_mean
+		
+		conus_env <- conus_env[complete.cases(conus_env), ]
+	
+	}
 
 	# create data tables for predictions	
 	# predictions_mean <- predictions_sd <- predictions_quantile_0.1 <- predictions_quantile_0.9 <- conus_env[ , 'cell']
@@ -643,7 +766,7 @@ say('###################')
 	conus_env <- scale(conus_env, center = env_centers, scale = env_scales)
 	conus_env <- as.data.table(conus_env)
 
-	### create columns in each data table for predictions
+	### create one column per taxon in each data table for predictions
 	taxa <- colnames(Y)
 	for (i in seq_along(abundances)) {
 
@@ -665,7 +788,7 @@ say('###################')
 	# if (any(colnames(predictions_quantile_0.1) == 'DUMMY') predictions_quantile_0.1[ , DUMMY := NULL]
 	# if (any(colnames(predictions_quantile_0.9) == 'DUMMY') predictions_quantile_0.9[ , DUMMY := NULL]
 
-	# make predictions in chunks to save on memory
+	### make predictions in chunks to save on memory (HMSC crashes otherwise)
 	size <- round(nrow(conus_env) / 20)
 	sets <- ceiling(nrow(conus_env) / size)
 	for (set in seq_len(sets)) {
@@ -774,9 +897,9 @@ say('#####################################')
 	writeRaster(maps_mean, paste0('./outputs_sonny/', output_subfolder, '/prediction_rasters_mean.tif'), overwrite = TRUE)
 	writeRaster(maps_sd, paste0('./outputs_sonny/', output_subfolder, '/prediction_rasters_sd.tif'), overwrite = TRUE)
 
-say('##########################################')
-say('### make maps for supplemental figures ###')
-say('##########################################')
+say('#######################################################')
+say('### make maps of predicted abundance for each taxon ###')
+say('#######################################################')
 
 	### maps of means
 	maps_mean <- rast(paste0('./outputs_sonny/', output_subfolder, '/prediction_rasters_mean.tif'))
@@ -801,7 +924,7 @@ say('##########################################')
 
 	}
 
-	sites_abundances <- vect(sites_abundances, geom = c('latitude', 'longitude'), crs = getCRS('WGS84'))
+	sites_abundances <- vect(sites_abundances, geom = c('latitude', 'longitude'), crs = getCRS('NAD83'))
 	sites_abundances <- project(sites_abundances, getCRS('North America Lambert'))
 	
 	# plotting extent... crop at -107 west, plus a bit larger
@@ -835,11 +958,18 @@ say('##########################################')
 		map_min <- minmax(this_map)[1, ]
 		map_max <- minmax(this_map)[2, ]
 		min_abund <- min(map_min, this_abundance)
-		max_abund <- max(map_max, this_abundance)
 		
-		# # remove extreme abundances
-		# max_abund <- globalx(this_map, quantile, probs = 0.99, na.rm = TRUE)
-		# this_map <- app(this_map, fun = function(x, max_abund) ifelse(x > max_abund, 0.999 * max_abund, x), max_abund = max_abund)
+		# remove extreme abundances
+		max_abund <- globalx(this_map, quantile, probs = 0.99, na.rm = TRUE)
+		this_map <- app(this_map, fun = function(x, max_abund) ifelse(x > max_abund, 0.999 * max_abund, x), max_abund = max_abund)
+
+		if (is.infinite(min_abund)) {
+		
+			neg_inf_abund_masked <- app(this_map, fun = function(x) ifelse(is.infinite(x), max_abund, x))
+			min_abund <- globalx(neg_inf_abund_masked, min)
+			this_map <- app(this_map, fun = function(x, min_abund) ifelse(x < min_abund, min_abund, x), min_abund = min_abund)
+			
+		}
 
 		abund_seq <- seq(min_abund, max_abund, length.out = 100)
 		this_abundance_scaled <- (this_abundance - min_abund) / (max_abund - min_abund)
@@ -858,4 +988,3 @@ say('##########################################')
 	dev.off()
 
 say('DONE', deco = '!', level = 1)
-q()
