@@ -3,8 +3,8 @@
 ###
 ### This script calibrates and evaluates a Hierarchical Modeling of Species Communities (HMSC) model for microbes associated with Andropogon gerardi.
 ###
-### source('C:/Ecology/Research/Andropogon/Andropogon/andropogon_integratedEcology/hmsc_vs_microbes/microbes_02_run_hmsc_model.r')
-### source('E:/Adam/Research/Andropogon/Andropogon/andropogon_integratedEcology/hmsc_vs_microbes/microbes_02_run_hmsc_model.r')
+### source('C:/Ecology/R/andropogon_integratedEcology/hmsc_vs_microbes/microbes_02_run_hmsc_model.R')
+### source('E:/Adam/R/andropogon_integratedEcology/hmsc_vs_microbes/microbes_02_run_hmsc_model.R')
 ###
 ### CONTENTS ###
 ### setup ###
@@ -22,387 +22,502 @@
 ### setup ###
 #############
 
-rm(list = ls())
-set.seed(1)
+	rm(list = ls())
+	set.seed(1)
 
-# drive <- 'C:/Ecology/'
-drive <- 'E:/Adam/'
+	drive <- 'C:/Ecology/'
+	# drive <- 'E:/Adam/'
 
-# workDir <- 'C:/Ecology/Research/Andropogon/Andropogon/'
-workDir <- 'E:/Adam/Research/Andropogon/Andropogon/'
+	workDir <- paste0(drive, './Research/Andropogon/Andropogon/')
 
-setwd(workDir)
+	setwd(workDir)
 
-library(abind) # for arrays
-library(BayesLogit) # sometimes HMSC complains if we don't attach this
-library(bayesplot) # for Bayesian model diagnostic plots
-library(cowplot) # for combining multiple ggplots
-library(data.table) # large data frames
-library(enmSdmX) # GIS & SDMing
-library(geodata) # geographic data
-library(ggplot2) # plotting
-library(ggspatial) # plotting spatial objects
-library(Hmsc) # workhorse
-library(ape) # we need this to construct a taxonomic tree
-library(ggplot2) # plots
-library(omnibus) # utilities
-library(viridis) # colors
+	library(abind) # for arrays
+	library(BayesLogit) # sometimes HMSC complains if we don't attach this
+	library(bayesplot) # for Bayesian model diagnostic plots
+	library(cowplot) # for combining multiple ggplots
+	library(data.table) # large data frames
+	library(enmSdmX) # GIS & SDMing
+	library(geodata) # geographic data
+	library(ggplot2) # plotting
+	library(ggspatial) # plotting spatial objects
+	library(Hmsc) # workhorse
+	library(ape) # we need this to construct a taxonomic tree
+	library(ggplot2) # plots
+	library(omnibus) # utilities
+	library(viridis) # colors
 
 ################
 ### settings ###
 ################
 
-	# output_subfolder <- 'hmsc_[sampling_linear]_[climate_linear_quadratic]_[soil_linear_quadratic]_[ag_linear_quadratic]_[sans_traits]_[sans_phylo]_[poisson]'
-	output_subfolder <- 'hmsc_[sampling_linear]_[climate_linear_quadratic_ia]_[soil_linear_quadratic]_[ag]_[sans_traits]_[sans_phylo]_[sans_sac]_[poisson]'
+	# make graphs of each environmental predictor vs abundance? (saves times... should be FALSE only for testing script)
+	make_abundance_plots <- TRUE
+	# make_abundance_plots <- FALSE
 
-	quant_common_species <- 0.5 # analyze species with sum of all abundances across sites >= this quantile
-	# quant_common_species <- 0 # analyze species with sum of all abundances across sites >= this quantile
-
-	# response <- 'lognormal poisson' # gives very extreme values
+	# response <- 'lognormal poisson'
 	response <- 'poisson'
 
-	x_formula <- ~ + sampling_ppt_mm +
-		summer_tmean_C +
-		annual_ppt_mm + I(annual_ppt_mm^2) +
-		summer_tmean_C:annual_ppt_mm +
-		ppt_cv + I(ppt_cv^2) +
-		pH + I(pH^2) + soc + I(soc^2) + soil_n + I(soil_n^2) + clay + I(clay^2) + sand + I(clay^2) +
-		ag_lambda
-	predictors <- c('sampling_ppt_mm', 'summer_tmean_C', 'annual_ppt_mm', 'ppt_cv', 'pH', 'soc', 'soil_n', 'clay', 'sand', 'ag_lambda')
-	# predictors <- c('sampling_ppt_mm', 'summer_tmean_C', 'annual_ppt_mm', 'ppt_cv', 'pH', 'ag_lambda')
-	
-	# include_traits <- TRUE
-	include_traits <- FALSE
+	# model taxa that may occur only in rhizobiome samples?
+	include_rhizo <- TRUE
+	# include_rhizo <- FALSE
 
-	include_phylogeny <- TRUE # include phylogeny
-	# include_phylogeny <- FALSE # do not include
+	# model taxa that may occur only in bulk samples? 
+	# include_bulk <- TRUE
+	include_bulk <- FALSE
+
+	# model taxa that occur *only* in both rhizobiome and bulk? (this forces these taxa to be included, even if they do not meet the abundance criterion below)... seems this should nearly always be TRUE (only has 12 taxa... 14 is "unknowns" included)
+	# if this is TRUE, then include_rhizo and include_bulk should be FALSE!
+	# just_both <- TRUE
+	just_both <- FALSE
+
+	# include the "unknown_unknown_unknown", "Bacteria_unknown_unknown", and "Archaea_unknown_unknown" taxa?
+	include_unknown <- FALSE
+
+	# analyze taxa with sum of all abundances across sites >= this quantile
+	# rhizobiome-only and bulk-only taxa will be filtered separately (ie, if include_rhizobiome is TRUE, then taxa that *only* occur in the rhizobiome and have an abundance >= quant_abund_threshold will be modeled; same for include_bulk)
+	quant_abund_threshold <- 0.95 # 0.95 is good for testing
+	# quant_abund_threshold <- 0.90
+	# quant_abund_threshold <- 0 # value of 0 ==> all taxa
+
+	# include phylogeny?
+	include_phylogeny <- TRUE
+	# include_phylogeny <- FALSE
+
+	# model predictors
+	use_pc_axes_as_predictors <- TRUE
+	# use_pc_axes_as_predictors <- FALSE
+
+	raw_predictors <- c('aridity', 'bio7', 'bio12', 'bio15', 'ph_field', 'sand_field', 'soc_field_perc', 'silt_field', 'ag_lambda', 'sampling_ppt_mm', 'sampling_tmean_c')
+
+	pc_predictors <- c('pc1', 'pc2', 'pc3', 'rhizobiome_or_bulk')
+
+	if (just_both & (include_rhizo | include_bulk)) stop('If just_both if TRUE, then include_rhizo and include_bulk should be FALSE.')
+
+	if ((include_rhizo & include_bulk) | just_both) {
+
+		raw_predictors <- c(raw_predictors, 'rhizobiome_or_bulk')
+
+		if (use_pc_axes_as_predictors) {
+
+			x_formula <- ~
+				pc1 + I(pc1^2) +
+				pc2 + I(pc2^2) +
+				pc3 + I(pc3^2) +
+				rhizobiome_or_bulk
+
+		} else {
+
+			x_formula <- ~
+				sampling_ppt_mm +
+				sampling_tmean_c +
+
+				ag_lambda +
+
+				aridity + I(aridity^2) +
+				bio7 + I(bio7^2) +
+				bio12 + I(bio12^2) +
+				bio15 + I(bio15^2) +
+				ph_field + I(ph_field^2) +
+				soc_field_perc + I(soc_field_perc^2) +
+				sand_field + I(sand_field^2) +
+				silt_field + I(silt_field^2) +
+				
+				rhizobiome_or_bulk
+
+		}
+
+	} else {
+	
+		if (use_pc_axes_as_predictors) {
+
+			x_formula <- ~
+				pc1 + I(pc1^2) +
+				pc2 + I(pc2^2) +
+				pc3 + I(pc3^2)
+
+		} else {
+
+			x_formula <- ~
+				sampling_ppt_mm +
+				sampling_tmean_c +
+
+				ag_lambda +
+
+				aridity + I(aridity^2) +
+				bio7 + I(bio7^2) +
+				bio12 + I(bio12^2) +
+				bio15 + I(bio15^2) +
+				ph_field + I(ph_field^2) +
+				soc_field_perc + I(soc_field_perc^2) +
+				sand_field + I(sand_field^2)# +
+				silt_field + I(silt_field^2)
+
+		}
+		
+	}
 
 	# number of MCMC iterations in the final result (ie, not number of total MCMC iterations!)
-	samples <- 1000
+	# samples <- 1000
+	samples <- 100
 
 	# burn-in
 	# transient <- 1000
 	transient <- NULL
 
 	# thinning rate
-	thin <- 100
+	# thin <- 100
+	thin <- 1
 
-	nParallel <- 1 # default: nParallel = nChains, set to 1 to disable parallel execution, values >1 --> no sampling!?!
-	nChains <- 4
+	n_parallel <- 4 # default: n_parallel = n_chains, set to 1 to disable parallel execution, values >1 --> no sampling!?!
+	# n_chains <- 4
+	n_chains <- 2
 
-	nfolds <- 4 # folds for cross-validation
+	# n_folds <- 4 # folds for cross-validation
+	n_folds <- 2 # folds for cross-validation
 
-	dirCreate(paste0('./outputs_sonny/', output_subfolder))
-	sink(paste0('./outputs_sonny/', output_subfolder, '/hmsc_runtime.txt'), split = TRUE)
+	### maker folder to which to save results
+
+	resp_string <- paste(
+		ifelse(include_rhizo, 'rhizo', ''),
+		ifelse(include_bulk, 'bulk', ''),
+		ifelse(just_both, 'both', ''),
+		ifelse(include_unknown, 'unknown', ''),
+		sep = ' '
+	)
+	resp_string <- trimws(resp_string)
+	resp_string <- gsub(resp_string, pattern = ' ', replacement = '_')
+
+	output_subfolder <- paste0(
+		'./outputs_sonny/hmsc_[',
+		ifelse(use_pc_axes_as_predictors, 'pcs', 'climate'),
+		']_[abund_',
+		quant_abund_threshold, ']_[',
+		resp_string,
+		']_[',
+		ifelse(include_phylogeny, 'phylo', 'sans_phylo'),
+		']_[', sub(response, pattern = '_', replacement = '_'),
+		']'
+
+	)
+
+	dirCreate(output_subfolder)
+	sink(paste0(output_subfolder, '/hmsc_settings.txt'), split = TRUE)
 
 		say('HMSC on microbes associated with the Andropogon gerardi rhizosphere')
 		say(date(), post = 2)
-		say('quant_common_species ........................ ', quant_common_species)
+		say('include_rhizo ............................... ', include_rhizo)
+		say('include_bulk ................................ ', include_bulk)
+		say('just_both ................................... ', just_both)
+		say('include_unknown ............................. ', include_unknown)
+		say('quant_abund_threshold ....................... ', quant_abund_threshold)
 		say('samples ..................................... ', samples)
 		say('transient ................................... ', ifelse(is.null(transient), 'NULL', transient))
 		say('thin ........................................ ', thin)
-		say('nChains ..................................... ', nChains)
-		say('nfolds ...................................... ', nfolds)
+		say('n_chains .................................... ', n_chains)
+		say('n_folds ..................................... ', n_folds)
 		say('include phylogeny ........................... ', include_phylogeny)
-		say('include traits .............................. ', include_traits)
 		say('response .................................... ', response)
+		say('use_pc_axes_as_predictors ................... ', use_pc_axes_as_predictors, post = 2)
+
+		say('raw_predictors:')
+		say(paste(raw_predictors, collapse = ' '), post = 2)
 
 		say('x_formula:')
-		say(x_formula)
-		say('')
+		say(x_formula, post = 2)
 
 	sink()
 
-say('###################')
-say('### model setup ###')
-say('###################')
+######################
+### data collation ###
+######################
 
-	if (!include_traits) {
-		trait_formula <- NULL
+	say('data collation')
+
+	abund_combined <- fread('./data_from_sonny/collated_for_hmsc/abundances_site_by_taxon_combined.csv')
+	env_combined <- fread('./data_from_sonny/collated_for_hmsc/environment_combined.csv')
+	study_design_combined <- fread('./data_from_sonny/collated_for_hmsc/study_design_combined.csv')
+	taxa_combined <- fread('./data_from_sonny/collated_for_hmsc/taxa_combined.csv')
+
+	# get list of taxa we want to analyze
+	if (!include_rhizo & !include_bulk & just_both) {
+
+		keeps <- taxa_combined$in_rhizobiome & taxa_combined$in_bulk
+		taxa <- taxa_combined[(keeps)]
+		abund <- abund_combined # subset columns below
+		study_design <- study_design_combined
+		env <- env_combined
+
+	} else if (include_rhizo & include_bulk & !just_both) {
+
+		taxa <- taxa_combined
+		abund <- abund_combined
+		study_design <- study_design_combined
+		env <- env_combined
+
+	} else if (include_rhizo & !include_bulk & !just_both) {
+
+		taxa <- taxa_combined[(in_rhizobiome)]
+		abund <- abund_combined[rhizobiome_or_bulk == 'rhizobiome']
+		study_design <- study_design_combined[study_design_combined$rhizobiome_or_bulk == 'rhizobiome']
+		env <- env_combined[rhizobiome_or_bulk == 'rhizobiome']
+
+	} else if (!include_rhizo & include_bulk & !just_both) {
+
+		taxa <- taxa_combined[(in_bulk)]
+		abund <- abund_combined[rhizobiome_or_bulk == 'bulk']
+		study_design <- study_design_combined[rhizobiome_or_bulk == 'bulk']
+		env <- env_combined[rhizobiome_or_bulk == 'bulk']
+
+	}
+
+	site_xy <- env[  , c('longitude', 'latitude')]
+
+	# if not retaining "unknown" taxa
+	if (!include_unknown) {
+
+		unknowns <- c('unknown_unknown_unknown', 'Bacteria_unknown_unknown', 'Archaea_unknown_unknown')
+		taxa <- taxa[taxon %notin% unknowns]
+	
+	}
+
+	# thin abundance matrix to selected taxa
+	cond <- colnames(abund) %in% taxa$taxon
+	abund <- abund[ , ..cond]
+
+	# filter by abundance threshold
+	if (quant_abund_threshold > 0) {
+	
+		n <- colSums(abund)	
+		threshold_n <- quantile(n, quant_abund_threshold)
+
+		keeps <- which(n >= threshold_n)
+		keep_taxa <- colnames(abund)[keeps]
+		abund <- abund[ , ..keep_taxa]
+		taxa <- taxa[taxon %in% keep_taxa]
+	
+	}
+
+	# coerce character factor levels to integer
+	env[ , rhizobiome_or_bulk := factor(rhizobiome_or_bulk)]
+	env[ , rhizobiome_or_bulk := as.integer(rhizobiome_or_bulk) - 1]
+
+	say('modeling ', nrow(taxa), ' taxa')
+
+	### transform predictors
+	########################
+
+	env <- env[ , ..raw_predictors]
+	
+	cond <- colnames(env) %notin% 'rhizobiome_or_bulk'
+	env_sans_categorical <- env[ , ..cond]
+
+	if (use_pc_axes_as_predictors) {
+		
+		pca <- prcomp(env_sans_categorical, center = TRUE, scale. = TRUE)
+		saveRDS(pca, paste0(output_subfolder, '/pca.rds'))
+
+		sites_by_env <- predict(pca, env)
+		sites_by_env <- as.data.table(sites_by_env)
+		colnames(sites_by_env) <- tolower(colnames(sites_by_env))
+		if ('rhizobiome_or_bulk' %in% raw_predictors) {
+			sites_by_env[ , rhizobiome_or_bulk := factor(env$rhizobiome_or_bulk)]
+		}
+
 	} else {
-		trait_formula <- ~ in_bulk
+		sites_by_env <- env_sans_categorical
 	}
 
-	### site-by-species abundances/occurrence data ###
-	##################################################
-	say('abundance data', level = 3)
+	terms <- attr(terms(x_formula), 'term.labels')
+	terms <- terms[!grepl(terms, pattern = ':')]
+	terms <- terms[!grepl(terms, pattern = '\\^2')]
 
-	# Column names are improper--need 'R-friendly' columns (no spaces) that correspond to each taxon.
-	# We also need the column names to be 'class_rID~~~', with domain and phylum excluded because the
-	# inclusion of a phylogeny will assume column names are as such.
-	abundances <- read.csv('./data/data_from_sonny/compiled_for_modeling_with_hmsc/2024_07_26_erica/species_rhz_26JUL2024.csv',  as.is = FALSE, check.names = FALSE)
-	
-	# # add abundances across columns that represent the same taxon
-	# taxon_names <- colnames(abundances)
-	# taxon_names <- taxon_names[taxon_names %notin% c('my.id', 'id')]
-	# rID_positions <- regexpr(taxon_names, pattern = 'rID_')
-	# taxon_names <- substr(taxon_names, 1, rID_positions - 1)
-	# taxon_names <- trimws(taxon_names)
-	# unique_taxa <- unique(taxon_names)
-
-	# collapsed_abundances <- abundances[ , c('my.id', 'id')]
-	# for (i in seq_along(unique_taxa)) {
-	
-		# taxon <- unique_taxa[i]
-		# columns_with_taxon <- which(taxon_names == taxon) + 2 # add 2 because of 'my.id' and 'id' columns
-		# this_abund <- abundances[ , columns_with_taxon, drop = FALSE]
-		# this_abund <- rowSums(this_abund)
-		# this_abund <- data.frame(this_abund)
-		# colnames(this_abund) <- taxon
-		
-		# collapsed_abundances <- cbind(collapsed_abundances, this_abund)
-	
-	# }
-
-	# make nice taxon names
-	taxa <- colnames(abundances)
-	taxa <- strsplit(taxa, split = ' ')
-
-	new_names <- rep(NA_character_, length(taxa))
-	for (i in seq_along(taxa)) {
-
-		if (length(taxa[[i]]) == 1) {
-			new_names[i] <- taxa[[i]]
-		} else {
-			this_name <- taxa[[i]]
-			this_name <- gsub(this_name, pattern = 'd__', replacement = '')
-			this_name <- gsub(this_name, pattern = 'p__', replacement = '')
-			this_name <- gsub(this_name, pattern = 'c__', replacement = '')
-			this_name <- gsub(this_name, pattern = '__', replacement = 'unknown')
-			this_name <- gsub(this_name, pattern = '-', replacement = '_')
-			this_name <- paste(this_name, collapse = '_')
-			new_names[i] <- this_name
-		}
-
-	}
-
-	new_names <- trimws(new_names)
-	names(abundances) <- new_names
-
-	# create response matrix with abundances
-	Y <- abundances[ , colnames(abundances) %notin% c('my.id', 'id')]
-	Y <- as.matrix(Y)
-
-	### site-by-environment data
-	############################
-	say('environmental data', level = 3)
-
-	site_by_env <- fread('./data/data_from_sonny/compiled_for_modeling_with_hmsc/environment_rhz_26JUL2024.csv')
-
-	# names(site_by_env)[names(site_by_env) == 'x-coordinate'] <- 'longitude'
-	# names(site_by_env)[names(site_by_env) == 'y-coordinate'] <- 'latitude'
-	# names(site_by_env)[names(site_by_env) == 'SoilC'] <- 'soc'
-	# names(site_by_env)[names(site_by_env) == 'SoilN'] <- 'soil_n'
-	# names(site_by_env)[names(site_by_env) == 'CLAY'] <- 'clay'
-	# names(site_by_env)[names(site_by_env) == 'SAND'] <- 'sand'
-
-		### add SDM-estimated suitability of Andropogon gerardi as predictor
-		####################################################################
-
-		# load spatial vector with AG presences
-		# we will need to 1) burn the suitability values into this
-		# and then 2) extract the suitability values to sampled sites,
-		# and finally, 3) covert this to a raster so we can make predictions
-
-		terms <- terms(x_formula)
-		terms <- attr(terms, 'term.labels')
-		if ('ag_lambda' %in% terms) {
-
-			# SDM output (posterior estimates from non-integrated SDM)
-			sdm_chains <- readRDS('./outputs_loretta/noinintegrated_sdm_with_bio2_without_pH/nonintegrated_sdm_chains.rds')
-			sdm_summary <- sdm_chains$summary$all.chains
-
-			which_lambda <- grepl(rownames(sdm_summary), pattern = 'lambda')
-			lambda <- sdm_summary[which_lambda, ]
-
-			# spatial vector into which to burn posteriors
-			ag_vect <- vect('./data/occurrence_data/andropogon_gerardi_occurrences_with_environment.gpkg')
-
-			ag <- as.data.frame(ag_vect)
-			completes <- complete.cases(as.data.frame(ag_vect))
-			ag_focus <- ag[completes, ]
-			ag_vect_focus <- ag_vect[completes, ]
-			
-			# remove table... makes things faster
-			for (i in ncol(ag_vect_focus):1) ag_vect_focus[ , i] <- NULL
-
-			# attach mean of posteriors to vector
-			ag_vect_focus$lambda_mean <- lambda[ , 'Mean']
-			
-			# extract AG suitability to sampled sites
-			site_by_env_vect <- vect(site_by_env, geom = c('longitude', 'latitude'), crs = getCRS('WGS84'))
-			site_by_env_vect <- project(site_by_env_vect, ag_vect_focus)
-
-			sample_site_lambdas <- extract(ag_vect_focus, site_by_env_vect)
-			site_by_env$ag_lambda <- sample_site_lambdas$lambda_mean
-		
-		}
-
-	site_by_env$id <- as.factor(site_by_env$id)
-	site_by_env$sampling_ppt_mm <- log1p(site_by_env$sampling_ppt_mm) # unskew
-
-	site_by_env <- site_by_env[ , ..predictors]
-	site_by_env <- scale(site_by_env)
-
-	env_centers <- attr(site_by_env, 'scaled:center')
-	env_scales <- attr(site_by_env, 'scaled:scale')
-
-	site_by_env <- as.data.frame(site_by_env)
-	
-	### phylogenetic data ###
-	#########################
-	say('phylogenetic data', level = 3)
-
-	taxonomy_traits <- read.csv('./data/data_from_sonny/compiled_for_modeling_with_hmsc/2024_07_26_erica/traits_rhz_26JUL2024.csv', as.is = FALSE)
-	taxonomy_traits$intercept <- 1
-
-	# # 'species' names must match those from Y
-	# taxa <- taxonomy_traits[ , c('Domain', 'Phylum', 'Class')]
-	# taxa <- apply(taxa, 2, gsub, pattern = 'd__', replacement = '')
-	# taxa <- apply(taxa, 2, gsub, pattern = 'p__', replacement = '')
-	# taxa <- apply(taxa, 2, gsub, pattern = 'c__', replacement = '')
-	# taxa <- apply(taxa, 2, gsub, pattern = '__', replacement = 'unknown')
-	# taxa <- apply(taxa, 2, gsub, pattern = '-', replacement = '_')
-	# taxa <- apply(taxa, 2, trimws)
-	# taxa_together <- apply(taxa, 1, paste, collapse = '_')
-	
-	# taxonomy_traits$taxon <- taxa_together
-
-	# taxonomy_traits$Domain <- taxa[ , 'Domain']
-	# taxonomy_traits$Phylum <- taxa[ , 'Phylum']
-	# taxonomy_traits$Class <- taxa[ , 'Class']
-
-	# # remove rows with duplicated taxa
-	# dups <- duplicated(taxa_together)
-	# taxonomy_traits <- taxonomy_traits[!dups, ]
-
-	# taxonomy_traits$Domain <- factor(taxonomy_traits$Domain)
-	# taxonomy_traits$Phylum <- factor(taxonomy_traits$Phylum)
-	# taxonomy_traits$Class <- factor(taxonomy_traits$Class)
-
-	# rownames(taxonomy_traits) <- taxonomy_traits$taxon
-
-	# # check that columns of Y have same names as phylogeny
-	# stopifnot(colnames(Y) == taxonomy_traits$taxon) # no need for manual inspection
-
-	### select species
-	##################
-	say('select species', level = 3)
-
-	total_abundances <- colSums(Y)
-	threshold_abundance <- quantile(total_abundances, quant_common_species)
-
-	# select most common species
-	selected_species <- which(total_abundances >= threshold_abundance)
-	
-	Y <- Y[ , selected_species]
-	taxonomy_traits <- taxonomy_traits[taxonomy_traits$taxon %in% colnames(Y), ]
-	traits <- taxonomy_traits[ , c('intercept', 'in_bulk'), drop = FALSE]
-
-	say('Number of selected taxa: ', ncol(Y))
+	sites_by_env <- sites_by_env[ , ..terms]
 
 	### study design
 	################
-	say('study design', level = 3)
 
-	study_design <- read.csv('./data/data_from_sonny/compiled_for_modeling_with_hmsc/2024_07_26_erica/studyDesign_rhz_26JUL2024.csv')
-
-	study_design$site <- factor(study_design$site)
-	study_design$id <- factor(study_design$id)
+	study_design[ , site := factor(as.integer(factor(study_design$location)))]
+	study_design[ , id := factor(as.integer(factor(study_design$plant)))]
+	study_design_coerced <- study_design[ , c('site', 'id')]
 
 	# site as random effect
-	site_effect <- HmscRandomLevel(units = levels(study_design$site))
+	site_effect <- HmscRandomLevel(units = levels(study_design_coerced$site))
 
-	# ID as random effect if we want taxon associations at that level
-	id_effect <- HmscRandomLevel(units = levels(study_design$id))
+	# plant as random effect if we want taxon associations at that level
+	plant_effect <- HmscRandomLevel(units = levels(study_design_coerced$id))
 
 	### taxonomic tree
 	##################
-	say('taxonomic tree', level = 3)
 
 	if (include_phylogeny) {
 
 		# Since we don't have a true phylogeny, we'll use a taxonomic tree.
-		taxonomic_tree <- as.phylo(~ Domain / Phylum / Class, data = taxonomy_traits, collapse = FALSE)
+		taxa$domain <- factor(taxa$domain)
+		taxa$phylum <- factor(taxa$phylum)
+		taxa$taxon <- factor(taxa$taxon)
+
+		taxonomic_tree <- as.phylo(~ domain / phylum / taxon, data = taxa, collapse = FALSE)
 		taxonomic_tree$edge.length <- rep(1, length(taxonomic_tree$edge))
 
-		png(paste0('./outputs_sonny/', output_subfolder, '/taxon_tree.png'), width = 1200, height = 1200, res = 300)
-		plot(taxonomic_tree, cex = 0.5, no.margin = TRUE, show.node.label = TRUE, type = 'cladogram', edge.color = 'cornflowerblue')
+		png(paste0(output_subfolder, '/taxon_tree.png'), width = 1200, height = 1400, res = 300)
+		plot(taxonomic_tree, cex = 0.4, no.margin = TRUE, show.node.label = TRUE, type = 'cladogram', edge.color = 'cornflowerblue')
 		dev.off()
 		
 	}
 
-	### graphs of abundance vs each environmental variable
-	######################################################
-	say('graphs of abundance vs each environmental variable', level = 3)
-	
-	# make a set of plots showing abundance vs each predictor
-	# one plot per taxon
-	# all plots for the same predictor compiled into a multi-panel plot
-	# this multi-panel plot is saved as a file, one per predictor
-	
-	n_panel_rows <- 5 # number of rows of subpanels
-	n_panel_cols <- 8 # number of columns of subpanels
-	n_panels <- n_panel_rows * n_panel_cols
-	n_actual_panels <- min(n_panels, ncol(Y))
-	for (pred in predictors) {
-	
-		abund_vs_predictors <- list()
-		for (i in seq_len(n_actual_panels)) {
+##########################################################
+### graphs of abundance vs each environmental variable ###
+##########################################################
 		
-			taxon <- colnames(Y)[i]
-			x <- site_by_env[ , pred]
-			x <- fields::unscale(x, env_centers[[pred]], env_scales[[pred]])
-			data <- data.frame(x = x, abundance = Y[ , i] + 1)
+	if (make_abundance_plots) {
+
+		say('graphs of abundance vs each environmental variable')
+		
+		# make a set of plots showing abundance vs each predictor
+		# one plot per taxon
+		# all plots for the same predictor compiled into a multi-panel plot
+		# this multi-panel plot is saved as a file, one per predictor
+		
+		n_panel_rows <- 5 # number of rows of subpanels
+		n_panel_cols <- 8 # number of columns of subpanels
+		n_panels <- n_panel_rows * n_panel_cols
+		n_actual_panels <- min(n_panels, ncol(abund))
+		these_predictors <- if ('rhizobiome_or_bulk' %in% raw_predictors) {
+			raw_predictors[raw_predictors != 'rhizobiome_or_bulk']
+		} else {
+			raw_predictors
+		}
+
+		if ('rhizobiome_or_bulk' %in% raw_predictors) rhizo_bulk <- ifelse(env$rhizobiome_or_bulk == 1, 'rhizo', 'bulk')
+		for (pred in these_predictors) {
+		
+			abund_vs_predictors <- list()
+			for (i in seq_len(n_actual_panels)) {
 			
-			in_bulk_indicator <- taxonomy_traits$in_bulk[taxon == taxonomy_traits$taxon]
-			in_bulk_color <- ifelse(in_bulk_indicator, 'lightgoldenrodyellow', 'lightgreen')
+				taxon <- colnames(abund)[i]
+				x <- env[[pred]]
+				data <- data.frame(x = x, abundance = abund[[i]] + 1)
+				if ('rhizobiome_or_bulk' %in% raw_predictors) data[ , rhizo_bulk := rhizo_bulk]
+				
+				in_bulk_indicator <- taxa$in_bulk[taxa$taxon == taxon]
+				in_bulk_color <- ifelse(in_bulk_indicator, 'lightgoldenrodyellow', 'lightgreen')
+
+					if ('rhizobiome_or_bulk' %in% raw_predictors) {
+						
+						plot <- ggplot(data, aes(x = x, y = abundance, fill = rhizo_bulk))
+							geom_point(pch = 21) +
+							scale_fill_manual(
+								guide = 'none',
+								values = c('rhizo' = 'lightgreen', 'bulk' = 'lightgoldenrodyellow')
+							)
+
+					} else {
+						plot <- ggplot(data, aes(x = x, y = abundance)) +
+							geom_point()
+					}
+
+				abund_vs_predictors[[i]] <- plot +
+					geom_smooth(formula = y ~ x, method = 'lm', color = 'red', se = FALSE) +
+					geom_smooth(formula = y ~ x + I(x^2), method = 'lm', se = FALSE) +
+					xlab(pred) + ylab('abundance') +
+					scale_y_log10() +
+					ggtitle(taxon) +
+					theme(
+						panel.background = element_rect(fill = in_bulk_color),
+						title = element_text(size = 4),
+						axis.title = element_text(size = 5),
+						axis.text = element_text(size = 4)
+					)
 			
-			abund_vs_predictors[[i]] <- ggplot(data, aes(x = x, y = abundance)) +
-				geom_point() +
-				geom_smooth(formula = y ~ x, method = 'lm', color = 'red', se = FALSE) +
-				geom_smooth(formula = y ~ x + I(x^2), method = 'lm', se = FALSE) +
-				xlab(pred) + ylab('abundance') +
-				scale_y_log10() +
-				ggtitle(taxon) +
-				theme(
-					panel.background = element_rect(fill = in_bulk_color),
-					title = element_text(size = 4),
-					axis.title = element_text(size = 5),
-					axis.text = element_text(size = 4)
-				)
+			}
+			
+			abund_vs_predictors <- plot_grid(plotlist = abund_vs_predictors, ncol = n_panel_cols, nrow = n_panel_rows)
+			ggsave(abund_vs_predictors, filename = paste0(output_subfolder, '/abundance_vs_', pred, '.png'), width = 12, height = 8, dpi = 200)
 		
 		}
 		
-		abund_vs_predictors <- plot_grid(plotlist = abund_vs_predictors, ncol = n_panel_cols, nrow = n_panel_rows)
-		ggsave(abund_vs_predictors, filename = paste0('./outputs_sonny/', output_subfolder, '/abundance_vs_', pred, '.png'), width = 12, height = 8, dpi = 200)
-	
+		### same type of graphs for PC axes
+		if (use_pc_axes_as_predictors) {
+			
+			these_predictors <- colnames(sites_by_env)
+			these_predictors <- if ('rhizobiome_or_bulk' %in% raw_predictors) {
+				these_predictors[these_predictors != 'rhizobiome_or_bulk']
+			} else {
+				these_predictors
+			}
+
+			for (pred in these_predictors) {
+			
+				abund_vs_predictors <- list()
+				for (i in seq_len(n_actual_panels)) {
+				
+					taxon <- colnames(abund)[i]
+					x <- sites_by_env[[pred]]
+					data <- data.frame(x = x, abundance = abund[[i]] + 1)
+					if ('rhizobiome_or_bulk' %in% raw_predictors) data[ , rhizo_bulk := rhizo_bulk]
+					
+					in_bulk_indicator <- taxa$in_bulk[taxa$taxon == taxon]
+					in_bulk_color <- ifelse(in_bulk_indicator, 'lightgoldenrodyellow', 'lightgreen')
+					
+					if ('rhizobiome_or_bulk' %in% raw_predictors) {
+						
+						plot <- ggplot(data, aes(x = x, y = abundance, fill = rhizo_bulk))
+							geom_point(pch = 21) +
+							scale_fill_manual(
+								guide = 'none',
+								values = c('rhizo' = 'lightgreen', 'bulk' = 'lightgoldenrodyellow')
+							)
+
+					} else {
+						plot <- ggplot(data, aes(x = x, y = abundance)) +
+							geom_point()
+					}
+					
+					abund_vs_predictors[[i]] <- plot +
+						geom_smooth(formula = y ~ x, method = 'lm', color = 'red', se = FALSE) +
+						geom_smooth(formula = y ~ x + I(x^2), method = 'lm', se = FALSE) +
+						xlab(pred) + ylab('abundance') +
+						scale_y_log10() +
+						ggtitle(taxon) +
+						theme(
+							panel.background = element_rect(fill = in_bulk_color),
+							title = element_text(size = 4),
+							axis.title = element_text(size = 5),
+							axis.text = element_text(size = 4)
+						)
+				
+				}
+				
+				abund_vs_predictors <- plot_grid(plotlist = abund_vs_predictors, ncol = n_panel_cols, nrow = n_panel_rows)
+				ggsave(abund_vs_predictors, filename = paste0(output_subfolder, '/abundance_vs_', pred, '.png'), width = 12, height = 8, dpi = 200)
+			
+			}
+
+		}
+
 	}
 
-	### construct model
-	###################
+#######################
+### construct model ###
+#######################
 
-	say('construct model', level = 3)
+	say('construct model')
 
 	# arguments to Hmsc (always included)
 	args <- list(
-		Y = Y, XFormula = x_formula, XData = site_by_env, XScale = FALSE,
+		Y = abund,
+		XFormula = x_formula,
+		XData = as.data.frame(sites_by_env),
+		XScale = TRUE,
 		distr = response,
-		studyDesign = study_design,
-		ranLevels = list(site = site_effect, id = id_effect)
+		studyDesign = study_design_coerced,
+		ranLevels = list(site = site_effect, id = plant_effect)
 
 	)
 
-	# trait arguments
-	if (include_traits) {
-		args$TrData <- traits
-		args$TrFormula <- trait_formula
-	}
-
 	# phylogeny arguments
-	if (include_phylogeny) {
-		args$phyloTree <- taxonomic_tree
-	}
+	if (include_phylogeny) args$phyloTree <- taxonomic_tree
 
 	model <- do.call(Hmsc, args)
 	sampleMcmc(model, samples = 2) # does this yield errors?
@@ -411,39 +526,32 @@ say('###################')
 	# effect of using this is unknown
 	# sampleMcmc(model, samples = 2, updater = list(GammaEta = FALSE)) 
 
-	saveRDS(model, file = paste0('./outputs_sonny/', output_subfolder, '/unfitted_model.rds'))
+#################
+### run model ###
+#################
 
-say('#################')
-say('### run model ###')
-say('#################')
+	say('MCMC')
 
-	### settings
-	############
-
-	# if (is.null(nParallel)) nParallel <- nChains # setting nParallel > 1 causes sampleHmsc() to fail to sample!
-
-	# model <- readRDS('./models/unfitted_model.rds')
-
-	### MCMC
-	########
-	say('MCMC', level = 3)
+	# if (is.null(n_parallel)) n_parallel <- n_chains # setting n_parallel > 1 causes sampleHmsc() to fail to sample!
 
 	fit <- sampleMcmc(
 		hM = model, samples = samples, thin = thin,
 		transient = ifelse(is.null(transient), ceiling(0.5 * samples * thin), transient),
 		# adaptNf = rep(ceiling(0.4 * samples * thin), model$nr),
 		# adaptNf = rep(ceiling(0.4 * samples * thin), 100),
-		nChains = nChains, nParallel = 1, # NB nParallel >1 leads to failure to sample!
+		nChains = n_chains, nParallel = 1, # NB n_parallel >1 leads to failure to sample!
 		initPar = 'fixed effects', # use MLE to generate initial guesses... much faster!
 		# verbose = TRUE
 		verbose = FALSE
 	)
 
-	saveRDS(fit, file = paste0('./outputs_sonny/', output_subfolder, '/fit_model.rds'))
+	saveRDS(fit, file = paste0(output_subfolder, '/fit_model.rds'))
 
-say('##########################')
-say('### assess convergence ###')
-say('##########################')
+##########################
+### assess convergence ###
+##########################
+
+	say('assess convergence')
 
 	posteriors <- convertToCodaObject(fit, spNamesNumbers = c(TRUE, FALSE), covNamesNumbers = c(TRUE, FALSE))
 	nr <- fit$nr
@@ -451,7 +559,7 @@ say('##########################')
 	### Gelman-Rubin diagnostics (R-hat)
 	# We want all R-hat + upper CI values to be <=1.1
 
-	sink(paste0('./outputs_sonny/', output_subfolder, '/model_convergence.txt'), split = TRUE)
+	sink(paste0(output_subfolder, '/model_convergence.txt'), split = TRUE)
 	say('ASSESSING MODEL CONVERGENCE')
 	say(date(), post = 1)
 
@@ -468,7 +576,7 @@ say('##########################')
 		geom_vline(xintercept = 1.1) +
 		ggtitle('Betas')
 		
-	ggsave(rhat_plot, file = paste0('./outputs_sonny/', output_subfolder, '/rhat_betas.png'), width = 12, height = 8, dpi = 150)
+	ggsave(rhat_plot, file = paste0(output_subfolder, '/rhat_betas.png'), width = 12, height = 8, dpi = 150)
 	
 	say('Gamma:', pre = 1)
 	rhat_gamma <- gelman.diag(posteriors$Gamma, multivariate = FALSE)$psrf
@@ -478,12 +586,12 @@ say('##########################')
 	
 	rhat_gamma <- as.data.frame(rhat_gamma)
 	names(rhat_gamma)[1] <- 'estimate'
-	rhat_plot <- ggplot(rhat_beta, aes(x = estimate)) +
+	rhat_plot <- ggplot(rhat_gamma, aes(x = estimate)) +
 		geom_histogram(binwidth = 0.5, fill = '#69b3a2', color = '#e9ecef') +
 		geom_vline(xintercept = 1.1) +
 		ggtitle('Gammas')
 
-	ggsave(rhat_plot, file = paste0('./outputs_sonny/', output_subfolder, '/rhat_gamma.png'), width = 12, height = 8, dpi = 150)
+	ggsave(rhat_plot, file = paste0(output_subfolder, '/rhat_gamma.png'), width = 12, height = 8, dpi = 150)
 
 	if (include_phylogeny) {
 
@@ -493,19 +601,19 @@ say('##########################')
 		say('Maximum R-hat: ', max(rhat_rho[ , 1]))
 		say('Maximum R-hat + upper CI: ', max(rowSums(rhat_rho)))
 		
-		rhat_gamma <- as.data.frame(rhat_rho)
+		rhat_rho <- as.data.frame(rhat_rho)
 		names(rhat_rho)[1] <- 'estimate'
 		rhat_plot <- ggplot(rhat_rho, aes(x = estimate)) +
 			geom_histogram(binwidth = 0.5, fill = '#69b3a2', color = '#e9ecef') +
 			geom_vline(xintercept = 1.1) +
 			ggtitle('Rhos')
-		ggsave(rhat_plot, file = paste0('./outputs_sonny/', output_subfolder, '/rhat_rho.png'), width = 12, height = 8, dpi = 150)
+		ggsave(rhat_plot, file = paste0(output_subfolder, '/rhat_rho.png'), width = 12, height = 8, dpi = 150)
 
 	}
 
 	if (nr > 0) {
 		
-		say('Omega (traits)', pre = 1)
+		say('Omega', pre = 1)
 		rhat_omega <- gelman.diag(posteriors$Omega[[1]], multivariate = FALSE)$psrf
 		say('Mean R-hat: ', mean(rhat_omega[ , 1]))
 		say('Maximum R-hat: ', max(rhat_omega[ , 1]))
@@ -517,7 +625,8 @@ say('##########################')
 			geom_histogram(binwidth = 0.5, fill = '#69b3a2', color = '#e9ecef') +
 			geom_vline(xintercept = 1.1) +
 			ggtitle('Omegas')
-		ggsave(rhat_plot, file = paste0('./outputs_sonny/', output_subfolder, '/rhat_omega.png'), width = 12, height = 8, dpi = 150)
+	
+		ggsave(rhat_plot, file = paste0(output_subfolder, '/rhat_omega.png'), width = 12, height = 8, dpi = 150)
 
 		# # spatial random effects
 		# if (nr > 0) {
@@ -545,24 +654,29 @@ say('##########################')
 	
 	sink()
 
-say('########################')
-say('### assess model fit ###')
-say('########################')
+########################
+### assess model fit ###
+########################
+
+	say('assess model fit')
 
 	# level at which to conduct cross-validation
 	# NB we need to use at least a site-level random effect
 	cv.level <- 'site'
 
 	# predictions without/with cross-validation
-	partition <- createPartition(fit, nfolds = nfolds, column = cv.level)
+	partition <- createPartition(fit, nfolds = n_folds, column = cv.level)
 	preds <- computePredictedValues(fit, verbose = FALSE)
 	preds_cv <- computePredictedValues(fit, partition = partition, verbose = FALSE)
 
 	model_fit <- evaluateModelFit(hM = fit, predY = preds)
 	model_fit_cv <- evaluateModelFit(hM = fit, predY = preds_cv)
 	waic <- computeWAIC(fit)
-	
+
+	sink(paste0(output_subfolder, '/waic.txt'), split = TRUE)
+	say(date())
 	say('WAIC: ', waic)
+	sink()
 	
 	metrics <- c('RMSE', 'O.RMSE', 'C.RMSE', 'SR2', 'C.SR2')
 	fit_plots <- list()
@@ -593,11 +707,13 @@ say('########################')
 	all_fit_plots <- plot_grid(plotlist = fit_plots) +
 		theme(plot.background = element_rect(fill = 'white'))
 
-	ggsave(all_fit_plots, file = paste0('./outputs_sonny/', output_subfolder, '/', model_fit.png), width = 14, height = 10, dpi = 300)
+	ggsave(all_fit_plots, file = paste0(output_subfolder, '/model_fit.png'), width = 14, height = 10, dpi = 300)
 
-say('###########################')
-say('### parameter estimates ###')
-say('###########################')
+###########################
+### parameter estimates ###
+###########################
+
+	say('parameter estimates')
 
 	# Alpha is spatial scale parameter (pages 100-101)
 
@@ -609,11 +725,12 @@ say('###########################')
 	
 	# make one caterpillar plot per model term
 	model_terms <- attr(terms(model$XFormula), 'term.labels')
+	model_terms <- model_terms[model_terms != 'rhizobiome_or_bulk']
 	for (model_term in model_terms) {
 
 		say(model_term)
 
-		pars <- paste0('B[', model_term, ', ', taxonomy_traits$taxon, ']')
+		pars <- paste0('B[', model_term, ', ', taxa$taxon, ']')
 		# if (grepl(model_term, pattern = '\\^2')) {
 			# regx <- '\\^2)'
 			# caterpillars <- mcmc_intervals(samples, pars = pars, regex_pars = regx)
@@ -636,7 +753,7 @@ say('###########################')
 		file_name <- gsub(file_name, pattern = 'I\\(', replacement = '')
 		file_name <- gsub(file_name, pattern = '\\^2\\)', replacement = '_2')
 
-		ggsave(caterpillars, file = paste0('./outputs_sonny/', output_subfolder, '/coefficient_estimates_', file_name, '.png'), width = 10, height = 8)
+		ggsave(caterpillars, file = paste0(output_subfolder, '/coefficient_estimates_', file_name, '.png'), width = 10, height = 8)
 
 	}
 
@@ -655,17 +772,21 @@ say('###########################')
 	taxa1 <- means_cols[ , 1]
 	taxa2 <- means_cols[ , 2]
 	
-	taxa <- taxonomy_traits$taxon
+	taxas <- taxa$taxon
 	
-	omegas <- expand.grid(taxon1 = taxa, taxon2 = taxa)
+	omegas <- expand.grid(taxon1 = taxas, taxon2 = taxas)
 	omegas$omega <- NA_real_
-	
+	n=0
 	for (i in 1:nrow(omegas)) {
 		
 		taxon1 <- grepl(taxa1, pattern = omegas$taxon1[i])
 		taxon2 <- grepl(taxa2, pattern = omegas$taxon2[i])
 		this_col <- taxon1 & taxon2
-		omegas$omega[i] <- means[this_col]
+		
+		# NB taking the mean of the value obviates cases when 2 values are drawn... but is this correct? why >1 value in *some* cases?
+		# omegas$omega[i] <- means[this_col]
+		omegas$omega[i] <- mean(means[this_col])
+		if (length(means[this_col]) > 1) n <- n + 1
 	
 	}	
 	
@@ -698,9 +819,9 @@ say('###########################')
 	taxa1 <- means_cols[ , 1]
 	taxa2 <- means_cols[ , 2]
 	
-	taxa <- taxonomy_traits$taxon
+	taxas <- taxa$taxon
 	
-	omegas <- expand.grid(taxon1 = taxa, taxon2 = taxa)
+	omegas <- expand.grid(taxon1 = taxas, taxon2 = taxas)
 	omegas$omega <- NA_real_
 	
 	for (i in 1:nrow(omegas)) {
@@ -708,7 +829,10 @@ say('###########################')
 		taxon1 <- grepl(taxa1, pattern = omegas$taxon1[i])
 		taxon2 <- grepl(taxa2, pattern = omegas$taxon2[i])
 		this_col <- taxon1 & taxon2
-		omegas$omega[i] <- means[this_col]
+
+		# NB taking the mean of the value obviates cases when 2 values are drawn... but is this correct? why >1 value in *some* cases?
+		# omegas$omega[i] <- means[this_col]
+		omegas$omega[i] <- mean(means[this_col])
 	
 	}	
 	
@@ -729,82 +853,129 @@ say('###########################')
 	omegas_plot <- plot_grid(omega_1_plot, omega_2_plot) +
 		theme(plot.background = element_rect(fill = 'white'))
 
-	ggsave(omegas_plot, file = paste0('./outputs_sonny/', output_subfolder, '/omegas.png'), width = 18, height = 9, dpi = 600)
+	ggsave(omegas_plot, file = paste0(output_subfolder, '/omegas.png'), width = 18, height = 9, dpi = 600)
 
-say('###################')
-say('### predictions ###')
-say('###################')
+###################
+### predictions ###
+###################
+
+	say('predictions')
 
 	### save data frames of predictions for the mean predicted abundance, SD, and (optionally, 10th and 90th quantiles)
 
-	### obtain rasters for predictors
-	conus_env <- readRDS('./outputs_sonny/conus_environment_as_per_prism_aggregated_by_16.rds')
+	### obtain rasters of climate and soil predictors
 	
-	# add AG suitability as a predictor if it's in the model
-	terms <- terms(x_formula)
-	terms <- attr(terms, 'term.labels')
-	if ('ag_lambda' %in% terms) {
+	# environmental rasters
+	rasts <- rast('./outputs_sonny/climatena_soilgrids_aggregated_8x.tif')
+	# rasts <- rast('./outputs_sonny/climatena_soilgrids_aggregated_16x.tif')
+	names(rasts)[names(rasts) == 'ph_soilgrids'] <- 'ph_field'
+	names(rasts)[names(rasts) == 'sand_soilgrids'] <- 'sand_field'
+	names(rasts)[names(rasts) == 'silt_soilgrids'] <- 'silt_field'
+	names(rasts)[names(rasts) == 'clay_soilgrids'] <- 'clay_field'
+	names(rasts)[names(rasts) == 'soc_soilgrids_perc'] <- 'soc_field_perc'
+	names(rasts)[names(rasts) == 'nitrogen_soilgrids_perc'] <- 'nitrogen_field'
 
-		conus_env_vect <- vect(conus_env, geom = c('x', 'y'), crs = getCRS('NAD83'))
-		ag_vect_focus_nad83 <- project(ag_vect_focus, conus_env_vect)
-		ag_lambda <- extract(ag_vect_focus_nad83, conus_env_vect)
-		conus_env$ag_lambda <- ag_lambda$lambda_mean
-		
-		conus_env <- conus_env[complete.cases(conus_env), ]
+	rast_predictors <- raw_predictors[raw_predictors %in% names(rasts)]
+	rasts <- rasts[[rast_predictors]]
+
+	### Andropogon SDM output
 	
+	# posterior from SDM
+	chains <- readRDS('./outputs_loretta/nonintegrated_sdm_chains.rds')
+
+	# subset chain summary to just the lambda's associated with background sites
+	summary <- chains$summary$all.chains
+
+	which_lambda <- grepl(rownames(summary), pattern = 'lambda')
+	lambda <- summary[which_lambda, ]
+
+	ag_vect <- vect('./data_other/occurrence_data/andropogon_gerardi_occurrences_with_environment.gpkg')
+
+	ag <- as.data.frame(ag_vect)
+	completes <- complete.cases(as.data.frame(ag_vect))
+	ag_focus <- ag[completes, ]
+	ag_vect_focus <- ag_vect[completes, ]
+	
+	# get just counties with data
+	ag_vect_focus$ag_lambda <- lambda[ , 'Mean']
+
+	ag_lambda <- rasterize(ag_vect_focus, rasts, field = 'ag_lambda')
+	rasts <- c(rasts, ag_lambda)
+
+	### sampling predictors
+	sampling_ppt_mm <- median(env$sampling_ppt_mm)
+	sampling_tmean_c <- median(env$sampling_tmean_c)
+
+	sampling_ppt_mm_rast <- rasts[[1]]
+	sampling_ppt_mm_rast[] <- sampling_ppt_mm
+
+	sampling_tmean_c_rast <- rasts[[1]]
+	sampling_tmean_c_rast[] <- sampling_tmean_c
+
+	names(sampling_ppt_mm_rast) <- 'sampling_ppt_mm'
+	names(sampling_tmean_c_rast) <- 'sampling_tmean_c'
+
+	rasts <- c(rasts, sampling_ppt_mm_rast, sampling_tmean_c_rast)
+
+	rast_env <- as.data.table(rasts, cell = TRUE)
+	rast_env <- rast_env[complete.cases(rast_env)]
+
+	if (use_pc_axes_as_predictors) {
+
+		cell <- rast_env[ , 'cell']
+		rast_env <- predict(pca, rast_env)
+		colnames(rast_env) <- tolower(colnames(rast_env))
+		rast_env <- as.data.table(rast_env)
+		rast_env[ , cell := cell]
+		
 	}
 
+	rast_env[ , rhizobiome_or_bulk := 1]
+	rast_env[ , rhizobiome_or_bulk := factor(rhizobiome_or_bulk, levels = 0:1)]
+
 	# create data tables for predictions	
-	# predictions_mean <- predictions_sd <- predictions_quantile_0.1 <- predictions_quantile_0.9 <- conus_env[ , 'cell']
-	predictions_mean <- predictions_sd <- conus_env[ , 'cell']
-
-	# assume average amount of "sampling" rainfall
-	conus_env[ , sampling_ppt_mm := mean(sampling_ppt_mm)]
-	conus_env <- conus_env[ , ..predictors]
-
-	# center and scale
-	conus_env <- scale(conus_env, center = env_centers, scale = env_scales)
-	conus_env <- as.data.table(conus_env)
+	predictions_mean <- predictions_sd <- rast_env[ , 'cell', drop = FALSE]
 
 	### create one column per taxon in each data table for predictions
-	taxa <- colnames(Y)
-	for (i in seq_along(abundances)) {
+	for (i in 1:nrow(taxa)) {
 
 		predictions_mean[ , DUMMY := NA_real_]
 		predictions_sd[ , DUMMY := NA_real_]
-		# predictions_quantile_0.1[ , DUMMY := NA_real_]
-		# predictions_quantile_0.9[ , DUMMY := NA_real_]
 
-		taxon <- taxa[i]
+		taxon <- as.character(taxa$taxon[i])
 		colnames(predictions_mean)[ncol(predictions_mean)] <- taxon
 		colnames(predictions_sd)[ncol(predictions_sd)] <- taxon
-		# colnames(predictions_quantile_0.1)[ncol(predictions_quantile_0.1)] <- taxon
-		# colnames(predictions_quantile_0.9)[ncol(predictions_quantile_0.9)] <- taxon
 
 	}
 
-	if (any(colnames(predictions_mean) == 'DUMMY')) predictions_mean[ , DUMMY := NULL]
-	if (any(colnames(predictions_sd) == 'DUMMY')) predictions_sd[ , DUMMY := NULL]
-	# if (any(colnames(predictions_quantile_0.1) == 'DUMMY') predictions_quantile_0.1[ , DUMMY := NULL]
-	# if (any(colnames(predictions_quantile_0.9) == 'DUMMY') predictions_quantile_0.9[ , DUMMY := NULL]
+	predictors <- if (use_pc_axes_as_predictors) {
+		pc_predictors
+	} else {
+		raw_predictors
+	}
 
 	### make predictions in chunks to save on memory (HMSC crashes otherwise)
-	size <- round(nrow(conus_env) / 20)
-	sets <- ceiling(nrow(conus_env) / size)
+	taxas <- as.character(taxa$taxon)
+	size <- round(nrow(rast_env) / 20)
+	sets <- ceiling(nrow(rast_env) / size)
 	for (set in seq_len(sets)) {
 
-		say(set, ' of ', sets, ' ', date())
+		# say(set, ' of ', sets, ' ', date())
 
-		indices <- (1 + size * (set - 1)):min(nrow(conus_env), size * set)
+		indices <- (1 + size * (set - 1)):min(nrow(rast_env), size * set)
 
 		# select environmental data
-		x_data <- conus_env[indices, ..predictors]
+		x_data <- rast_env[indices, ..predictors]
 		x_data <- as.data.frame(x_data)
 		n_cells <- nrow(x_data)
 
 		# random effects
-		pred_site_effect <- data.frame(site = rep('KS', n_cells)) # assuming all places are Kansas
-		pred_id_effect <- data.frame(id = rep(40, n_cells)) # assuming all samples are #40
+		site_code <- study_design$location
+		site_code <- as.integer(as.factor(site_code))
+		site_code <- unique(site_code[study_design$location == 'KS1'])
+
+		pred_site_effect <- data.frame(site = rep(site_code, n_cells)) # assuming all places are Kansas
+		pred_id_effect <- data.frame(id = rep(1, n_cells)) # assuming all samples are #40
 		s_new <- list(site_effect = pred_site_effect, id_effect = pred_id_effect)
 
 		# predict
@@ -816,141 +987,104 @@ say('###################')
 		preds <- abind(preds, along = 3)
 		preds_mean <- apply(preds, c(1, 2), mean)
 		preds_sd <- apply(preds, c(1, 2), sd)
-		# preds_quantile_0.1 <- apply(preds, c(1, 2), quantile, probs = 0.1)
-		# preds_quantile_0.9 <- apply(preds, c(1, 2), quantile, probs = 0.9)
 
 		preds_mean <- as.data.table(preds_mean)
 		preds_sd <- as.data.table(preds_sd)
-		# preds_quantile_0.1 <- as.data.table(preds_quantile_0.1)
-		# preds_quantile_0.9 <- as.data.table(preds_quantile_0.9)
 
 		# remember predictions
-		predictions_mean[indices, (taxa) := preds_mean]
-		predictions_sd[indices, (taxa) := preds_sd]
-		# predictions_quantile_0.1[indices, (taxa) := preds_quantile_0.1]
-		# predictions_quantile_0.9[indices, (taxa) := preds_quantile_0.9]
+		predictions_mean[indices, (taxas) := preds_mean]
+		predictions_sd[indices, (taxas) := preds_sd]
 
 	}
 
-	saveRDS(predictions_mean, paste0('./outputs_sonny/', output_subfolder, '/predictions_to_prism_aggregated_by_16_mean.rds'))
-	saveRDS(predictions_sd, paste0('./outputs_sonny/', output_subfolder, '/predictions_to_prism_aggregated_by_16_sd.rds'))
-	# saveRDS(predictions_quantile_0.1, paste0('./outputs_sonny/', output_subfolder, '/predictions_to_prism_aggregated_by_16_quantile_0.1.rds'))
-	# saveRDS(predictions_quantile_0.9, paste0('./outputs_sonny/', output_subfolder, '/predictions_to_prism_aggregated_by_16_quantile_0.9.rds'))
+	saveRDS(predictions_mean, paste0(output_subfolder, '/predictions_to_raster_cells_mean.rds'))
+	saveRDS(predictions_sd, paste0(output_subfolder, '/predictions_to_raster_cells_sd.rds'))
 
-say('#####################################')
-say('### create rasters of predictions ###')
-say('#####################################')
+#####################################
+### create rasters of predictions ###
+#####################################
 
-	template <- rast(paste0(drive, '/Research Data/PRISM/PRISM_us_dem_800m.tif'))
-	template <- aggregate(template, 16)
+	say('create rasters of predictions')
+
+	template <- rasts[[1]]
 	template[] <- NA_real_
 
-	for (i in seq_along(taxa)) {
+	for (i in seq_along(taxa$taxon)) {
 
-		taxon <- taxa[i]
-		say(taxon)
+		taxon <- taxa$taxon[i]
+		# say(taxon)
 
 		### make maps of MEAN prediction
 		# for infinite predictions to the maximum non-infinite value
 		predictions_filtered <- predictions_mean[[taxon]]
 		if (any(is.infinite(predictions_filtered))) {
+
 			non_infinite_max <- max(predictions_filtered[!is.infinite(predictions_filtered)])
 			predictions_filtered[is.infinite(predictions_filtered)] <- non_infinite_max
+
 		}
 
 		predictions_filtered <- log10(predictions_filtered)
-		map_this_taxon <- setValueByCell(template, val = predictions_filtered, cell = predictions_mean[['cell']])
-		names(map_this_taxon) <- taxon
+		map_this_taxon_mean <- setValueByCell(template, val = predictions_filtered, cell = predictions_mean[['cell']])
+		names(map_this_taxon_mean) <- taxon
 
-		# ### make maps of MEAN prediction
-		# # for infinite predictions to the maximum non-infinite value
-		# predictions_filtered <- predictions_mean[[taxon]]
-		# map_this_taxon <- setValueByCell(template, val = predictions_filtered, cell = predictions_mean[['cell']])
-		# names(map_this_taxon) <- taxon
-
-		if (i == 1) {
-			maps_mean <- map_this_taxon
-		} else {
-			maps_mean <- c(maps_mean, map_this_taxon)
-		}
-
-		### make maps of SDM of prediction
+		# ### make maps of SD of prediction
 		# for infinite predictions to the maximum non-infinite value
 		predictions_filtered <- predictions_sd[[taxon]]
-		if (any(is.infinite(predictions_filtered))) {
-			non_infinite_max <- max(predictions_filtered[!is.infinite(predictions_filtered)])
-			predictions_filtered[is.infinite(predictions_filtered)] <- non_infinite_max
-		}
-
-		predictions_filtered <- log10(predictions_filtered)
-		map_this_taxon <- setValueByCell(template, val = predictions_filtered, cell = predictions_sd[['cell']])
-		names(map_this_taxon) <- taxon
+		map_this_taxon_sd <- setValueByCell(template, val = predictions_filtered, cell = predictions_sd[['cell']])
+		names(map_this_taxon_sd) <- taxon
 
 		if (i == 1) {
-			maps_sd <- map_this_taxon
+			maps_mean <- map_this_taxon_mean
+			maps_sd <- map_this_taxon_sd
 		} else {
-			maps_sd <- c(maps_sd, map_this_taxon)
+			maps_mean <- c(maps_mean, map_this_taxon_mean)
+			maps_sd <- c(maps_sd, map_this_taxon_sd)
 		}
 
+
 	}
 
-	writeRaster(maps_mean, paste0('./outputs_sonny/', output_subfolder, '/prediction_rasters_mean.tif'), overwrite = TRUE)
-	writeRaster(maps_sd, paste0('./outputs_sonny/', output_subfolder, '/prediction_rasters_sd.tif'), overwrite = TRUE)
+	writeRaster(maps_mean, paste0(output_subfolder, '/prediction_rasters_mean.tif'), overwrite = TRUE)
+	writeRaster(maps_sd, paste0(output_subfolder, '/prediction_rasters_sd.tif'), overwrite = TRUE)
 
-say('#######################################################')
-say('### make maps of predicted abundance for each taxon ###')
-say('#######################################################')
+#######################################################
+### make maps of predicted abundance for each taxon ###
+#######################################################
 
-	### maps of means
-	maps_mean <- rast(paste0('./outputs_sonny/', output_subfolder, '/prediction_rasters_mean.tif'))
+	say('make maps of predicted abundance for each taxon')
 
 	# North American countries
-	nam <- gadm(c('CAN', 'USA', 'MEX'), level = 1, path = tempdir(), resolution = 2)
-	# nam <- vect(paste0(drive, './Research Data/GADM/Version 4.1/High Res North America Level 1 sans Great Lakes SpatVector WGS84.gpkg'))
-	nam <- project(nam, getCRS('North America Lambert'))
-
-	### collate sites coordinates and abundances so we can plot observed abundances at sites
-	sites_abundances <- fread('./data/data_from_sonny/compiled_for_modeling_with_hmsc/environment_rhz_26JUL2024.csv')
-	colnames(sites_abundances)[colnames(sites_abundances) == 'x-coordinate'] <- 'latitude'
-	colnames(sites_abundances)[colnames(sites_abundances) == 'y-coordinate'] <- 'longitude'
+	nam <- gadm(c('CAN', 'USA', 'MEX'), level = 1, path = 'C:/!scratch', resolution = 2)
+	nam <- project(nam, rasts)
 
 	# add abundances
-	taxa <- colnames(Y)
-	for (i in seq_along(taxa)) {
+	sites_abundances <- cbind(site_xy, abund)
+	sites_abundances <- vect(sites_abundances, geom = c('longitude', 'latitude'), crs = getCRS('WGS84'))
+	sites_abundances <- project(sites_abundances, rasts)
 
-		taxon <- taxa[i]
-		this_abundance <- collapsed_abundances[match(collapsed_abundances$my.id, sites_abundances$my_id), taxon]
-		sites_abundances[ , (taxon) := this_abundance]
+	# plotting extent
+	maps_mean <- rast(paste0(output_subfolder, '/prediction_rasters_mean.tif'))
 
-	}
-
-	sites_abundances <- vect(sites_abundances, geom = c('latitude', 'longitude'), crs = getCRS('NAD83'))
-	sites_abundances <- project(sites_abundances, getCRS('North America Lambert'))
-	
-	# plotting extent... crop at -107 west, plus a bit larger
-	extent <- ext(maps_mean)
-	extent <- as.vector(extent)
-	extent[1] <- -108
+	extent <- c(-754404, 2156962, -2232910, 836303)
 	extent <- ext(extent)
 	extent <- as.polygons(extent, crs = crs(maps_mean))
-	extent <- buffer(extent, 300000)
+	extent <- buffer(extent, 100000)
 	maps_mean <- crop(maps_mean, extent)
 	
 	# ...but actually plot a smaller area (looks nicer)
-	extent <- buffer(extent, -600000)
-	extent_for_plot <- project(extent, getCRS('North America Lambert'))
-	extent <- as.vector(extent_for_plot)
+	extent <- buffer(extent, -100000)
+	extent <- ext(extent)
+	extent_for_plot <- as.vector(extent)
 
-	pdf(paste0('./outputs_sonny/', output_subfolder, '/prediction_maps.pdf'), width = 9, height = 6)
-	for (i in seq_along(taxa)) {
+	pdf(paste0(output_subfolder, '/prediction_maps.pdf'), width = 8.5, height = 8)
+	for (i in seq_along(taxa$taxon)) {
 	
-		taxon <- taxa[i]
+		taxon <- as.character(taxa$taxon[i])
 		say(taxon)
 
 		# get map and project		
 		this_map <- maps_mean[[taxon]]
-		this_map <- project(this_map, getCRS('North America Lambert'))
-		# this_map <- crop(this_map, extent_for_crop)
 
 		# to define colors, get min/max abundance across sites and the map
 		this_abundance <- as.data.frame(sites_abundances[ , taxon])[ , 1, drop = TRUE]
@@ -961,6 +1095,7 @@ say('#######################################################')
 		
 		# remove extreme abundances
 		max_abund <- globalx(this_map, quantile, probs = 0.99, na.rm = TRUE)
+		max_abund <- max(max_abund, this_abundance)
 		this_map <- app(this_map, fun = function(x, max_abund) ifelse(x > max_abund, 0.999 * max_abund, x), max_abund = max_abund)
 
 		if (is.infinite(min_abund)) {
@@ -971,11 +1106,11 @@ say('#######################################################')
 			
 		}
 
-		abund_seq <- seq(min_abund, max_abund, length.out = 100)
+		abund_seq <- seq(min_abund, max_abund, length.out = 101)
 		this_abundance_scaled <- (this_abundance - min_abund) / (max_abund - min_abund)
-		this_abundance_scaled <- round(100 * this_abundance_scaled)
+		this_abundance_scaled <- round(100 * this_abundance_scaled) + 1
 
-		pallette <- viridis(n = 100)
+		pallette <- viridis(n = 101)
 		site_colors <- pallette[this_abundance_scaled]
 
 		plot(nam, col = 'gray30', ext = extent_for_plot, lwd = 0.1, main = taxon)

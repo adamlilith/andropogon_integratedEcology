@@ -16,23 +16,23 @@
 ### setup ###
 #############
 
-rm(list = ls())
+	rm(list = ls())
 
-drive <- 'C:/Ecology/'
-# drive <- 'E:/Adam/'
+	drive <- 'C:/Ecology/'
+	# drive <- 'E:/Adam/'
 
-setwd(paste0(drive, '/Research/Andropogon/Andropogon'))
+	setwd(paste0(drive, '/Research/Andropogon/Andropogon'))
 
-library(bayesplot) # graphing
-library(coda) # Bayesian diagnostics
-library(nimble) # Bayes
-# library(nimbleHMC) # Hamiltonian Monte Carlo samplers
-library(omnibus)
-library(scales) # for plotting transparency
-library(terra) # spatial objects
+	library(bayesplot) # graphing
+	library(coda) # Bayesian diagnostics
+	library(nimble) # Bayes
+	# library(nimbleHMC) # Hamiltonian Monte Carlo samplers
+	library(omnibus)
+	library(scales) # for plotting transparency
+	library(terra) # spatial objects
 
-sink('./outputs/nonintegrated_sdm.txt', split = TRUE)
-say()
+	sink('./outputs_loretta/nonintegrated_sdm.txt', split = TRUE)
+	say()
 
 say('##########################')
 say('### non-integrated SDM ###')
