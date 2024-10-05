@@ -3,12 +3,13 @@
 ###
 ### This script compiles abundance data for microbes associated with the rhizobiome of Andropogon gerardi and bulk soil samples taken in the plants' vicinities.
 ###
-### source('C:/Ecology/R/andropogon_integratedEcology/hmsc_vs_microbes/microbes_01_collate_microbial_data.r')
-### source('E:/Adam/R/andropogon_integratedEcology/hmsc_vs_microbes/microbes_01_collate_microbial_data.r')
+### source('C:/Ecology/R/andropogon_integratedEcology/hmsc_vs_microbes/microbes_01_collate_microbial_and_environmental_data.r')
+### source('E:/Adam/R/andropogon_integratedEcology/hmsc_vs_microbes/microbes_01_collate_microbial_and_environmental_data.r')
 ###
 ### CONTENTS ###
 ### setup ###
 ### compile microbial abundance, environmental data, and study design into forms needed by HMSC ###
+### construct raster template and data table of predictors for making spatial predictions ###
 
 #############
 ### setup ###
@@ -454,11 +455,11 @@
 # 		env_combined_nad83 <- vect(env_combined, geom = c('longitude', 'latitude'), crs = getCRS('NAD83'))
 		
 # 		# elevation
-# 		elevation <- rast(paste0(drive, '/Research Data/ClimateNA/ClimateNA v7.3/elevation.tif'))
+# 		elevation <- rast(paste0(drive, '/Research Data/ClimateNA/v 7.3 AdaptWest/elevation.tif'))
 # 		names(elevation) <- 'elevation_m'
 
 # 		# BIOCLIMs
-# 		bc <- rast(paste0(drive, '/Research Data/ClimateNA/ClimateNA v7.3/1961-2020/bioclim_variables_1961_2020.tif'))
+# 		bc <- rast(paste0(drive, '/Research Data/ClimateNA/v 7.3 AdaptWest/1961-2020/bioclim_variables_1961_2020.tif'))
 
 # 		aridity <- bc$bio1 / (bc$bio12 + 1)
 # 		names(aridity) <- 'aridity'
@@ -605,19 +606,22 @@
 # 	### COMBINED: Andropogon gerardi estimated lambda from species-level SDM
 # 	########################################################################
 	
-# 		say('COMBINED: Andropogon gerardi estimated lambda from species-level SDM')
+# 		say('COMBINED: Andropogon gerardi estimated lambda from species-level N-MIXTURE SDM')
 
 # 		### posterior from SDM
-# 		chains <- readRDS('./outputs_loretta/nonintegrated_sdm_chains.rds')
+# 		chains <- readRDS('./outputs_loretta/sdm_[nmixture]/sdm_nmixture_chains.rds')
 
-# 		# subset chain summary to just the lambda's associated with background sites
+# 		# subset chain summary to just the lambdas associated with background sites
 # 		summary <- chains$summary$all.chains
 
 # 		which_lambda <- grepl(rownames(summary), pattern = 'lambda')
 # 		lambda <- summary[which_lambda, ]
 
 # 		### spatial vector
-# 		ag_vect <- vect('./data_other/occurrence_data/andropogon_gerardi_occurrences_with_environment.gpkg')
+# 		ag_vect_focus <- vect('./outputs_loretta/sdm_[nmixture]/sdm_nmixture_1961_2020_climate_focus.gpkg')
+# 		ag_vect_complement <- vect('./outputs_loretta/sdm_[nmixture]/sdm_nmixture_1961_2020_climate_focus_complement.gpkg')
+
+# 		ag_vect <- rbind(ag_vect_focus, ag_vect_complement)
 
 # 		fields <- c('area_km2', 'any_ag_quality1to3', 'num_poaceae_records')
 # 		ag_vect <- ag_vect[ , fields]
@@ -633,7 +637,7 @@
 # 		ag_lambda_extract <- extract(ag_vect_focus, env_combined_lambert)
 # 		ag_lambda <- ag_lambda_extract$ag_lambda
 
-# 		env_combined$ag_lambda <- ag_lambda
+# 		env_combined$ag_lambda_nmixture <- ag_lambda
 		
 # 	write.csv(env_combined, paste0(out_dir, '/environment_combined.csv'), row.names = FALSE)
 
@@ -679,23 +683,8 @@ say('###########################################################################
 	extent <- ext(extent)
 	nam <- crop(nam, extent)
 
-	### BIOCLIMs
-	############
-
-	say('ClimateNA')
-	bc <- rast(paste0(drive, '/Research Data/ClimateNA/ClimateNA v7.3/1961-2020/bioclim_variables_1961_2020.tif'))
-	layers <- c('bio1', 'bio12', MASTER_climate_predictor_names[MASTER_climate_predictor_names %in% names(bc)])
-	layers <- unique(layers)
-	bc <- bc[[layers]]
-
-	nam_lambert <- project(nam, bc)
-	bc <- crop(bc, nam_lambert)
-
-	aridity <- bc$bio1 / (bc$bio12 + 1)
-	names(aridity) <- 'aridity'
-	
-	clim <- c(bc, aridity)
-	clim <- clim[[MASTER_climate_predictor_names]]
+	# template
+	climatena <- rast(paste0(drive, '/Research Data/ClimateNA/v 7.3 AdaptWest/1961-2020/bioclim_variables_1961_2020.tif'))
 
 	### soil
 	########
@@ -732,13 +721,114 @@ say('###########################################################################
 	soil[['soc_soilgrids_perc']] <- soil[['soc_soilgrids_perc']] / 1000
 	soil[['nitrogen_soilgrids_perc']] <- soil[['nitrogen_soilgrids_perc']] / 10000
 
-	soil <- project(soil, clim, threads = 3)
+	soil <- project(soil, climatena, threads = 4)
 
-	### aggregate up to make smaller grid cells... we need to do this to obviate memory issues
+	### BIOCLIMs & AG lambda: present
+	#################################
+
+	say('ClimateNA - present')
+
+	# Get values of ClimateNA from the output from the SDM. This is much faster than repeating the calculation of BIOCLIMs again.
+	sq_vect_focus <- vect(paste0('./outputs_loretta/sdm_[nmixture]/sdm_nmixture_1961_2020_climate_focus.gpkg'))
+	sq_vect_complement <- vect(paste0('./outputs_loretta/sdm_[nmixture]/sdm_nmixture_1961_2020_climate_focus_complement.gpkg'))
+	sq_vect <- rbind(sq_vect_focus, sq_vect_complement)
+	vars <- sort(unique(c(MASTER_climate_predictor_names, 'lambda_mean')))
+	if (exists('sq_rasts')) rm(sq_rasts)
+	for (var in vars) {
+
+		sq_rast <- rasterize(sq_vect, climatena, field = var)
+		names(sq_rast) <- var
+
+		if (exists('sq_rasts')) {
+			sq_rasts <- c(sq_rasts, sq_rast)
+		} else {
+			sq_rasts <- sq_rast
+		}
+
+	}
+	names(sq_rasts)[names(sq_rasts) == 'lambda_mean'] <- 'ag_lambda_nmixture'
+
+	# bc <- rast(paste0(drive, '/Research Data/ClimateNA/v 7.3 AdaptWest/1961-2020/bioclim_variables_1961_2020.tif'))
+	# layers <- c('bio1', 'bio12', MASTER_climate_predictor_names[MASTER_climate_predictor_names %in% names(bc)])
+	# layers <- unique(layers)
+	# bc <- bc[[layers]]
+
+	# nam_lambert <- project(nam, bc)
+	# bc <- crop(bc, nam_lambert)
+
+	# aridity <- bc$bio1 / (bc$bio12 + 1)
+	# names(aridity) <- 'aridity'
+	
+	# # AG SDM
+	# ag_sdm_focus <- vect('./outputs_loretta/sdm_[nmixture]/sdm_nmixture_1961_2020_climate_focus.gpkg')
+	# ag_sdm_complement <- vect('./outputs_loretta/sdm_[nmixture]/sdm_nmixture_1961_2020_climate_focus_complement.gpkg')
+	# ag_sdm <- rbind(ag_sdm_focus, ag_sdm_complement)
+	# ag_sdm <- rasterize(ag_sdm, climatena, field = 'lambda_mean')
+	# names(ag_sdm) <- 'ag_lambda_nmixture'
+	# ag_sdm <- crop(ag_sdm, bc)
+	
+	# sq_rasts <- c(bc, aridity, ag_sdm)
+	# sq_rasts <- sq_rasts[[c(MASTER_climate_predictor_names, 'ag_lambda_nmixture')]]
+
+	### BIOCLIMs & AG lambda: future
+	################################
+
+	futs <- c(
+		'ssp245_2041_2070',
+		'ssp245_2071_2100',
+		'ssp370_2041_2070',
+		'ssp370_2071_2100'
+	)
+
+	clim_futs <- list()
+	vars <- sort(unique(c(MASTER_climate_predictor_names, 'lambda_mean')))
+	for (fut in futs) {
+
+		say('ClimateNA - ', fut)
+
+		# Get future values of ClimateNA from the output from the SDM. This is much faster than repeating the calculation of BIOCLIMs again.
+		fut_vect <- vect(paste0('./outputs_loretta/sdm_[nmixture]/sdm_nmixture_', fut, '.gpkg'))
+		if (exists('fut_rasts')) rm(fut_rasts)
+		for (var in vars) {
+
+			fut_rast <- rasterize(fut_vect, climatena, field = var)
+			names(fut_rast) <- var
+
+			if (exists('fut_rasts')) {
+				fut_rasts <- c(fut_rasts, fut_rast)
+			} else {
+				fut_rasts <- fut_rast
+			}
+
+		}
+		names(fut_rasts)[names(fut_rasts) == 'lambda_mean'] <- 'ag_lambda_nmixture'
+		clim_futs[[length(clim_futs) + 1]] <- fut_rasts
+
+	}
+	names(clim_futs) <- futs
+
+	### aggregate up to make smaller grid cells... we need to do this to obviate memory issues when predict()'ing HMSC
+	##################################################################################################################
 	say('combined')
-	env <- c(clim, soil)
 
-	env <- aggregate(env, 8, 'mean', na.rm = TRUE)
-	writeRaster(env, paste0('./outputs_sonny/climatena_soilgrids_aggregated_8x.tif'), overwrite = TRUE)
+	sq_rasts <- crop(sq_rasts, soil)
+	sq_rasts <- extend(sq_rasts, soil)
+
+	soil <- aggregate(soil, 8, 'mean', na.rm = TRUE)
+
+	sq_rasts <- aggregate(sq_rasts, 8, 'mean', na.rm = TRUE)
+	clim_futs <- lapply(clim_futs, aggregate, 8, 'mean', na.rm = TRUE)
+
+	env_sq <- c(sq_rasts, soil)
+	for (i in seq_along(clim_futs)) clim_futs[[i]] <- c(clim_futs[[i]], soil)
+	
+	writeRaster(env_sq, paste0('./outputs_sonny/climatena_1961_2020_soilgrids_aggregated_8x.tif'), overwrite = TRUE)
+	for (i in seq_along(clim_futs)) {
+
+		name <- names(clim_futs)[i]
+
+		writeRaster(clim_futs[[i]], paste0('./outputs_sonny/climatena_ensemble_8GCMs_', name, '_soilgrids_aggregated_8x.tif'), overwrite = TRUE)
+
+	}
 
 say('DONE!', level = 1, deco = '!')
