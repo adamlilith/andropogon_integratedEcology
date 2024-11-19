@@ -17,8 +17,8 @@
 
 	rm(list = ls())
 
-	# drive <- 'C:/Ecology/'
-	drive <- 'E:/Adam/'
+	drive <- 'C:/Ecology/'
+	# drive <- 'E:/Adam/'
 
 	setwd(paste0(drive, '/Research/Andropogon/Andropogon'))
 
@@ -249,117 +249,117 @@ say('###########################################################################
 
 	sink()
 
-say('###################################################')
-say('### extract future climate data for each county ###')
-say('###################################################')
+# say('###################################################')
+# say('### extract future climate data for each county ###')
+# say('###################################################')
 
-load(paste0(drive, '/Research/Andropogon/Analysis - Phenotype Modeling/Species Records V3/!13d GADM Ver 2 - Multipart - North America - WORLDCLIM Ver 2 Rel June 1 2016 & AG Pheno and Geno Records & Removed Lake Counties.Rdata'))
-occs <- vect(gadm)
+# load(paste0(drive, '/Research/Andropogon/Analysis - Phenotype Modeling/Species Records V3/!13d GADM Ver 2 - Multipart - North America - WORLDCLIM Ver 2 Rel June 1 2016 & AG Pheno and Geno Records & Removed Lake Counties.Rdata'))
+# occs <- vect(gadm)
 
-# select columns
-occs <- occs[ , c('NAME_0', 'NAME_1', 'NAME_2', 'area_km2', 'numCrd1', 'numCrd2', 'numCrd3', 'anyAg1to3', 'poaRec', 'agDensity', 'poaDensity')]
+# # select columns
+# occs <- occs[ , c('NAME_0', 'NAME_1', 'NAME_2', 'area_km2', 'numCrd1', 'numCrd2', 'numCrd3', 'anyAg1to3', 'poaRec', 'agDensity', 'poaDensity')]
 
-# rename columns
-names(occs)[names(occs) == 'NAME_0'] <- 'country'
-names(occs)[names(occs) == 'NAME_1'] <- 'stateProvince'
-names(occs)[names(occs) == 'NAME_2'] <- 'county'
-names(occs)[names(occs) == 'numCrd1'] <- 'num_ag_quality1'
-names(occs)[names(occs) == 'numCrd2'] <- 'num_ag_quality2'
-names(occs)[names(occs) == 'numCrd3'] <- 'num_ag_quality3'
-names(occs)[names(occs) == 'anyAg1to3'] <- 'any_ag_quality1to3'
-names(occs)[names(occs) == 'poaRec'] <- 'num_poaceae_records'
-names(occs)[names(occs) == 'agDensity'] <- 'ag_density'
-names(occs)[names(occs) == 'poaDensity'] <- 'poa_density'
+# # rename columns
+# names(occs)[names(occs) == 'NAME_0'] <- 'country'
+# names(occs)[names(occs) == 'NAME_1'] <- 'stateProvince'
+# names(occs)[names(occs) == 'NAME_2'] <- 'county'
+# names(occs)[names(occs) == 'numCrd1'] <- 'num_ag_quality1'
+# names(occs)[names(occs) == 'numCrd2'] <- 'num_ag_quality2'
+# names(occs)[names(occs) == 'numCrd3'] <- 'num_ag_quality3'
+# names(occs)[names(occs) == 'anyAg1to3'] <- 'any_ag_quality1to3'
+# names(occs)[names(occs) == 'poaRec'] <- 'num_poaceae_records'
+# names(occs)[names(occs) == 'agDensity'] <- 'ag_density'
+# names(occs)[names(occs) == 'poaDensity'] <- 'poa_density'
 
-cna <- rast('C:/Ecology/Research Data/ClimateNA/v 7.3 AdaptWest/1961-2020/climaticMoistureIndex.tif')
+# cna <- rast('C:/Ecology/Research Data/ClimateNA/v 7.3 AdaptWest/1961-2020/climaticMoistureIndex.tif')
 
-ag_nam <- occs
-ag_nam <- project(ag_nam, cna)
+# ag_nam <- occs
+# ag_nam <- project(ag_nam, cna)
 
-	# This chunk extracts future climate data to the spatial vector used to store AG occurrence data. Future climates are from ClimateNA 7.3 (AdaptWest versions: https://adaptwest.databasin.org/pages/adaptwest-climatena/)
+# 	# This chunk extracts future climate data to the spatial vector used to store AG occurrence data. Future climates are from ClimateNA 7.3 (AdaptWest versions: https://adaptwest.databasin.org/pages/adaptwest-climatena/)
 
-	### user-defined
-	################
+# 	### user-defined
+# 	################
 		
-		climatena_drive <- 'C:/Ecology/Research Data'
-		# climatena_drive <- 'E:/Adam/Research Data'
+# 		climatena_drive <- 'C:/Ecology/Research Data'
+# 		# climatena_drive <- 'E:/Adam/Research Data'
 
-	faster(grassDir = 'C:/Program Files/GRASS GIS 8.3/')
+# 	faster(grassDir = 'C:/Program Files/GRASS GIS 8.3/')
 
-	# ag_nam <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020.gpkg')
+# 	# ag_nam <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020.gpkg')
 
-	futs <- c('ensemble_8GCMs_ssp245_2041_2070', 'ensemble_8GCMs_ssp245_2071_2100', 'ensemble_8GCMs_ssp370_2041_2070', 'ensemble_8GCMs_ssp370_2071_2100')
+# 	futs <- c('ensemble_8GCMs_ssp245_2041_2070', 'ensemble_8GCMs_ssp245_2071_2100', 'ensemble_8GCMs_ssp370_2041_2070', 'ensemble_8GCMs_ssp370_2071_2100')
 
-	for (fut in futs) {
+# 	for (fut in futs) {
 	
-		say(fut)
+# 		say(fut)
 
-		ag_fut <- ag_nam
-		ag_fut[ , paste0('bio', 1:19)] <- NULL
-		ag_fut$pet_warmest_quarter_mm <- NULL
-		ag_fut$climatic_moisture_index <- NULL
-		ag_fut$aridity <- NULL
-		ag_fut$gdd_5_deg <- NULL
-		ag_fut$ag_lambda <- NULL
+# 		ag_fut <- ag_nam
+# 		ag_fut[ , paste0('bio', 1:19)] <- NULL
+# 		ag_fut$pet_warmest_quarter_mm <- NULL
+# 		ag_fut$climatic_moisture_index <- NULL
+# 		ag_fut$aridity <- NULL
+# 		ag_fut$gdd_5_deg <- NULL
+# 		ag_fut$ag_lambda <- NULL
 
-		clim_dir <- paste0(climatena_drive, '/ClimateNA/v 7.3 AdaptWest/', fut, '_monthly')
+# 		clim_dir <- paste0(climatena_drive, '/ClimateNA/v 7.3 AdaptWest/', fut, '_monthly')
 
-		ppt <- listFiles(clim_dir, pattern = 'PPT')
-		tmin <- listFiles(clim_dir, pattern = 'Tmin')
-		tmax <- listFiles(clim_dir, pattern = 'Tmax')
-		tmean <- listFiles(clim_dir, pattern = 'Tave')
+# 		ppt <- listFiles(clim_dir, pattern = 'PPT')
+# 		tmin <- listFiles(clim_dir, pattern = 'Tmin')
+# 		tmax <- listFiles(clim_dir, pattern = 'Tmax')
+# 		tmean <- listFiles(clim_dir, pattern = 'Tave')
 
-		ppt <- fast(ppt)
-		tmin <- fast(tmin)
-		tmax <- fast(tmax)
-		tmean <- fast(tmean)
+# 		ppt <- fast(ppt)
+# 		tmin <- fast(tmin)
+# 		tmax <- fast(tmax)
+# 		tmean <- fast(tmean)
 
-		bc <- bioclims(ppt = ppt, tmin = tmin, tmax = tmax, tmean = tmean, bios = c(1, 7, 12, 15), verbose = TRUE)
-		names <- names(bc)
+# 		bc <- bioclims(ppt = ppt, tmin = tmin, tmax = tmax, tmean = tmean, bios = c(1, 7, 12, 15), verbose = TRUE)
+# 		names <- names(bc)
 		
-		bc <- rast(bc)
-		names(bc) <- names
+# 		bc <- rast(bc)
+# 		names(bc) <- names
 
-		env_at_occs_by_cell <- extract(bc, ag_fut, exact = TRUE)
+# 		env_at_occs_by_cell <- extract(bc, ag_fut, exact = TRUE)
 
-		# calculate weighted average values
-		# weights are proportion of each cell covered by the polygon
+# 		# calculate weighted average values
+# 		# weights are proportion of each cell covered by the polygon
 
-		vars <- names(env_at_occs_by_cell)
-		vars <- vars[!(vars %in% c('ID', 'fraction'))]
-		IDs <- unique(env_at_occs_by_cell$ID)
+# 		vars <- names(env_at_occs_by_cell)
+# 		vars <- vars[!(vars %in% c('ID', 'fraction'))]
+# 		IDs <- unique(env_at_occs_by_cell$ID)
 
-		env_at_occs <- data.frame()
-		for (ID in IDs) {
+# 		env_at_occs <- data.frame()
+# 		for (ID in IDs) {
 
-			vals <- rep(NA_real_, length(vars))
-			names(vals) <- vars
+# 			vals <- rep(NA_real_, length(vars))
+# 			names(vals) <- vars
 			
-			fraction <- env_at_occs_by_cell$fraction[env_at_occs_by_cell$ID == ID]
-			fraction_sum <- sum(fraction, na.rm = TRUE)
+# 			fraction <- env_at_occs_by_cell$fraction[env_at_occs_by_cell$ID == ID]
+# 			fraction_sum <- sum(fraction, na.rm = TRUE)
 			
-			for (var in vars) {
+# 			for (var in vars) {
 			
-				var_vals <- env_at_occs_by_cell[env_at_occs_by_cell$ID == ID, var]
-				val <- sum(var_vals * fraction, na.rm = TRUE) / fraction_sum
+# 				var_vals <- env_at_occs_by_cell[env_at_occs_by_cell$ID == ID, var]
+# 				val <- sum(var_vals * fraction, na.rm = TRUE) / fraction_sum
 
-				vals[[var]] <- val
+# 				vals[[var]] <- val
 			
-			}
+# 			}
 			
-			vals <- round(vals, 2)
-			vals <- rbind(vals)
-			env_at_occs <- rbind(env_at_occs, vals, make.row.names = FALSE)
+# 			vals <- round(vals, 2)
+# 			vals <- rbind(vals)
+# 			env_at_occs <- rbind(env_at_occs, vals, make.row.names = FALSE)
 
-		}
+# 		}
 		
-		env_at_occs$aridity <- env_at_occs$bio1 / (env_at_occs$bio12 + 1)
+# 		env_at_occs$aridity <- env_at_occs$bio1 / (env_at_occs$bio12 + 1)
 
-		ag_fut <- cbind(ag_fut, env_at_occs)
-		writeVector(ag_fut, paste0('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_', fut, '.gpkg'), overwrite = TRUE)
+# 		ag_fut <- cbind(ag_fut, env_at_occs)
+# 		writeVector(ag_fut, paste0('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_', fut, '.gpkg'), overwrite = TRUE)
 
-		mow(ask = FALSE)
+# 		mow(ask = FALSE)
 
-	}
+# 	}
 
 say('DONE!', level = 1, deco = '!')

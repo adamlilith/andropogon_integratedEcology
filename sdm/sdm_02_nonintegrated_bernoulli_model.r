@@ -3,8 +3,8 @@
 ###
 ### This script constructs a non-integrated model for AG geographic distribution.
 ###
-### source('C:/Ecology/R/andropogon_integratedEcology/sdm/sdm_02_nonintegrated_model_n_mixture.r')
-### source('E:/Adam/R/andropogon_integratedEcology/sdm/sdm_02_nonintegrated_model_n_mixture.r')
+### source('C:/Ecology/R/andropogon_integratedEcology/sdm/sdm_02_nonintegrated_bernoulli_model.r')
+### source('E:/Adam/R/andropogon_integratedEcology/sdm/sdm_02_nonintegrated_bernoulli_model.r')
 ###
 ### CONTENTS ###
 ### setup ###
@@ -34,7 +34,7 @@
 	library(scales) # for plotting transparency
 	library(terra) # spatial objects
 
-	out_dir <- paste0('./outputs_loretta/sdm_[nmixture]/')
+	out_dir <- paste0('./outputs_loretta/sdm_[bernoulli]/')
 	dirCreate(out_dir)
 
 	sink(paste0(out_dir, '/runtime_log.txt'), split = TRUE)
@@ -54,8 +54,8 @@ say(date(), post = 1)
 	nchains <- 4
 
 	# # for testing
-	# niter <- 90
-	# nburnin <- 10
+	# niter <- 140
+	# nburnin <- 40
 	# thin <- 1
 	# nchains <- 2
 
@@ -115,13 +115,15 @@ say(date(), post = 1)
 
 	fields <- c('area_km2', 'any_ag_quality1to3', 'num_poaceae_records', predictor_names)
 	ag_vect_sq <- ag_vect_sq[ , fields]
+	ag_vect_sq$num_ag_quality1to3 <- ag_vect_sq$any_ag_quality1to3 # becomes a sampling predictor
+	ag_vect_sq$any_ag_quality1to3 <- as.integer(ag_vect_sq$any_ag_quality1to3 > 0) # becomes the response
 
 	# separate counties with/without training data
 	ag <- as.data.frame(ag_vect_sq)
 	completes <- complete.cases(as.data.frame(ag_vect_sq))
 	ag_focus <- ag[completes, ]
 	ag_vect_focus <- ag_vect_sq[completes, ]
-
+	
 	# complement of counties with training data for full-continent predictions
 	ag_vect_focus_complement <- ag_vect_sq[!completes, ]
 	ag_focus_complement <- as.data.frame(ag_vect_focus_complement)
@@ -137,17 +139,23 @@ say(date(), post = 1)
 	log_area_km2_scaled <- log_area_km2_scaled[ , 1]
 
 	### number of Poaceae records... used to model sampling bias
-	log_num_poaceae_records <- log1p(ag_focus$num_poaceae_records) # log(x_sq + 1)
+	log_num_poaceae_records <- log1p(ag_focus$num_poaceae_records) # log(x + 1)
 	log_num_poaceae_records_scaled <- scale(log_num_poaceae_records)
 	log_num_poaceae_records_scaled <- log_num_poaceae_records_scaled[ , 1]
 
+	### number of AG records... used to model sampling bias
+	log_num_ag_records <- log1p(ag_focus$num_ag_quality1to3) # log(x + 1)
+	log_num_ag_records_scaled <- scale(log_num_ag_records)
+	log_num_ag_records_scaled <- log_num_ag_records_scaled[ , 1]
+
 	### subset, scale, and manipulate predictors into model frame
 	# status quo: counties with training data
-	x_raw <- as.data.frame(ag_focus[ , c('area_km2', predictor_names)])
-	log_area_km2 <- log(x_raw$area_km2)
-	log_area_km2 <- data.frame(log_area_km2 = log_area_km2)
-	x_raw$area_km2 <- NULL
-	x_raw <- cbind(log_area_km2, x_raw)
+	x_raw <- as.data.frame(ag_focus[ , predictor_names])
+	# x_raw <- as.data.frame(ag_focus[ , c('area_km2', predictor_names)])
+	# log_area_km2 <- log(x_raw$area_km2)
+	# log_area_km2 <- data.frame(log_area_km2 = log_area_km2)
+	# x_raw$area_km2 <- NULL
+	# x_raw <- cbind(log_area_km2, x_raw)
 	x_raw_scaled <- scale(x_raw)
 	x_centers <- attr(x_raw_scaled, 'scaled:center')
 	x_scales <- attr(x_raw_scaled, 'scaled:scale')
@@ -155,55 +163,60 @@ say(date(), post = 1)
 	x_sq <- model.matrix(form, as.data.frame(x_raw_scaled))
 
 	# status quo: counties without training data
-	x_sq_complement <- as.data.frame(ag_focus_complement[ , c('area_km2', predictor_names)])
-	log_area_km2 <- log(x_sq_complement$area_km2)
-	log_area_km2 <- data.frame(log_area_km2 = log_area_km2)
-	x_sq_complement$area_km2 <- NULL
-	x_sq_complement <- cbind(log_area_km2, x_sq_complement)
+	# x_sq_complement <- as.data.frame(ag_focus_complement[ , c('area_km2', predictor_names)])
+	x_sq_complement <- as.data.frame(ag_focus_complement[ , predictor_names])
+	# log_area_km2 <- log(x_sq_complement$area_km2)
+	# log_area_km2 <- data.frame(log_area_km2 = log_area_km2)
+	# x_sq_complement$area_km2 <- NULL
+	# x_sq_complement <- cbind(log_area_km2, x_sq_complement)
 	x_sq_complement <- scale(x_sq_complement, center = x_centers, scale = x_scales)
 	x_sq_complement <- as.data.frame(x_sq_complement)
 	x_sq_complement <- model.matrix(form, as.data.frame(x_sq_complement))
 
 	# ssp245_2041_2070
 	x_fut <- ag_vect_ssp245_2041_2070
-	x_fut <- as.data.frame(x_fut[ , c('area_km2', predictor_names)])
-	log_area_km2 <- log(x_fut$area_km2)
-	log_area_km2 <- data.frame(log_area_km2 = log_area_km2)
-	x_fut$area_km2 <- NULL
-	x_fut <- cbind(log_area_km2, x_fut)
+	x_fut <- as.data.frame(x_fut[ , predictor_names])
+	# x_fut <- as.data.frame(x_fut[ , c('area_km2', predictor_names)])
+	# log_area_km2 <- log(x_fut$area_km2)
+	# log_area_km2 <- data.frame(log_area_km2 = log_area_km2)
+	# x_fut$area_km2 <- NULL
+	# x_fut <- cbind(log_area_km2, x_fut)
 	x_fut <- scale(x_fut, center = x_centers, scale = x_scales)
 	x_fut <- as.data.frame(x_fut)
 	x_ssp245_2041_2070 <- model.matrix(form, as.data.frame(x_fut))
 
 	# ssp245_2071_2100
 	x_fut <- ag_vect_ssp245_2071_2100
-	x_fut <- as.data.frame(x_fut[ , c('area_km2', predictor_names)])
-	log_area_km2 <- log(x_fut$area_km2)
-	log_area_km2 <- data.frame(log_area_km2 = log_area_km2)
-	x_fut$area_km2 <- NULL
-	x_fut <- cbind(log_area_km2, x_fut)
+	x_fut <- as.data.frame(x_fut[ , predictor_names])
+	# x_fut <- as.data.frame(x_fut[ , c('area_km2', predictor_names)])
+	# log_area_km2 <- log(x_fut$area_km2)
+	# log_area_km2 <- data.frame(log_area_km2 = log_area_km2)
+	# x_fut$area_km2 <- NULL
+	# x_fut <- cbind(log_area_km2, x_fut)
 	x_fut <- scale(x_fut, center = x_centers, scale = x_scales)
 	x_fut <- as.data.frame(x_fut)
 	x_ssp245_2071_2100 <- model.matrix(form, as.data.frame(x_fut))
 
 	# ssp370_2041_2070
 	x_fut <- ag_vect_ssp370_2041_2070
-	x_fut <- as.data.frame(x_fut[ , c('area_km2', predictor_names)])
-	log_area_km2 <- log(x_fut$area_km2)
-	log_area_km2 <- data.frame(log_area_km2 = log_area_km2)
-	x_fut$area_km2 <- NULL
-	x_fut <- cbind(log_area_km2, x_fut)
+	x_fut <- as.data.frame(x_fut[ , predictor_names])
+	# x_fut <- as.data.frame(x_fut[ , c('area_km2', predictor_names)])
+	# log_area_km2 <- log(x_fut$area_km2)
+	# log_area_km2 <- data.frame(log_area_km2 = log_area_km2)
+	# x_fut$area_km2 <- NULL
+	# x_fut <- cbind(log_area_km2, x_fut)
 	x_fut <- scale(x_fut, center = x_centers, scale = x_scales)
 	x_fut <- as.data.frame(x_fut)
 	x_ssp370_2041_2070 <- model.matrix(form, as.data.frame(x_fut))
 
 	# ssp245_2071_2100
 	x_fut <- ag_vect_ssp370_2071_2100
-	x_fut <- as.data.frame(x_fut[ , c('area_km2', predictor_names)])
-	log_area_km2 <- log(x_fut$area_km2)
-	log_area_km2 <- data.frame(log_area_km2 = log_area_km2)
-	x_fut$area_km2 <- NULL
-	x_fut <- cbind(log_area_km2, x_fut)
+	x_fut <- as.data.frame(x_fut[ , predictor_names])
+	# x_fut <- as.data.frame(x_fut[ , c('area_km2', predictor_names)])
+	# log_area_km2 <- log(x_fut$area_km2)
+	# log_area_km2 <- data.frame(log_area_km2 = log_area_km2)
+	# x_fut$area_km2 <- NULL
+	# x_fut <- cbind(log_area_km2, x_fut)
 	x_fut <- scale(x_fut, center = x_centers, scale = x_scales)
 	x_fut <- as.data.frame(x_fut)
 	x_ssp370_2071_2100 <- model.matrix(form, as.data.frame(x_fut))
@@ -211,7 +224,7 @@ say(date(), post = 1)
 	### inputs for nimble
 	say('Inputs:', level = 2)
 	data <- list(
-		y = ag_focus$any_ag_quality1to3 # number of AG records in each county
+		y = ag_focus$any_ag_quality1to3 # any AG in a county?
 	)
 
 	n_counties <- nrow(ag_focus)
@@ -232,6 +245,7 @@ say(date(), post = 1)
 
 	  log_area_km2_scaled = log_area_km2_scaled,
 	  log_num_poaceae_records_scaled = log_num_poaceae_records_scaled,
+	  log_num_ag_records_scaled = log_num_ag_records_scaled,
 
 	  x_ssp245_2041_2070 = x_ssp245_2041_2070,
 	  x_ssp245_2071_2100 = x_ssp245_2071_2100,
@@ -241,22 +255,38 @@ say(date(), post = 1)
 
 	)
 
-	lambda_sq_complement_inits <- rep(0, n_counties_complement)
-	lambda_fut_inits <- rep(mean(ag_focus$any_ag_quality1to3), n_counties_future)
 	inits <- list()
 	for (i in seq_len(nchains)) {
 
-		N_inits <- 10 * ag_focus$any_ag_quality1to3
-		lambda_sq_inits <- 1 + ag_focus$any_ag_quality1to3
+		# lambda_sq_inits <- 1 + rpois(n_counties, ag_focus$any_ag_quality1to3)
+		# lambda_sq_complement_inits <- 1 + rpois(n_counties_complement, mean(ag_focus$any_ag_quality1to3))
+		# lambda_fut_inits <- rpois(n_counties_future, mean(ag_focus$any_ag_quality1to3))
+		
+		lambda_sq_inits <- 1 + rpois(n_counties, ag_focus$any_ag_quality1to3)
+		lambda_sq_complement_inits <- 1 + rpois(n_counties_complement, mean(ag_focus$any_ag_quality1to3))
+		lambda_fut_inits <- rpois(n_counties_future, mean(ag_focus$any_ag_quality1to3))
+		
+		y_inits <- sample(ag_focus$any_ag_quality1to3, n_counties)
+		psi_inits <- runif(n_counties, 0.05, 0.5)
 
 		inits[[i]] <- list(
+
+			# beta = runif(n_sdm_terms, -0.5, 0.5),
+			# # alpha0_sampling = runif(1, -0.5, 0.5),
+			# alpha_area = runif(1, 0, 1),
+			# alpha_poaceae = runif(1, -0.5, 0.5),
+			# alpha_ag = runif(1, -0, 1),
+			# alpha_ag = runif(1, -0, 1),
 			
-			beta = runif(n_sdm_terms, -0.5, 0.5),
-			alpha0_sampling = runif(1, -0.5, 0.5),
-			alpha_area = runif(1, -0.5, 0.5),
-			alpha_poaceae = runif(1, -0.5, 0.5),
+			beta = rep(0, n_sdm_terms),
+			# alpha0_sampling = runif(1, -0.5, 0.5),
+			alpha_area = 0,
+			alpha_poaceae = 0,
+			alpha_ag = 0,
+			alpha_ag = 0,
 			
-			N = N_inits,
+			y = y_inits,
+			psi = psi_inits,
 
 			lambda_sq = lambda_sq_inits,
 			lambda_sq_complement = lambda_sq_complement_inits,
@@ -265,7 +295,7 @@ say(date(), post = 1)
 			lambda_ssp245_2071_2100 = lambda_fut_inits,
 			lambda_ssp370_2041_2070 = lambda_fut_inits,
 			lambda_ssp370_2071_2100 = lambda_fut_inits
-
+		
 		)
 
 	}
@@ -292,24 +322,27 @@ say(date(), post = 1)
 		}
 
 		# priors for sampling bias
-		alpha0_sampling ~ dnorm(0, sd = 10)
+		# alpha0_sampling ~ dnorm(0, sd = 10)
 		alpha_area ~ dnorm(0, sd = 10)
 		alpha_poaceae ~ dnorm(0, sd = 10)
+		alpha_ag ~ dnorm(0, sd = 10)
 
 		# likelihood
 		for (i in 1:n_counties) {    # this specifies estimates be made for each county
 			
-			### actual abundance (latent--unobserved)
-			N[i] ~ dpois(lambda_sq[i])
+			### observed AG or not
+			y[i] ~ dbern(psi[i])
+
+			cloglog(psi[i]) <- log(lambda_sq[i]) + log(p[i])
 
 			# relationship between latent abundance and environment
 			log(lambda_sq[i]) <- inprod(beta[1:n_sdm_terms], x_sq[i, 1:n_sdm_terms])
 
-			### observed number of AG
-			y[i] ~ dbin(prob = p[i], size = N[i])
-
 			# sampling bias
-			logit(p[i]) <- alpha0_sampling + alpha_area * log_area_km2_scaled[i] + alpha_poaceae * log_num_poaceae_records_scaled[i]
+			logit(p[i]) <- # alpha0_sampling +
+				alpha_area * log_area_km2_scaled[i] +
+				alpha_poaceae * log_num_poaceae_records_scaled[i] +
+				alpha_ag * log_num_ag_records_scaled[i]
 
 		}
 
@@ -351,8 +384,8 @@ say(date(), post = 1)
 	model_species$calculate()
 
 	say('configureMCMC():', level = 2)
-	monitors <- c('beta', 'alpha0_sampling', 'alpha_area', 'alpha_poaceae', 'lambda_sq', 'lambda_sq_complement',
-		'lambda_ssp245_2041_2070', 'lambda_ssp245_2071_2100', 'lambda_ssp370_2041_2070', 'lambda_ssp370_2071_2100')
+	# monitors <- c('beta', 'alpha0_sampling', 'alpha_area', 'alpha_poaceae', 'alpha_ag', 'lambda_sq', 'lambda_sq_complement', 'lambda_ssp245_2041_2070', 'lambda_ssp245_2071_2100', 'lambda_ssp370_2041_2070', 'lambda_ssp370_2071_2100')
+	monitors <- c('beta', 'alpha_area', 'alpha_poaceae', 'alpha_ag', 'lambda_sq', 'lambda_sq_complement', 'lambda_ssp245_2041_2070', 'lambda_ssp245_2071_2100', 'lambda_ssp370_2041_2070', 'lambda_ssp370_2071_2100')
 	
 	conf <- configureMCMC(
 	  model_species,
@@ -362,7 +395,7 @@ say(date(), post = 1)
 	)
 
 	# # add no U-turn sampler (Hamiltonian Monte Carlo)
-	# conf$addSampler(target = c('beta', 'alpha_area', 'alpha_poaceae'), type = 'NUTS')
+	# conf$addSampler(target = c('beta', 'alpha0_sampling', 'alpha_area', 'alpha_poaceae', 'alpha_ag'), type = 'NUTS')
 
 	### compile/build/run model/save MCMC
 	build <- buildMCMC(conf)
@@ -383,7 +416,7 @@ say(date(), post = 1)
 	  perChainWAIC = FALSE
 	)
 
-	saveRDS(chains, paste0(out_dir, '/sdm_nmixture_chains.rds'))
+	saveRDS(chains, paste0(out_dir, '/sdm_bernoulli_chains.rds'))
 
 	say('session info', level = 2)
 	print(sessionInfo())
@@ -395,32 +428,35 @@ say('#########################')
 say('### model diagnostics ###')
 say('#########################')
 
-	chains <- readRDS(paste0(out_dir, '/sdm_nmixture_chains.rds'))
+	chains <- readRDS(paste0(out_dir, '/sdm_bernoulli_chains.rds'))
 	mcmc <- chains$samples
 
 	for (i in 1:nchains) {
-		cols <- c(paste0('beta[', 1:n_sdm_terms, ']'), 'alpha0_sampling', 'alpha_poaceae', 'alpha_area')
+		# cols <- c(paste0('beta[', 1:n_sdm_terms, ']'), 'alpha0_sampling', 'alpha_area', 'alpha_poaceae', 'alpha_ag')
+		cols <- c(paste0('beta[', 1:n_sdm_terms, ']'), 'alpha_area', 'alpha_poaceae', 'alpha_ag')
 		mcmc[[i]] <- mcmc[[i]][ , cols]
 	}
 
 	# graphing trace plots for all betas
 	pars <- paste0('beta[', 1:n_sdm_terms, ']')
-	file <- paste0(out_dir, '/sdm_nmixture_beta_trace.png')
+	file <- paste0(out_dir, '/sdm_bernoulli_beta_trace.png')
 	ggsave(mcmc_trace(mcmc, pars = pars), file = file, width = 10, height = 8, dpi = 450, bg = 'white')
 
-	# graphing trace plots for all "extra" betas
-	pars <- c('alpha0_sampling', 'alpha_poaceae', 'alpha_area')
-	file <- paste0(out_dir, '/sdm_nmixture_alpha_trace.png')
+	# graphing trace plots for all sampling coefficients
+	# pars <- c('alpha0_sampling', 'alpha_area', 'alpha_poaceae', 'alpha_ag')
+	pars <- c('alpha_area', 'alpha_poaceae', 'alpha_ag')
+	file <- paste0(out_dir, '/sdm_bernoulli_alpha_trace.png')
 	ggsave(mcmc_trace(mcmc, pars = pars), file = file, width = 10, height = 4, dpi = 450, bg = 'white')
 
 	# graphing density plots for all betas
 	pars <- paste0('beta[', 1:n_sdm_terms, ']')
-	file <- paste0(out_dir, '/sdm_nmixture_beta_density.png')
+	file <- paste0(out_dir, '/sdm_bernoulli_beta_density.png')
 	ggsave(mcmc_dens_overlay(mcmc, pars = pars), file = file, width = 12, height = 8, dpi = 450, bg = 'white')
 
-	# graphing trace plots for all "extra" betas
-	pars <- c('alpha0_sampling', 'alpha_poaceae', 'alpha_area')
-	file <- paste0(out_dir, '/sdm_nmixture_alpha_density.png')
+	# graphing trace plots for all sampling coefficients
+	# pars <- c('alpha0_sampling', 'alpha_area', 'alpha_poaceae', 'alpha_ag')
+	pars <- c('alpha_area', 'alpha_poaceae', 'alpha_ag')
+	file <- paste0(out_dir, '/sdm_bernoulli_alpha_density.png')
 	ggsave(mcmc_dens_overlay(mcmc, pars = pars), file = file, width = 10, height = 4, dpi = 450, bg = 'white')
 
 	# Gelman-Rubin statistic
@@ -436,7 +472,7 @@ say('###################################', pre = 1)
 say('### map of current distribution ###')
 say('###################################')
 
-	chains <- readRDS(paste0(out_dir, '/sdm_nmixture_chains.rds'))
+	chains <- readRDS(paste0(out_dir, '/sdm_bernoulli_chains.rds'))
 
 	# subset chain summary to just the lambdas
 	summary <- chains$summary$all.chains
@@ -490,7 +526,7 @@ say('###################################')
 	cents_with_ag <- ag_vect_focus[ag_vect_focus$any_ag_quality1to3 > 0]
 	cents_with_ag <- centroids(cents_with_ag)
 
-	fill_scale <- c('[0 - 0.25)' = 'gray85', '[0.25 - 0.5)' = alpha('forestgreen', 0.25), '[0.5 - 0.75)' = alpha('forestgreen', 0.45), '[0.75 - 0.95)' = alpha('forestgreen', 0.7), '[0.95-1]' = 'forestgreen')
+	fill_scale <- c('[0 - 0.25)' = 'gray90', '[0.25 - 0.5)' = alpha('forestgreen', 0.15), '[0.5 - 0.75)' = alpha('forestgreen', 0.3), '[0.75 - 0.95)' = alpha('forestgreen', 0.6), '[0.95-1]' = 'forestgreen')
 
 	map <- ggplot() +
 		layer_spatial(ag_vect_focus, aes(fill = quant_col), color = NA) +
@@ -503,16 +539,16 @@ say('###################################')
 		layer_spatial(cents_with_ag, pch = 16, color = alpha('gray20', 0.5), size = 0.35) +
 		guides(fill = guide_legend(reverse = TRUE)) +
 		xlim(extent[1], extent[2]) + ylim(extent[3], extent[4]) +
-		ggtitle(expression('Present-day distribution of ' * italic('Andropogon gerardi')), subtitle = '1961-2020 | N-mixture model') +
+		ggtitle(expression('Present-day distribution of ' * italic('Andropogon gerardi')), subtitle = '1961-2020 | Bernoulli model') +
 		theme(
 			plot.title = element_text(size = 16),
 			plot.subtitle = element_text(size = 14)
 		)
 
-	ggsave(plot = map, filename = paste0(out_dir, '/sdm_nmixture_lambda_status_quo.png'), width = 12, height = 10, dpi = 600)
+	ggsave(plot = map, filename = paste0(out_dir, '/sdm_bernoulli_lambda_status_quo.png'), width = 12, height = 10, dpi = 600)
 
-	writeVector(ag_vect_focus, paste0(out_dir, '/sdm_nmixture_1961_2020_climate_focus.gpkg'), overwrite = TRUE)
-	writeVector(ag_vect_focus_complement, paste0(out_dir, '/sdm_nmixture_1961_2020_climate_focus_complement.gpkg'), overwrite = TRUE)
+	writeVector(ag_vect_focus, paste0(out_dir, '/sdm_bernoulli_1961_2020_climate_focus.gpkg'), overwrite = TRUE)
+	writeVector(ag_vect_focus_complement, paste0(out_dir, '/sdm_bernoulli_1961_2020_climate_focus_complement.gpkg'), overwrite = TRUE)
 
 say('###################################')
 say('### maps of future distribution ###')
@@ -528,7 +564,7 @@ say('###################################')
 	nam <- vect(paste0(drive, '/Research Data/GADM/Version 4.1/High Res North America Level 1 sans Great Lakes SpatVector WGS84.gpkg'))
 	nam <- project(nam, ag_vect_sq)
 
-	chains <- readRDS(paste0(out_dir, '/sdm_nmixture_chains.rds'))
+	chains <- readRDS(paste0(out_dir, '/sdm_bernoulli_chains.rds'))
 
 	# subset chain summary to just the lambdas
 	summary <- chains$summary$all.chains
@@ -555,9 +591,9 @@ say('###################################')
 		this_ag_vect$quant_col[this_ag_vect$lambda_mean >= lambda_sq_quants[3] & this_ag_vect$lambda_mean < lambda_sq_quants[4]] <- quant_labels[4]
 		this_ag_vect$quant_col[this_ag_vect$lambda_mean >= lambda_sq_quants[4]] <- quant_labels[5]
 
-		pretty_title <- paste0('SSP ', substr(fut, 4, 6), ' ', substr(fut, 8, 11), '-', substr(fut, 13, 16), ' | N-mixture model')
+		pretty_title <- paste0('SSP ', substr(fut, 4, 6), ' ', substr(fut, 8, 11), '-', substr(fut, 13, 16), ' | Bernoulli model')
 
-		fill_scale <- c('[0 - 0.25)' = 'gray85', '[0.25 - 0.5)' = alpha('forestgreen', 0.25), '[0.5 - 0.75)' = alpha('forestgreen', 0.45), '[0.75 - 0.95)' = alpha('forestgreen', 0.7), '[0.95-1]' = 'forestgreen')
+		fill_scale <- c('[0 - 0.25)' = 'gray90', '[0.25 - 0.5)' = alpha('forestgreen', 0.15), '[0.5 - 0.75)' = alpha('forestgreen', 0.3), '[0.75 - 0.95)' = alpha('forestgreen', 0.6), '[0.95-1]' = 'forestgreen')
 		
 		map <- ggplot() +
 			layer_spatial(this_ag_vect, aes(fill = quant_col), color = NA) +
@@ -576,9 +612,9 @@ say('###################################')
 			)
 				
 
-		ggsave(plot = map, filename = paste0(out_dir, '/sdm_nmixture_lambda_', fut, '.png'), width = 12, height = 10, dpi = 600)
+		ggsave(plot = map, filename = paste0(out_dir, '/sdm_bernoulli_lambda_', fut, '.png'), width = 12, height = 10, dpi = 600)
 
-		writeVector(this_ag_vect, paste0(out_dir, '/sdm_nmixture_', fut, '.gpkg'), overwrite = TRUE)
+		writeVector(this_ag_vect, paste0(out_dir, '/sdm_bernoulli_', fut, '.gpkg'), overwrite = TRUE)
 
 	} # next future
 
