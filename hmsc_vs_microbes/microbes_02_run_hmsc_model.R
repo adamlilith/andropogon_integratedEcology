@@ -5,6 +5,7 @@
 ###
 ### source('C:/Ecology/R/andropogon_integratedEcology/hmsc_vs_microbes/microbes_02_run_hmsc_model.R')
 ### source('E:/Adam/R/andropogon_integratedEcology/hmsc_vs_microbes/microbes_02_run_hmsc_model.R')
+### source('C:/ecology/Andropogon/andropogon_integratedEcology/hmsc_vs_microbes/microbes_02_run_hmsc_model.r')
 ###
 ### CONTENTS ###
 ### setup ###
@@ -22,13 +23,27 @@
 ### setup ###
 #############
 
+	### EXPERIMENT
+	# 1 response: lognormal poisson | predictors: raw | phylo: true | STATUS: IP
+	# 1 response: lognormal poisson | predictors: PCs | phylo: true | STATUS: WAITING
+
+	# 2 response: poisson | predictors: raw | phylo: true | STATUS: IP
+	# 2 response: poisson | predictors: PCs | phylo: true | STATUS: WAITING
+	
+	# 3 response: normal | predictors: raw | phylo: true | STATUS: IP
+	# 3 response: normal | predictors: PCs | phylo: true | STATUS: WAITING
+	
+
 	rm(list = ls())
 	set.seed(1)
 
 	drive <- 'C:/Ecology/'
 	# drive <- 'E:/Adam/'
+	# drive <- 'E:/!Scratch/'
 
-	workDir <- paste0(drive, './Research/Andropogon/Andropogon/')
+	.libPaths(paste0(drive, '/libraries_mine'))
+
+	workDir <- paste0(drive, './Andropogon/')
 
 	setwd(workDir)
 
@@ -39,7 +54,6 @@
 	library(data.table) # large data frames
 	library(enmSdmX) # GIS & SDMing
 	library(geodata) # geographic data
-	library(ggplot2) # plotting
 	library(ggspatial) # plotting spatial objects
 	library(Hmsc) # workhorse
 	library(ape) # we need this to construct a taxonomic tree
@@ -60,9 +74,9 @@
 	ag_model <- 'nmixture' # N-mixture model
 	# ag_model <- 'bernoilli' # Bernoulli (binary) model
 
-	response <- 'lognormal poisson' # response is integers >= 0
+	# response <- 'lognormal poisson' # response is integers >= 0
 	# response <- 'poisson' # response is integers >= 0
-	# response <- 'normal' # response is log of abundance, with 0 values forced to NA
+	response <- 'normal' # response is log of abundance, with 0 values forced to NA
 
 	# model taxa that may occur only in rhizobiome samples?
 	include_rhizo <- TRUE
@@ -77,14 +91,14 @@
 	# just_both <- TRUE
 	just_both <- FALSE
 
-	# include the "unknown_unknown_unknown", "Bacteria_unknown_unknown", and "Archaea_unknown_unknown" taxa?
+	# include the "unknown_unknown_unknown", "Bacteria_unknown_unknown", "Archaea_unknown_unknown", "Unassigned_unknown_unknown" taxa?
 	include_unknown <- FALSE
 
 	# analyze taxa with sum of all abundances across sites >= this quantile
 	# rhizobiome-only and bulk-only taxa will be filtered separately (ie, if include_rhizobiome is TRUE, then taxa that *only* occur in the rhizobiome and have an abundance >= quant_abund_threshold will be modeled; same for include_bulk)
-	quant_abund_threshold <- 0.95 # 0.95 is good for testing
+	# quant_abund_threshold <- 0.95 # 0.95 is good for testing
 	# quant_abund_threshold <- 0.90
-	# quant_abund_threshold <- 0.50
+	quant_abund_threshold <- 0.50
 	# quant_abund_threshold <- 0 # value of 0 ==> all taxa
 
 	# minimum number of sites (not plants) taxon must be present in to model
@@ -99,16 +113,16 @@
 	use_pc_axes_as_predictors <- FALSE
 
 	# number of MCMC iterations in the final result (ie, not number of total MCMC iterations!)
-	# samples <- 1000
-	samples <- 100
+	samples <- 1000
+	# samples <- 100
 
 	# burn-in
 	# transient <- 1000
 	transient <- NULL
 
 	# thinning rate
-	# thin <- 20
-	thin <- 1
+	thin <- 20
+	# thin <- 1
 
 	n_parallel <- 4 # default: n_parallel = n_chains, set to 1 to disable parallel execution
 	n_chains <- 4
@@ -299,7 +313,8 @@
 	# if not retaining "unknown" taxa
 	if (!include_unknown) {
 
-		unknowns <- c('unknown_unknown_unknown', 'Bacteria_unknown_unknown', 'Archaea_unknown_unknown')
+		unknowns <- c('unknown_unknown_unknown', 'Bacteria_unknown_unknown', 'Archaea_unknown_unknown', 
+		'Unassigned_unknown_unknown', 'Eukaryota_unknown_unknown')
 		taxa <- taxa[taxon %notin% unknowns]
 	
 	}
@@ -327,8 +342,8 @@
 	# filter by abundance threshold
 	if (quant_abund_threshold > 0) {
 	
-		n <- colSums(abund)	
-		threshold_n <- quantile(n, quant_abund_threshold)
+		n <- colSums(abund, na.rm = TRUE)	
+		threshold_n <- quantile(n, quant_abund_threshold, na.rm = TRUE)
 
 		keeps <- which(n >= threshold_n)
 		keep_taxa <- colnames(abund)[keeps]
@@ -433,14 +448,20 @@
 		} else {
 			raw_predictors
 		}
+		
+		# decide on taxa to plot... sampling regularly along abundance Gradient
+		total_abunds <- colSums(abund, na.rm = TRUE)
+		total_abunds <- sort(total_abunds)
+		taxa_to_plot <- unique(round(seq(1, ncol(abund), length.out = n_panels)))
 
 		if ('rhizobiome_or_bulk' %in% raw_predictors) rhizo_bulk <- ifelse(env$rhizobiome_or_bulk == 1, 'rhizo', 'bulk')
 		for (pred in these_predictors) {
 		
 			abund_vs_predictors <- list()
-			for (i in seq_len(n_actual_panels)) {
+			# for (i in seq_len(n_actual_panels)) {
+			for (i in seq_along(taxa_to_plot)) {
 			
-				taxon <- colnames(abund)[i]
+				taxon <- colnames(abund)[taxa_to_plot[i]]
 				x <- env[[pred]]
 				data <- data.frame(x = x, abundance = abund[[i]] + 1)
 				if ('rhizobiome_or_bulk' %in% raw_predictors) data$rhizo_bulk <- rhizo_bulk
@@ -1346,11 +1367,11 @@
 	}
 	dev.off()
 
-#################################################################
-### make maps of predicted abundance for each taxon to future ###
-#################################################################
+#######################################################################
+### make delta maps of change in abundance for each taxon to future ###
+#######################################################################
 
-	say('make maps of predicted abundance for each taxon to future')
+	say('make maps of change in predicted abundance for each taxon to future')
 
 	# North American countries
 	nam <- gadm(c('CAN', 'USA', 'MEX'), level = 1, path = 'C:/!scratch', resolution = 2)
@@ -1385,7 +1406,7 @@
 			taxon <- as.character(taxa$taxon[i])
 			# say(taxon)
 
-			# get map and project		
+			# get map
 			this_map <- maps_mean[[taxon]]
 
 			# to define colors, get min/max abundance across sites and the map
