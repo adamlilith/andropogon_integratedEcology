@@ -17,8 +17,8 @@
 
 	rm(list = ls())
 
-	# drive <- 'C:/Ecology/'
-	drive <- 'C:/Subarashi/'
+	drive <- 'C:/Ecology/'
+	# drive <- 'C:/Subarashi/'
 
 	library(data.table)
 	library(enmSdmX)
@@ -30,8 +30,8 @@
 
 	setwd(paste0(drive, '/Research/Andropogon/Andropogon'))
 
-	predictor_names <- c('aridity', 'bio7', 'bio12', 'bio15', 'soc', 'ph', 'sand', 'silt')
-	MASTER_climate_predictor_names <- c('aridity', 'bio7', 'bio12', 'bio15')
+	predictor_names <- c('aridity', paste0('bio', 1:19), 'soc', 'ph', 'sand', 'silt')
+	MASTER_climate_predictor_names <- c('aridity', paste0('bio', 1:19))
 
 say('###################################################################################################')
 say('### compile microbial abundance, environmental data, and study design into forms needed by HMSC ###')
@@ -556,7 +556,7 @@ say('###########################################################################
 		# BIOCLIMs
 		bc <- rast(paste0(drive, '/Research Data/ClimateNA/v 7.3 AdaptWest/1961-2020/bioclim_variables_1961_2020.tif'))
 
-		aridity <- bc$bio1 / (bc$bio12 + 1)
+		aridity <- (bc$bio1 + 10) / (bc$bio12 / 1000)
 		names(aridity) <- 'aridity'
 		
 		env <- c(bc, aridity, elevation)
@@ -847,7 +847,7 @@ say('###########################################################################
 # 	# nam_lambert <- project(nam, bc)
 # 	# bc <- crop(bc, nam_lambert)
 
-# 	# aridity <- bc$bio1 / (bc$bio12 + 1)
+# 	# aridity <- (bc$bio1 + 10) / (bc$bio12 /1000 1)
 # 	# names(aridity) <- 'aridity'
 	
 # 	# # AG SDM
