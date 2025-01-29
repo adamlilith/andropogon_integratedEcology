@@ -4,8 +4,7 @@
 ### This script calibrates and evaluates a Hierarchical Modeling of Species Communities (HMSC) model for microbes associated with Andropogon gerardi.
 ###
 ### source('C:/Ecology/R/andropogon_integratedEcology/hmsc_vs_microbes/microbes_02_run_hmsc_model.R')
-### source('E:/Adam/R/andropogon_integratedEcology/hmsc_vs_microbes/microbes_02_run_hmsc_model.R')
-### source('C:/ecology/Andropogon/andropogon_integratedEcology/hmsc_vs_microbes/microbes_02_run_hmsc_model.r')
+### source('C:/Subarashi/R/andropogon_integratedEcology/hmsc_vs_microbes/microbes_02_run_hmsc_model.R')
 ###
 ### CONTENTS ###
 ### setup ###
@@ -37,15 +36,15 @@
 	rm(list = ls())
 	set.seed(1)
 
-	drive <- 'C:/Ecology/'
-	# drive <- 'E:/Adam/'
+	# drive <- 'C:/Ecology/'
+	drive <- 'C:/Subarashi/'
 	# drive <- 'E:/!Scratch/'
 
-	.libPaths(paste0(drive, '/libraries_mine'))
-
-	workDir <- paste0(drive, './Andropogon/')
+	workDir <- paste0(drive, './Research/Andropogon/Andropogon')
 
 	setwd(workDir)
+
+	# .libPaths('H:/Global Change Program/libraries')
 
 	library(abind) # for arrays
 	library(BayesLogit) # sometimes HMSC complains if we don't attach this
@@ -59,12 +58,18 @@
 	library(ape) # we need this to construct a taxonomic tree
 	library(ggplot2) # plots
 	library(omnibus) # utilities
+	library(parallel) # parallelization
+	library(snow) # parallelization
 	library(tictoc) # timing
 	library(viridis) # colors
 
 ################
 ### settings ###
 ################
+
+	# run abbreviated model... for debugging/development
+	abbreviated <- FALSE # run full model!
+	# abbreviated <- TRUE
 
 	# make graphs of each environmental predictor vs abundance? (saves times... should be FALSE only for testing script)
 	make_abundance_plots <- TRUE
@@ -75,8 +80,8 @@
 	# ag_model <- 'bernoilli' # Bernoulli (binary) model
 
 	# response <- 'lognormal poisson' # response is integers >= 0
-	# response <- 'poisson' # response is integers >= 0
-	response <- 'normal' # response is log of abundance, with 0 values forced to NA
+	response <- 'poisson' # response is integers >= 0
+	# response <- 'normal' # response is log of abundance, with 0 values forced to NA
 
 	# model taxa that may occur only in rhizobiome samples?
 	include_rhizo <- TRUE
@@ -91,14 +96,16 @@
 	# just_both <- TRUE
 	just_both <- FALSE
 
-	# include the "unknown_unknown_unknown", "Bacteria_unknown_unknown", "Archaea_unknown_unknown", "Unassigned_unknown_unknown" taxa?
-	include_unknown <- FALSE
+	# model "unknown" Classes?
+	# include_unknown_classes <- TRUE
+	include_unknown_classes <- FALSE
 
 	# analyze taxa with sum of all abundances across sites >= this quantile
 	# rhizobiome-only and bulk-only taxa will be filtered separately (ie, if include_rhizobiome is TRUE, then taxa that *only* occur in the rhizobiome and have an abundance >= quant_abund_threshold will be modeled; same for include_bulk)
 	# quant_abund_threshold <- 0.95 # 0.95 is good for testing
 	# quant_abund_threshold <- 0.90
-	quant_abund_threshold <- 0.50
+	quant_abund_threshold <- 0.75
+	# quant_abund_threshold <- 0.50
 	# quant_abund_threshold <- 0 # value of 0 ==> all taxa
 
 	# minimum number of sites (not plants) taxon must be present in to model
@@ -113,23 +120,20 @@
 	use_pc_axes_as_predictors <- FALSE
 
 	# number of MCMC iterations in the final result (ie, not number of total MCMC iterations!)
-	samples <- 1000
-	# samples <- 100
+	samples <- if (abbreviated) { 100 } else { 1000 }
 
 	# burn-in
 	# transient <- 1000
 	transient <- NULL
 
 	# thinning rate
-	thin <- 20
+	thin <- 50
 	# thin <- 1
 
-	n_parallel <- 4 # default: n_parallel = n_chains, set to 1 to disable parallel execution
-	n_chains <- 4
-	# n_chains <- 2
+	n_parallel <- if (abbreviated) { 1 } else { 1 } # default: n_parallel = n_chains, set to 1 to disable parallel execution
+	n_chains <- if (abbreviated) { 2 } else { 4 }
 
-	n_folds <- 4 # folds for cross-validation
-	# n_folds <- 2 # folds for cross-validation
+	n_folds <- if (abbreviated) { 2 } else { 4 }
 
 	raw_predictors <- c('aridity', 'bio7', 'bio12', 'bio15', 'ph_field', 'sand_field', 'soc_field_perc', 'silt_field', 'ag_lambda_nmixture', 'sampling_ppt_mm', 'sampling_tmean_c')
 
@@ -216,14 +220,17 @@
 		ifelse(include_rhizo, 'rhizo', ''),
 		ifelse(include_bulk, 'bulk', ''),
 		ifelse(just_both, 'both', ''),
-		ifelse(include_unknown, 'unknown', ''),
 		sep = ' '
 	)
 	resp_string <- trimws(resp_string)
 	resp_string <- gsub(resp_string, pattern = ' ', replacement = '_')
 
+	header <- if (abbreviated) { 'TEMP_' } else { '' }
+
+	unknowns <- if (include_unknown_classes) { 'all_classes'} else { 'sans_unknown_classes' }
+
 	out_dir <- paste0(
-		'./outputs_sonny/hmsc_[',
+		'./outputs_sonny/', header, 'hmsc_[',
 		ifelse(use_pc_axes_as_predictors, 'pcs', 'climate'),
 		']_[abund_',
 		quant_abund_threshold, '_min_sites_', min_sites_present, ']_[',
@@ -232,7 +239,7 @@
 		ifelse(include_phylogeny, 'phylo', 'sans_phylo'),
 		']_[ag_', ag_model, ']_[',
 		sub(response, pattern = '_', replacement = '_'),
-		']'
+		']_[', unknowns, ']'
 
 	)
 
@@ -245,7 +252,7 @@
 		say('include_rhizo ............................... ', include_rhizo)
 		say('include_bulk ................................ ', include_bulk)
 		say('just_both ................................... ', just_both)
-		say('include_unknown ............................. ', include_unknown)
+		say('include_unknown_classes ..................... ', include_unknown_classes)
 		say('quant_abund_threshold ....................... ', quant_abund_threshold)
 		say('min_sites_present ........................... ', min_sites_present)
 		say('samples ..................................... ', samples)
@@ -271,10 +278,10 @@
 
 	say('data collation')
 
-	abund_combined <- fread('./data_from_sonny/collated_for_hmsc/abundances_site_by_taxon_combined.csv')
-	env_combined <- fread('./data_from_sonny/collated_for_hmsc/environment_combined.csv')
-	study_design_combined <- fread('./data_from_sonny/collated_for_hmsc/study_design_combined.csv')
-	taxa_combined <- fread('./data_from_sonny/collated_for_hmsc/taxa_combined.csv')
+	abund_combined <- fread('./data_from_sonny/collated_for_hmsc_collapsed_to_class/abundances_site_by_taxon_combined.csv')
+	env_combined <- fread('./data_from_sonny/collated_for_hmsc_collapsed_to_class/environment_combined.csv')
+	study_design_combined <- fread('./data_from_sonny/collated_for_hmsc_collapsed_to_class/study_design_combined.csv')
+	taxa_combined <- fread('./data_from_sonny/collated_for_hmsc_collapsed_to_class/taxa_combined.csv')
 
 	# get list of taxa we want to analyze
 	if (!include_rhizo & !include_bulk & just_both) {
@@ -310,13 +317,34 @@
 
 	site_xy <- env[  , c('longitude', 'latitude')]
 
-	# if not retaining "unknown" taxa
-	if (!include_unknown) {
+	# remove Eukaryota
+	names <- names(abund)
+	keeps <- !grepl(names, pattern = 'Eukaryota')
+	abund <- abund[ , ..keeps]
 
-		unknowns <- c('unknown_unknown_unknown', 'Bacteria_unknown_unknown', 'Archaea_unknown_unknown', 
-		'Unassigned_unknown_unknown', 'Eukaryota_unknown_unknown')
-		taxa <- taxa[taxon %notin% unknowns]
+	keeps <- taxa$domain != 'Eukaryota'
+	taxa <- taxa[keeps, ]
+
+	# remove taxa with unknown phylum
+	names <- names(abund)
+	keeps <- !grepl(names, pattern = '_unknown_')
+	abund <- abund[ , ..keeps]
 	
+	taxa <- taxa[taxa$phylum != 'unknown']
+
+	# if not retaining "unknown" taxa
+	if (!include_unknown_classes) {
+
+		# remove unknown classes from abundance matrix
+		names <- names(abund)
+		nc <- nchar(names)
+		names <- substr(names, nc - nchar('_unknown') + 1, nc)
+		keeps <- which(names != '_unknown')
+		abund <- abund[ , ..keeps]
+
+		# remove unknown classes from taxon matrix
+		taxa <- taxa[taxa$class != 'unknown']
+
 	}
 
 	# remove taxa in fewer than minimum number of sites
@@ -606,7 +634,9 @@
 		transient = ifelse(is.null(transient), ceiling(0.5 * samples * thin), transient),
 		# adaptNf = rep(ceiling(0.4 * samples * thin), model$nr),
 		# adaptNf = rep(ceiling(0.4 * samples * thin), 100),
-		nChains = n_chains, nParallel = 1, # NB n_parallel >1 leads to failure to sample!
+		nChains = n_chains,
+		# nParallel = n_parallel, # NB n_parallel >1 leads to failure to sample!
+		nParallel = 1, # NB n_parallel >1 leads to failure to sample!
 		initPar = 'fixed effects', # use MLE to generate initial guesses... much faster!
 		# verbose = TRUE
 		verbose = TRUE
@@ -746,7 +776,16 @@
 	say('WAIC: ', waic)
 	sink()
 	
-	metrics <- c('RMSE', 'O.RMSE', 'C.RMSE', 'SR2', 'C.SR2')
+	# response <- 'lognormal poisson' # response is integers >= 0
+	# response <- 'poisson' # response is integers >= 0
+	response <- 'normal' # response is log of abundance, with 0 values forced to NA
+
+	metrics <- if (response %in% c('lognormal', 'poisson')) {
+		c('RMSE', 'O.RMSE', 'C.RMSE', 'SR2', 'C.SR2')
+	} else if (response == 'normal') {
+		c('RMSE', 'SR2', 'O.AUC', 'O.TjurR2', 'O.RMSE', 'C.SR2', 'C.RMSE')
+	}
+
 	fit_plots <- list()
 	for (metric in metrics) {
 		
@@ -1041,7 +1080,7 @@
 
 	}
 
-	saveRDS(predictions_mean, paste0(out_dir, '/predictions_to_raster_cells_1961_2020.rds'))
+	saveRDS(predictions_mean, paste0(out_dir, '/predictions_to_raster_cells_1961_2020_mean.rds'))
 	saveRDS(predictions_sd, paste0(out_dir, '/predictions_to_raster_cells_1961_2020_sd.rds'))
 
 #############################
