@@ -62,14 +62,14 @@ say('##############################################################')
 	admix$latitude <- xy$latitude[matches]
 
 	### match with soil and climate data
-	cols <- c('aridity', 'bio7', 'bio12', 'bio15', 'elevation_m', 'sampling_ppt_mm', 'sampling_tmean_c', 'sand_field', 'silt_field', 'clay_field', 'ph_field', 'nitrogen_field_perc', 'soc_field_perc', 'ph_soilgrids', 'sand_soilgrids', 'silt_soilgrids', 'clay_soilgrids', 'soc_soilgrids_perc', 'nitrogen_soilgrids_perc')
+	cols <- c('aridity', paste0('bio', 1:19), 'elevation_m', 'sampling_ppt_mm', 'sampling_tmean_c', 'sand_field', 'silt_field', 'clay_field', 'ph_field', 'nitrogen_field_perc', 'soc_field_perc', 'ph_soilgrids', 'sand_soilgrids', 'silt_soilgrids', 'clay_soilgrids', 'soc_soilgrids_perc', 'nitrogen_soilgrids_perc')
 
 	for (j in seq_along(cols)) {
 		admix[ , DUMMY := NA_real_]
 		names(admix)[ncol(admix)] <- cols[j]
 	}
 
-	env <- fread('./data_from_sonny/collated_for_hmsc/environment_combined.csv')
+	env <- fread('./data_from_sonny/collated_for_hmsc_to_class/environment_combined.csv')
 	for (i in 1:nrow(admix)) {
 	
 		site <- admix$population_proper[i]
