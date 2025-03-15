@@ -3,8 +3,8 @@
 ###
 ### This script constructs a non-integrated model for AG geographic distribution.
 ###
-### source('C:/Ecology/R/andropogon_integratedEcology/sdm/sdm_02_nonintegrated_model_n_mixture_pseudoabsences.r')
-### source('C:/Subarashi/R/andropogon_integratedEcology/sdm/sdm_02_nonintegrated_model_n_mixture_pseudoabsences.r')
+### source('C:/Ecology/R/andropogon_integratedEcology/sdm/sdm_02_nonintegrated_model_n_mixture_pseudoabsences_multivariate.r')
+### source('C:/Subarashi/R/andropogon_integratedEcology/sdm/sdm_02_nonintegrated_model_n_mixture_pseudoabsences_multivariate.r')
 ###
 ### CONTENTS ###
 ### setup ###
@@ -20,8 +20,8 @@
 
 	rm(list = ls())
 
-	drive <- 'C:/Ecology/'
-	# drive <- 'C:/Subarashi/'
+	# drive <- 'C:/Ecology/'
+	drive <- 'C:/Subarashi/'
 
 	setwd(paste0(drive, '/Research/Andropogon/Andropogon'))
 
@@ -39,6 +39,13 @@
 	### user-defined values
 	#######################
 
+		climate_predictor_names <- c('bio1', 'bio12', 'bio15') # set for Jack's multivariate analyses, chosen based on simple models and collinearity
+
+		# soil_predictor_names <- c('ph', 'sand', 'soc', 'silt')
+		soil_predictor_names <- NULL
+
+		predictor_names <- c(climate_predictor_names, soil_predictor_names)
+
 		psa_quant <- 0.99 # to define pseudoabsences, use this quantile of Poaceae occurrences across counties with Poaceae occurrences 
 		# psa_quant <- 0 # to define pseudoabsences, use this quantile of Poaceae occurrences across counties with Poaceae occurrences 
 
@@ -47,21 +54,37 @@
 		nburnin <- 40000
 		thin <- 200
 		nchains <- 4
+		trial <- FALSE
 
-		# # for testing
+		# ### MCMC settings: SHORT RUNS
+		# niter <- 140000
+		# nburnin <- 40000
+		# thin <- 100
+		# nchains <- 2
+		# trial <- TRUE
+
+		# ### MCMC settings: UNIVARIATE
+		# niter <- 240000
+		# nburnin <- 40000
+		# thin <- 200
+		# nchains <- 4
+		# trial <- FALSE
+
+		# # # for testing
 		# niter <- 90
 		# nburnin <- 10
 		# thin <- 1
 		# nchains <- 2
+		# trial <- TRUE
 
 	# out_dir <- paste0('./outputs_loretta/sdm_[TEMP]/')
-	# out_dir <- paste0('./outputs_loretta/sdm_[nmixture]_[pseudoabsences_', psa_quant, ']_[climate]_[priors_ddexp]/')
-	# out_dir <- paste0('./outputs_loretta/sdm_[nmixture]_[pseudoabsences_', psa_quant, ']_[climate_soil]_[priors_dnorm]/')
-	# out_dir <- paste0('./outputs_loretta/sdm_[nmixture]_[pseudoabsences_', psa_quant, ']_[climate_quad_ia]_[soil_quad]_[priors_dnorm]/')
-	# out_dir <- paste0('./outputs_loretta/sdm_[nmixture]_[pseudoabsences_', psa_quant, ']_[climate_quad]_[soil_quad]_[priors_dnorm]/')
-	# out_dir <- paste0('./outputs_loretta/sdm_[nmixture]_[pseudoabsences_', psa_quant, ']_[climate_quad]_[soil_linear]_[priors_dnorm]/')
-	# out_dir <- paste0('./outputs_loretta/sdm_[nmixture]_[pseudoabsences_', psa_quant, ']_[climate_quad]_[priors_dnorm]/')
-	out_dir <- paste0('./outputs_loretta/sdm_[nmixture]_[pseudoabsences_', psa_quant, ']_[climate_quad_ia]_[priors_dnorm]/')
+	# out_dir <- paste0('./outputs_loretta/sdm_[nmixture]_[pseudoabsences_', psa_quant, ']_[', paste(predictor_names, collapse = '_'), '_quad_ia]_[priors_ddnorm]', ifelse(trial, '_TRIAL', ''), '/')
+	# out_dir <- paste0('./outputs_loretta/sdm_[nmixture]_[pseudoabsences_', psa_quant, ']_[bio1^2_bio12^2_bio15^2_bio1xbio12_bio1xbio12]_[priors_ddnorm]', ifelse(trial, '_TRIAL', ''), '/')
+	# out_dir <- paste0('./outputs_loretta/sdm_[nmixture]_[pseudoabsences_', psa_quant, ']_[bio1^2_bio12^2_bio15^2_bio1xbio12xbio15]_[priors_ddnorm]', ifelse(trial, '_TRIAL', ''), '/')
+	# out_dir <- paste0('./outputs_loretta/sdm_[nmixture]_[pseudoabsences_', psa_quant, ']_[bio1^2_bio12^2_bio15^2_bio1xbio12]_[priors_ddnorm]', ifelse(trial, '_TRIAL', ''), '/')
+	# out_dir <- paste0('./outputs_loretta/sdm_[nmixture]_[pseudoabsences_', psa_quant, ']_[bio1^2_bio12^2_bio15^2_bio1xbio12xbio15]_[priors_ddnorm]', ifelse(trial, '_TRIAL', ''), '/')
+	# out_dir <- paste0('./outputs_loretta/sdm_[nmixture]_[pseudoabsences_', psa_quant, ']_[bio1^2_bio12^2_bio15^2_bio1xbio12_bio1xbio15_bio12xbio15]_[priors_ddnorm]', ifelse(trial, '_TRIAL', ''), '/')
+	out_dir <- paste0('./outputs_loretta/sdm_[nmixture]_[pseudoabsences_', psa_quant, ']_[bio1^2_bio12^2_bio15^2_bio12xbio15]_[priors_ddnorm]', ifelse(trial, '_TRIAL', ''), '/')
 	dirCreate(out_dir)
 
 	sink(paste0(out_dir, '/runtime_log.txt'), split = TRUE)
@@ -84,43 +107,22 @@ say(date(), post = 1)
 	### model predictors and terms
 	say('Predictors and model formula:', level = 2)
 
-	# predictor_names <- c('aridity', 'bio7', 'bio2', 'sand', 'bio12', 'bio15', 'cec', 'soc', 'silt')
-	climate_predictor_names <- c('aridity', 'bio7', 'bio12', 'bio15')
-	# soil_predictor_names <- c('ph', 'sand', 'soc', 'silt')
-	soil_predictor_names <- NULL
-	# predictor_names <- c('aridity', 'bio7', 'bio12', 'bio15')
 	say('We are using climate predictors: ', paste(climate_predictor_names, collapse = ' '), post = 1)
 	say('We are using soil predictors: ', paste(soil_predictor_names, collapse = ' '), post = 1)
 
-	predictor_names <- c(climate_predictor_names, soil_predictor_names)
+	# combos <- combn(climate_predictor_names, 2, simplify = FALSE)
 
-	# preselected_model_terms <- read.csv('./outputs_loretta/sig_coeffs_elastic_net_2024_06_04.csv')
+	# form <- c(1, climate_predictor_names, paste0('I(', climate_predictor_names, '^2)'))
+	# for (i in seq_along(combos)) form <- c(form, paste(combos[[i]], collapse = ':'))
+	# form <- paste(form, collapse = ' + ')
+	# form <- paste0('~ ', form)
 
-	# # # get vector of linear predictors... we need to ensure all predictors appear at least as linear terms to respect marginality
-	# # terms <- preselected_model_terms$term
-	# # terms <- terms[!(terms %in% c('(Intercept)', 'log_area_km2'))]
-	# # linear_terms <- gsub(terms, pattern = 'I\\(', replacement = '')
-	# # linear_terms <- gsub(linear_terms, pattern = '\\^2)', replacement = '')
-	# # linear_terms <- strsplit(linear_terms, ':')
-	# # linear_terms <- unlist(linear_terms)
-	# # linear_terms <- unique(linear_terms)
-	# # linear_terms <- sort(linear_terms)
 
-	# # # get non-linear terms
-	# # terms <- terms[!(terms %in% linear_terms)]
-
-	combos <- combn(climate_predictor_names, 2, simplify = FALSE)
-
-	form <- c(1, climate_predictor_names, paste0('I(', climate_predictor_names, '^2)'))
-	for (i in seq_along(combos)) form <- c(form, paste(combos[[i]], collapse = ':'))
-	form <- paste(form, collapse = ' + ')
-	form <- paste0('~ ', form)
-
-	# form <- paste0(form, ' + ', paste0(soil_predictor_names, collapse = ' + '), ' + ', paste0('I(', soil_predictor_names, '^2)', collapse = ' + '))
-	if (!is.null(soil_predictor_names)) form <- paste0(form, ' + ', paste0(soil_predictor_names, collapse = ' + '))
-
+	# if (!is.null(soil_predictor_names)) form <- paste0(form, ' + ', paste0(soil_predictor_names, collapse = ' + '))
+	# form <- '~ 1 + bio1 + bio12 + bio15 + I(bio1^2) + I(bio12^2) + I(bio15^2) + bio1:bio12 + bio1:bio15 + bio12:bio15 + bio1:bio12:bio15'
+	# form <- '~ 1 + bio1 + bio12 + bio15 + I(bio1^2) + I(bio12^2) + I(bio15^2) + bio1:bio12 + bio1:bio15 + bio12:bio15'
+	form <- '~ 1 + bio1 + bio12 + bio15 + I(bio1^2) + I(bio12^2) + I(bio15^2) + bio12:bio15'
 	# create model formula
-	# form <- paste0(' ~ 1 + ', paste(c(linear_terms, terms), collapse = ' + '))
 	say('Model formula:')
 	say(form, post = 1, breaks = 80)
 	form <- as.formula(form)
@@ -255,7 +257,7 @@ say(date(), post = 1)
 
 	# calculate means of each variable across counties with AG presences
 	ag_pres <- ag_vect_sq[ag_vect_sq$any_ag_quality_1_to_3 > 0]
-	ag_pres <- as.data.frame(ag_pres)[ , predictor_names]
+	ag_pres <- as.data.frame(ag_pres)[ , predictor_names, drop = FALSE]
 	means <- colMeans(ag_pres)
 
 	for (i in seq_along(predictor_names)) {
@@ -304,54 +306,53 @@ say(date(), post = 1)
 	n_sdm_terms <- ncol(x_sq)
 
 	constants <- list(
-	  n_counties = n_counties,
-	  n_counties_future = n_counties_future,
+		n_counties = n_counties,
+		n_counties_future = n_counties_future,
 
-	  n_sdm_terms = n_sdm_terms,
+		n_sdm_terms = n_sdm_terms,
 
-	  x_sq = x_sq,
+		x_sq = x_sq,
 
-	  n_response_curve_rows = n_response_curve_rows,
-	  n_predictors = n_predictors,
-	  response_curve_x = response_curve_x,
+		n_response_curve_rows = n_response_curve_rows,
+		n_predictors = n_predictors,
+		response_curve_x = response_curve_x,
 
-	  log_area_km2_scaled = log_area_km2_scaled,
-	  log_num_poaceae_records_scaled = log_num_poaceae_records_scaled,
+		log_area_km2_scaled = log_area_km2_scaled,
+		log_num_poaceae_records_scaled = log_num_poaceae_records_scaled,
 
-	  x_ssp245_2041_2070 = x_ssp245_2041_2070,
-	  x_ssp245_2071_2100 = x_ssp245_2071_2100,
-	  
-	  x_ssp370_2041_2070 = x_ssp370_2041_2070,
-	  x_ssp370_2071_2100 = x_ssp370_2071_2100
+		x_ssp245_2041_2070 = x_ssp245_2041_2070,
+		x_ssp245_2071_2100 = x_ssp245_2071_2100,
+
+		x_ssp370_2041_2070 = x_ssp370_2041_2070,
+		x_ssp370_2071_2100 = x_ssp370_2071_2100
 
 	)
 
 	lambda_fut_inits <- rep(mean(ag_sq$any_ag_quality_1_to_3), n_counties_future)
-	inits <- list()
-	for (i in seq_len(nchains)) {
+	N_inits <- 10 * ag_sq$any_ag_quality_1_to_3
+	lambda_sq_inits <- 1 + ag_sq$any_ag_quality_1_to_3
 
-		N_inits <- 10 * ag_sq$any_ag_quality_1_to_3
-		lambda_sq_inits <- 1 + ag_sq$any_ag_quality_1_to_3
+	beta_inits <- rep(0, n_sdm_terms)
+	beta_inits[grepl(colnames(x_sq), pattern = '\\^2')] <- -2
+	beta_inits[grepl(colnames(x_sq), pattern = '\\:')] <- 0
 
-		inits[[i]] <- list(
-			
-			beta = runif(n_sdm_terms, -0.5, 0.5),
-			alpha0_sampling = runif(1, -0.5, 0.5),
-			alpha_area = runif(1, -0.5, 0.5),
-			alpha_poaceae = runif(1, -0.5, 0.5),
-			
-			N = N_inits,
+	inits <- list(
 
-			lambda_sq = lambda_sq_inits,
+		beta = beta_inits,
+		alpha0_sampling = 0,
+		alpha_area = 1,
+		alpha_poaceae = 1,
+		
+		N = N_inits,
 
-			lambda_ssp245_2041_2070 = lambda_fut_inits,
-			lambda_ssp245_2071_2100 = lambda_fut_inits,
-			lambda_ssp370_2041_2070 = lambda_fut_inits,
-			lambda_ssp370_2071_2100 = lambda_fut_inits
+		lambda_sq = lambda_sq_inits,
 
-		)
+		lambda_ssp245_2041_2070 = lambda_fut_inits,
+		lambda_ssp245_2071_2100 = lambda_fut_inits,
+		lambda_ssp370_2041_2070 = lambda_fut_inits,
+		lambda_ssp370_2071_2100 = lambda_fut_inits
 
-	}
+	)
 
 	say('Data:')
 	print(str(data))
@@ -462,17 +463,17 @@ say(date(), post = 1)
 	compiled <- compileNimble(model_species, build, showCompilerOutput = FALSE)
 
 	chains <- runMCMC(
-	  compiled$build,
-	  niter = niter,
-	  nburnin = nburnin,
-	  thin = thin,
-	  nchains = nchains,
-	  inits = inits,
-	  progressBar = TRUE,
-	  samplesAsCodaMCMC = TRUE,
-	  summary = TRUE,
-	  WAIC = FALSE,
-	  perChainWAIC = FALSE
+		compiled$build,
+		niter = niter,
+		nburnin = nburnin,
+		thin = thin,
+		nchains = nchains,
+		inits = inits,
+		progressBar = TRUE,
+		samplesAsCodaMCMC = TRUE,
+		summary = TRUE,
+		WAIC = TRUE,
+		perChainWAIC = FALSE
 	)
 
 	saveRDS(chains, paste0(out_dir, '/sdm_nmixture_chains.rds'))
@@ -497,22 +498,22 @@ say('#########################')
 
 	# graphing trace plots for all betas
 	pars <- paste0('beta[', 1:n_sdm_terms, ']')
-	file <- paste0(out_dir, '/sdm_nmixture_beta_trace.png')
+	file <- paste0(out_dir, '/beta_trace.png')
 	ggsave(mcmc_trace(mcmc, pars = pars), file = file, width = 10, height = 8, dpi = 450, bg = 'white')
 
 	# graphing trace plots for all "extra" betas
 	pars <- c('alpha0_sampling', 'alpha_poaceae', 'alpha_area')
-	file <- paste0(out_dir, '/sdm_nmixture_alpha_trace.png')
+	file <- paste0(out_dir, '/alpha_trace.png')
 	ggsave(mcmc_trace(mcmc, pars = pars), file = file, width = 10, height = 4, dpi = 450, bg = 'white')
 
 	# graphing density plots for all betas
 	pars <- paste0('beta[', 1:n_sdm_terms, ']')
-	file <- paste0(out_dir, '/sdm_nmixture_beta_density.png')
+	file <- paste0(out_dir, '/beta_density.png')
 	ggsave(mcmc_dens_overlay(mcmc, pars = pars), file = file, width = 12, height = 8, dpi = 450, bg = 'white')
 
 	# graphing trace plots for all "extra" betas
 	pars <- c('alpha0_sampling', 'alpha_poaceae', 'alpha_area')
-	file <- paste0(out_dir, '/sdm_nmixture_alpha_density.png')
+	file <- paste0(out_dir, '/alpha_density.png')
 	ggsave(mcmc_dens_overlay(mcmc, pars = pars), file = file, width = 10, height = 4, dpi = 450, bg = 'white')
 
 	# Gelman-Rubin statistic
@@ -543,7 +544,7 @@ say('###################################')
 	ag_vect_sq$lambda_ci <- ag_vect_sq$lambda_0.95ci - ag_vect_sq$lambda_0.05ci
 
 	lambda_sq_quants <- quantile(ag_vect_sq$lambda_mean, c(0.25, 0.5, 0.75, 0.90, 0.95))
-	quant_labels <- c('[0 - 0.25)', '[0.25 - 0.5)', '[0.5 - 0.75)', '[0.75 - 0.90)', '[0.90 - 0.95)', '[0.95 - 1]')
+	quant_labels <- c('[0 - 0.25)', '[0.25 - 0.50)', '[0.50 - 0.75)', '[0.75 - 0.90)', '[0.90 - 0.95)', '[0.95 - 1]')
 	
 	ag_vect_sq$quant_col <- NA
 	ag_vect_sq$quant_col[ag_vect_sq$lambda_mean < lambda_sq_quants[1]] <- quant_labels[1]
@@ -571,7 +572,7 @@ say('###################################')
 	fill_scale <- c(
 		'[0 - 0.25)' = 'gray85',
 		'[0.25 - 0.5)' = alpha('forestgreen', 0.20),
-		'[0.5 - 0.75)' = alpha('forestgreen', 0.40),
+		'[0.50 - 0.75)' = alpha('forestgreen', 0.40),
 		'[0.75 - 0.90)' = alpha('forestgreen', 0.65),
 		'[0.90 - 0.95)' = alpha('forestgreen', 0.75),
 		'[0.95 - 1]' = 'forestgreen'
@@ -629,7 +630,7 @@ say('###################################')
 		this_ag_vect$lambda_0.95ci <- lambda[ , '95%CI_upp']
 		this_ag_vect$lambda_ci <- this_ag_vect$lambda_0.95ci - this_ag_vect$lambda_0.05ci
 
-		quant_labels <- c('[0 - 0.25)', '[0.25 - 0.5)', '[0.5 - 0.75)', '[0.75 - 0.90)', '[0.90 - 0.95)', '[0.95 - 1]') # should be same as above
+		quant_labels <- c('[0 - 0.25)', '[0.25 - 0.50)', '[0.50 - 0.75)', '[0.75 - 0.90)', '[0.90 - 0.95)', '[0.95 - 1]') # should be same as above
 		# NB lambda_sq_quants is from above!!!
 		this_ag_vect$quant_col <- NA
 		this_ag_vect$quant_col[this_ag_vect$lambda_mean < lambda_sq_quants[1]] <- quant_labels[1]
@@ -644,7 +645,7 @@ say('###################################')
 		fill_scale <- c(
 			'[0 - 0.25)' = 'gray85',
 			'[0.25 - 0.5)' = alpha('forestgreen', 0.20),
-			'[0.5 - 0.75)' = alpha('forestgreen', 0.40),
+			'[0.50 - 0.75)' = alpha('forestgreen', 0.40),
 			'[0.75 - 0.90)' = alpha('forestgreen', 0.65),
 			'[0.90 - 0.95)' = alpha('forestgreen', 0.75),
 			'[0.95 - 1]' = 'forestgreen'
@@ -714,14 +715,15 @@ say('#######################')
 
 	# make a plot for how AG SDM and each ancestral population responds to each predictor
 	responses <- list()
-	lambda_max <- -Inf
-	for (pred in 1:n_predictors) {
+	for (i in 1:n_predictors) {
+
+		pred <- predictor_names[i]
 
 		# unscaled predictor value
 		x <- env_array[ , pred, pred]
 		
 		# create data frame with SDM response
-		pars <- paste0('exp_response_curves_sdm_lambda[', 1:n_response_curve_rows, ', ', pred, ']')
+		pars <- paste0('exp_response_curves_sdm_lambda[', 1:n_response_curve_rows, ', ', i, ']')
 		sdm_response_mean <- chains$summary$all.chains[pars, 'Mean']
 		sdm_response_lower <- chains$summary$all.chains[pars, '95%CI_low']
 		sdm_response_upper <- chains$summary$all.chains[pars, '95%CI_upp']
@@ -747,30 +749,42 @@ say('#######################')
 			y = c(df_upper$response, rev(df_lower$response))
 		)
 
-		lambda_max <- max(lambda_max, df_upper$response[!is.infinite(df_upper$response)])
+		lambda_max <- max(-Inf, df_upper$response[!is.infinite(df_upper$response)])
 
-		if (predictor_names[pred] == 'aridity') {
+		if (pred == 'aridity') {
 			nice_title <- 'Aridity ((temperature + 10) / (precipitation / 1000))'
 			nice_axis <- 'Aridity'
-		} else if (predictor_names[pred] == 'bio7') {
+		} else if (pred == 'bio1') {
+			nice_title <- 'Mean annual temperature (BIO01)'
+			nice_axis <- 'Mean annual temperature (°C)'
+		} else if (pred == 'bio5') {
+			nice_title <- 'Temperature of the hottest month (BIO05)'
+			nice_axis <- 'Temperature of the hottest month (°C)'
+		} else if (pred == 'bio6') {
+			nice_title <- 'Temperature of the coldest month (BIO06)'
+			nice_axis <- 'Temperature of the coldest month (°C)'
+		} else if (pred == 'bio7') {
 			nice_title <- 'Temperature annual range (BIO07)'
 			nice_axis <- 'Temperature annual range (°C)'
-		} else if (predictor_names[pred] == 'bio12') {
+		} else if (pred == 'bio12') {
 			nice_title <- 'Total annual precipitation (BIO12)'
 			nice_axis <- 'Total annual precipitation (mm)'
-		} else if (predictor_names[pred] == 'bio15') {
+		} else if (pred == 'bio15') {
 			nice_title <- 'Precipitation seasonality (BIO15)'
 			nice_axis <- 'Precipitation seasonality'
-		} else if (predictor_names[pred] == 'ph') {
+		} else if (pred == 'bio18') {
+			nice_title <- 'Precipitation of warmest quarter (BIO18)'
+			nice_axis <- 'Precipitation of warmest quarter (mm)'
+		} else if (pred == 'ph') {
 			nice_title <- 'Soil pH'
 			nice_axis <- 'pH'
-		} else if (predictor_names[pred] == 'sand') {
+		} else if (pred == 'sand') {
 			nice_title <- 'Soil proportion sand'
 			nice_axis <- 'Proportion sand'
-		} else if (predictor_names[pred] == 'silt') {
+		} else if (pred == 'silt') {
 			nice_title <- 'Soil proportion silt'
 			nice_axis <- 'Proportion silt'
-		} else if (predictor_names[pred] == 'soc') {
+		} else if (pred == 'soc') {
 			nice_title <- 'Soil organic matter'
 			nice_axis <- 'Soil organic matter'
 		}
@@ -801,7 +815,11 @@ say('#######################')
 		responses[[i]] <- responses[[i]] + ylim(0, lambda_max)
 	}
 
-	if (length(predictor_names) <= 4) {
+	if (length(predictor_names) == 1) {
+		nrow <- 1
+		width <- 10
+		height <- 8
+	} else if (length(predictor_names) <= 4) {
 		nrow <- 1
 		width <- 14
 		height <- 4
@@ -815,4 +833,5 @@ say('#######################')
 
 	ggsave(plot = responses, filename = paste0(out_dir, '/response_curves.png'), width = width, height = height, dpi = 600)
 
+say(date())
 say('FINIS!', deco = '+', level = 1)

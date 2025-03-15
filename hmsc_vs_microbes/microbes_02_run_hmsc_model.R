@@ -71,6 +71,10 @@
 	abbreviated <- FALSE # run full model!
 	# abbreviated <- TRUE
 
+	# run analysis at phylum or class level
+	# phylum_or_class <- 'phylum'
+	phylum_or_class <- 'class'
+
 	# make graphs of each environmental predictor vs abundance? (saves times... should be FALSE only for testing script)
 	make_abundance_plots <- TRUE
 	# make_abundance_plots <- FALSE
@@ -116,18 +120,19 @@
 	# include_phylogeny <- FALSE
 
 	# model predictors
-	# use_pc_axes_as_predictors <- TRUE
-	use_pc_axes_as_predictors <- FALSE
+	use_pc_axes_as_predictors <- TRUE
+	# use_pc_axes_as_predictors <- FALSE
 
 	# number of MCMC iterations in the final result (ie, not number of total MCMC iterations!)
-	samples <- if (abbreviated) { 100 } else { 1000 }
+	samples <- if (abbreviated) { 100 } else { 2000 }
 
 	# burn-in
 	# transient <- 1000
 	transient <- NULL
 
 	# thinning rate
-	thin <- 50
+	thin <- 100
+	# thin <- 50
 	# thin <- 1
 
 	n_parallel <- if (abbreviated) { 1 } else { 1 } # default: n_parallel = n_chains, set to 1 to disable parallel execution
@@ -135,8 +140,8 @@
 
 	n_folds <- if (abbreviated) { 2 } else { 4 }
 
-	raw_predictors <- c('aridity', 'bio7', 'bio12', 'bio15', 'ph_field', 'sand_field', 'soc_field_perc', 'silt_field', 'ag_lambda_nmixture', 'sampling_ppt_mm', 'sampling_tmean_c')
-
+	# raw_predictors <- c('aridity', 'bio7', 'bio12', 'bio15', 'ph_field', 'sand_field', 'soc_field_perc', 'silt_field', 'ag_lambda_nmixture', 'sampling_ppt_mm', 'sampling_tmean_c')
+	raw_predictors <- c('bio1', 'bio12', 'bio15', 'ph_field', 'sand_field', 'ag_lambda_nmixture', 'sampling_ppt_mm', 'sampling_tmean_c')
 	pc_predictors <- c('pc1', 'pc2', 'pc3', 'rhizobiome_or_bulk')
 
 	if (just_both & (include_rhizo | include_bulk)) stop('If just_both if TRUE, then include_rhizo and include_bulk should be FALSE.')
@@ -159,14 +164,12 @@
 				sampling_ppt_mm +
 				sampling_tmean_c +
 
-				aridity + I(aridity^2) +
-				bio7 + I(bio7^2) +
+				bio1 + I(bio1^2) +
 				bio12 + I(bio12^2) +
-				bio15 + I(bio15^2) +
+				bio15 + I(bio12^2) +
+				
 				ph_field + I(ph_field^2) +
-				soc_field_perc + I(soc_field_perc^2) +
 				sand_field + I(sand_field^2) +
-				silt_field + I(silt_field^2) +
 				
 				rhizobiome_or_bulk'
 
@@ -193,14 +196,12 @@
 				sampling_ppt_mm +
 				sampling_tmean_c +
 
-				aridity + I(aridity^2) +
-				bio7 + I(bio7^2) +
+				bio1 + I(bio1^2) +
 				bio12 + I(bio12^2) +
-				bio15 + I(bio15^2) +
+				bio15 + I(bio12^2) +
+
 				ph_field + I(ph_field^2) +
-				soc_field_perc + I(soc_field_perc^2) +
-				sand_field + I(sand_field^2)# +
-				silt_field + I(silt_field^2)'
+				sand_field + I(sand_field^2)'
 
 			if (ag_model == 'nmixture') {
 				x_formula <- paste0(x_formula, ' + ag_lambda_nmixture')
@@ -230,7 +231,7 @@
 	unknowns <- if (include_unknown_classes) { 'all_classes'} else { 'sans_unknown_classes' }
 
 	out_dir <- paste0(
-		'./outputs_sonny/', header, 'hmsc_[',
+		'./outputs_sonny/', header, 'hmsc_[', phylum_or_class, ']_[',
 		ifelse(use_pc_axes_as_predictors, 'pcs', 'climate'),
 		']_[abund_',
 		quant_abund_threshold, '_min_sites_', min_sites_present, ']_[',
@@ -278,10 +279,10 @@
 
 	say('data collation')
 
-	abund_combined <- fread('./data_from_sonny/collated_for_hmsc_collapsed_to_class/abundances_site_by_taxon_combined.csv')
-	env_combined <- fread('./data_from_sonny/collated_for_hmsc_collapsed_to_class/environment_combined.csv')
-	study_design_combined <- fread('./data_from_sonny/collated_for_hmsc_collapsed_to_class/study_design_combined.csv')
-	taxa_combined <- fread('./data_from_sonny/collated_for_hmsc_collapsed_to_class/taxa_combined.csv')
+	abund_combined <- fread(paste0('./data_from_sonny/collated_for_hmsc_collapsed_to_', phylum_or_class, '/abundances_site_by_taxon_combined.csv'))
+	env_combined <- fread(paste0('./data_from_sonny/collated_for_hmsc_collapsed_to_', phylum_or_class, '/environment_combined.csv'))
+	study_design_combined <- fread(paste0('./data_from_sonny/collated_for_hmsc_collapsed_to_', phylum_or_class, '/study_design_combined.csv'))
+	taxa_combined <- fread(paste0('./data_from_sonny/collated_for_hmsc_collapsed_to_', phylum_or_class, '/taxa_combined.csv'))
 
 	# get list of taxa we want to analyze
 	if (!include_rhizo & !include_bulk & just_both) {
@@ -343,7 +344,7 @@
 		abund <- abund[ , ..keeps]
 
 		# remove unknown classes from taxon matrix
-		taxa <- taxa[taxa$class != 'unknown']
+		if (phylum_or_class == 'class') taxa <- taxa[taxa$class != 'unknown']
 
 	}
 
@@ -458,7 +459,7 @@
 ### graphs of abundance vs each environmental variable ###
 ##########################################################
 		
-	if (make_abundance_plots) {
+	if (make_abundance_plots & !use_pc_axes_as_predictors) {
 
 		say('graphs of abundance vs each environmental variable')
 		

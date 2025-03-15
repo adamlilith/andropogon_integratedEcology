@@ -351,7 +351,7 @@ say('###################################################')
 
 	### user-defined
 	################
-		
+
 	load(paste0(drive, '/Research/Andropogon/Analysis - Phenotype Modeling/Species Records V3/!13d GADM Ver 2 - Multipart - North America - WORLDCLIM Ver 2 Rel June 1 2016 & AG Pheno and Geno Records & Removed Lake Counties.Rdata'))
 	occs <- vect(gadm)
 
@@ -404,7 +404,7 @@ say('###################################################')
 		tmax <- fast(tmax)
 		tmean <- fast(tmean)
 
-		bc <- bioclims(ppt = ppt, tmin = tmin, tmax = tmax, tmean = tmean, bios = c(1, 7, 12, 15), verbose = TRUE)
+		bc <- bioclims(ppt = ppt, tmin = tmin, tmax = tmax, tmean = tmean, bios = c(1, 2, 5, 7, 12, 15), verbose = TRUE)
 		names <- names(bc)
 		
 		bc <- rast(bc)

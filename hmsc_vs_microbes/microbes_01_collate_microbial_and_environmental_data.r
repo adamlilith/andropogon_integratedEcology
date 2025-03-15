@@ -17,8 +17,8 @@
 
 	rm(list = ls())
 
-	drive <- 'C:/Ecology/'
-	# drive <- 'C:/Subarashi/'
+	# drive <- 'C:/Ecology/'
+	drive <- 'C:/Subarashi/'
 
 	library(data.table)
 	library(enmSdmX)
@@ -543,9 +543,9 @@ say('###########################################################################
 
 		env_combined[ , sampling_date := sampling_dates$SAMPLING_DATE[match(env_combined$location, sampling_dates$SITE_ID)]]
 
-	### COMBINED: extract CHELSA climate to sites
-	#############################################
-	say('COMBINED: extract CHELSA climate to sites')
+	### COMBINED: extract ClimateNA climate to sites
+	################################################
+	say('COMBINED: extract ClimateNA climate to sites')
 
 		env_combined_nad83 <- vect(env_combined, geom = c('longitude', 'latitude'), crs = getCRS('NAD83'))
 		
@@ -704,7 +704,7 @@ say('###########################################################################
 		say('COMBINED: Andropogon gerardi estimated lambda from species-level N-MIXTURE SDM')
 
 		### posterior from SDM
-		chains <- readRDS('./outputs_loretta/sdm_[nmixture]_[pseudoabsences_0.95]_[climate_soil]_[priors_ddexp]/sdm_nmixture_chains.rds')
+		chains <- readRDS('./outputs_loretta/sdm_[nmixture]_[pseudoabsences_0.99]_[bio1^2_bio12^2_bio15^2]_[priors_ddnorm]/sdm_nmixture_chains.rds')
 
 		# subset chain summary to just the lambdas associated with background sites
 		summary <- chains$summary$all.chains
@@ -713,7 +713,7 @@ say('###########################################################################
 		lambda <- summary[which_lambda, ]
 
 		### spatial vector
-		ag_vect <- vect('./outputs_loretta/sdm_[nmixture]_[pseudoabsences_0.95]_[climate_soil]_[priors_ddexp]/sdm_nmixture_1961_2020_climate_focus.gpkg')
+		ag_vect <- vect('./outputs_loretta/sdm_[nmixture]_[pseudoabsences_0.99]_[bio1^2_bio12^2_bio15^2]_[priors_ddnorm]/sdm_nmixture_1961_2020_climate_focus.gpkg')
 
 		# fields <- c('area_km2', 'any_ag_quality1to3', 'num_poaceae_records')
 		# ag_vect <- ag_vect[ , fields]
