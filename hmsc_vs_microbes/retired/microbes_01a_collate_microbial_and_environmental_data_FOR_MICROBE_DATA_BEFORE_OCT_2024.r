@@ -623,7 +623,7 @@
 
 # 		ag_vect <- rbind(ag_vect_focus, ag_vect_complement)
 
-# 		fields <- c('area_km2', 'any_ag_quality1to3', 'num_poaceae_records')
+# 		fields <- c('area_km2', 'any_ag_quality1to3', 'n_poaceae')
 # 		ag_vect <- ag_vect[ , fields]
 
 # 		ag <- as.data.frame(ag_vect)

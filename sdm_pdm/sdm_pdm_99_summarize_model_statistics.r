@@ -1,0 +1,152 @@
+### MODELING ANDROPOGON GERARDI DISTRIBUTION, PHENOTYPE, PHYSIOLOGY, GENOTYPE, and ASSOCIATED MICROBIAL COMMUNITIES
+### Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | 2023-12
+###
+### This script collates model statistics across model types.
+###
+### source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/sdm_pdm_99_summarize_model_statistics.r')
+### 
+#############
+### setup ###
+#############
+
+	rm(list = ls())
+
+	drive <- 'C:/Kaji/'
+
+	setwd(paste0(drive, '/Research/Andropogon/Andropogon'))
+	source(paste0(drive, '/R/andropogon_integratedEcology/sdm_pdm/sdm_pdm_00_shared_functions_and_variables.r'))
+
+###########################
+### user-defined values ###
+###########################
+
+
+say('######################################')
+say('### collate occurrence-only models ###')
+say('#######################################')
+
+	# Collate performance statistics on occurrence-only models (rhats, WAIC, etc.).
+
+	model_based_dir <- './outputs_loretta/integrated_sdm_pdm/models_occurrence'
+	model_dirs <- listFiles(model_based_dir)
+
+	model_dirs <- model_dirs[!grepl(model_dirs, pattern = 'laplace')]
+
+	# read through all "occurrence meta" files to get a comprehensive list of coefficients
+	coeffs <- data.table()
+	for (i in seq_along(model_dirs)) {
+
+		model_dir <- model_dirs[i]
+		generic <- readRDS(paste0(model_dir, '/!meta_generic.rds'))
+		occ <- readRDS(paste0(model_dir, '/!meta_occs.rds'))
+
+		model_coeffs <- generic$coeffs$coeff
+		
+		this_coeffs <- data.table(
+			coeff = model_coeffs,
+			term = NA_character_,
+			submodel = NA_character_
+		)
+
+		# match coefficients to terms: occurrence
+		form <- generic$formulae$formula_occs
+		terms <- terms(form)
+		terms <- attr(terms, 'term.labels')
+		terms <- c('intercept', terms)
+
+		this_coeffs$term[grepl(this_coeffs$coeff, pattern = 'beta_occs_mu')] <- terms
+		this_coeffs$submodel[grepl(this_coeffs$coeff, pattern = 'beta_occs_mu')] <- 'occurrence'
+
+		# match coefficients to terms: occurrence bias
+		form <- generic$formulae$formula_occs_bias
+		terms <- terms(form)
+		terms <- attr(terms, 'term.labels')
+		terms <- c('intercept', terms)
+
+		this_coeffs$term[grepl(this_coeffs$coeff, pattern = 'alpha_occs')] <- terms
+		this_coeffs$submodel[grepl(this_coeffs$coeff, pattern = 'alpha_occs')] <- 'bias'
+
+		# sigma
+		if (occ$homoscedastic) {
+			this_coeffs$term[this_coeffs$coeff == 'lambda_sigma'] <- 'occurrence s.d.'
+			this_coeffs$submodel[this_coeffs$coeff == 'lambda_sigma'] <- 'occurrence s.d.'
+		} else {
+			form <- generic$formulae$formula_occs
+			terms <- terms(form)
+			terms <- attr(terms, 'term.labels')
+			terms <- c('intercept', terms)
+
+			this_coeffs$term[grepl(this_coeffs$coeff, pattern = 'beta_occs_sigma')] <- terms
+			this_coeffs$submodel[grepl(this_coeffs$coeff, pattern = 'beta_occs_sigma')] <- 'occurrence s.d.'
+		}
+
+		# zero-inflated
+		if (occ$zero_inflated) {
+			form <- generic$formulae$formula_occs_pzero
+			terms <- terms(form)
+			terms <- attr(terms, 'term.labels')
+			terms <- c('intercept', terms)
+
+			this_coeffs$term[grepl(this_coeffs$coeff, pattern = 'beta_occs_pzero')] <- terms
+			this_coeffs$submodel[grepl(this_coeffs$coeff, pattern = 'beta_occs_pzero')] <- 'occurrence pzero'
+		}
+
+		coeffs <- rbind(coeffs, this_coeffs)
+
+	}
+
+	coeffs <- coeffs[!duplicated(coeffs[ , c('term', 'submodel')])]
+	coeffs <- coeffs[order(submodel)]
+	coeffs$coeff <- NULL
+	coeffs[ , c('lower', 'mean', 'upper') := NA_real_]
+	
+	### collate statistics for each model
+	collated <- data.table()
+	for (i in seq_along(model_dirs)) {
+	
+		model_dir <- model_dirs[i]
+		say(model_dir)
+
+		generic <- readRDS(paste0(model_dir, '/!meta_generic.rds'))
+		occ <- readRDS(paste0(model_dir, '/!meta_occs.rds'))
+
+		ll <- generic$log_lik
+		ll_lower <- ll[ll == min(ll)]
+		ll_upper <- ll[ll == max(ll)]
+		ll_mean <- ll[ll != max(ll) & ll != min(ll)]
+
+		collated <- rbind(
+			collated,
+			data.table(
+				facet = generic$facet,
+				descrip = generic$descrip,
+				homoscedastic = occ$homoscedastic,
+				zero_inflated = occ$zero_inflated,
+				formula_occs = paste(generic$formulae$formula_occs, collapse = ' '),
+				formula_bias = paste(generic$formulae$formula_occs_bias, collapse = ' '),
+				waic = generic$waic$WAIC,
+				lppd = generic$waic$lppd,
+				pwaic = generic$waic$pWAIC,
+				log_lik_lower = ll_lower,
+				log_lik_mean = ll_mean,
+				log_lik_upper = ll_upper,
+				rhat_max_of_mean = max(generic$coeffs$rhat),
+				ess_min = min(generic$coeffs$eff_sample_size),
+				dharma_sac = occ$dharma_resids$significant[occ$dharma_resids$test == 'spatial autocorrelation'],
+				dharma_uniformity = occ$dharma_resids$significant[occ$dharma_resids$test == 'uniformity'],
+				dharma_dispersion = occ$dharma_resids$significant[occ$dharma_resids$test == 'dispersion'],
+				dharma_outliers = occ$dharma_resids$significant[occ$dharma_resids$test == 'outliers'],
+				dharma_quantiles_overall = occ$dharma_resids$significant[occ$dharma_resids$test == 'quantiles, overall'],
+				dharma_quantiles_upper = occ$dharma_resids$significant[occ$dharma_resids$test == 'quantiles, upper'],
+				dharma_quantiles_middle = occ$dharma_resids$significant[occ$dharma_resids$test == 'quantiles, middle'],
+				dharma_quantiles_lower = occ$dharma_resids$significant[occ$dharma_resids$test == 'quantiles, lower']
+			)
+		)
+	
+	}
+
+	collated <- collated[order(pwaic)]
+
+
+say(date())
+say('FINIS!', deco = '+', level = 1)

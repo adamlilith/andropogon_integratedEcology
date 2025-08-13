@@ -1,10 +1,9 @@
 ### MODELING ANDROPOGON GERARDI DISTRIBUTION, PHENOTYPE, PHYSIOLOGY, GENOTYPE, and ASSOCIATED MICROBIAL COMMUNITIES
-### Erica Newman | Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | 2023-12
+### Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | 2023-12
 ###
 ### This script constructs an integrated species distribution model for Andropogon gerardi, where occurrence is a function of environmental variables and biomass, which is in turn also a function of environmental variables.
 ###
-### source('C:/Ecology/R/andropogon_integratedEcology/sdm_pdm/sdm_pdm_03a_simple_univariate_phenotype_models.r')
-### source('C:/Subarashi/R/andropogon_integratedEcology/sdm_pdm/sdm_pdm_03a_simple_univariate_phenotype_models.r')
+### source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/sdm_pdm_04_model_simple_phenotype_models.r')
 ###
 ### CONTENTS ###
 ### setup ###
@@ -16,8 +15,7 @@
 
 	rm(list = ls())
 
-	drive <- 'C:/Ecology/'
-	# drive <- 'C:/Subarashi/'
+	drive <- 'C:/Kaji/'
 
 	setwd(paste0(drive, '/Research/Andropogon/Andropogon'))
 	source(paste0(drive, '/R/andropogon_integratedEcology/sdm_pdm/sdm_pdm_00_shared_functions_and_variables.r'))
@@ -28,7 +26,7 @@
 
 	predictors <- c('bio1', 'bio12', 'bio15', 'bio18', 'aridity')
 
-	pheno_vars <- c('biomass', 'height', 'canopy diameter', 'blade width', 'leaf thickness', 'leaf nitrogen', 'photosynthetic rate', 'chholorphyll absorb', 'transpitaion rate', 'water use efficency', 'stomatal conductance', 'midway water potential', 'C isotope discrim')
+	pheno_vars <- c('biomass', 'height', 'canopy diameter', 'blade width', 'leaf thickness', 'leaf nitrogen', 'photosynthetic rate', 'chlorophyll absorb', 'transpiration rate', 'water use efficiency', 'stomatal conductance', 'midway water potential', 'C isotope discrim')
 	
 	# "R name" is the variable as it appears in the spreadsheet
 	# name in quites is what I am calling it

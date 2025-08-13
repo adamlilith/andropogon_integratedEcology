@@ -1,0 +1,70 @@
+INTEGRATED PHENOTYPE-DISTRIBUTION MODELING OF ANDROPOGON GERARDI
+Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | 2025-06-27
+
+The files in this folder contain code for creating and analyzing integrated models of the distribution and phenotype of Andropogon gerardi. The models are based on the methods described in Smith et al. (2026) and are intended to be used as a template for similar analyses of other species.
+
+# Files
+The approach used to construct the models follows a "build-up" approach where simpler models are created, analyzed, and then used to construct more complex models. File naming scheme follows this pattern:
+
+Files starting with "`function_`" contain functions shared by other scripts.
+
+Files starting with "`workflow_`" contain functions shared by modeling scripts. They implement post-modeling analysis.
+
+* `sdm_pdm_00_shared_functions_and_variables.r`: Attaches **R** packages and loads shared functions and variables used in the other scripts. Can be run by itself, but is called by other scripts that need it. Loads the `function_` files.
+* `sdm_pdm_01_data_collation.r`: Collates plant phenotype data.
+* `sdm_pdm_02_exploratory_data_analysis.r`: Performs exploratory data analysis on the plant phenotype data.
+
+* `sdm_pdm_03a_model_occurrence_poisson~dnorm_homoscedastic.r`: Fits the SDM for the species, assuming abundance follows a Poisson distribution.  The expected value is an exponentiated normal distribution with its mean a function of environmental covariates.
+* `sdm_pdm_03b_model_occurrence_zip~dnorm_homoscedastic.r`: Fits the SDM for the species, assuming abundance follows a zero-inflated Poisson distribution with the mean a draw from an exponentiated normal distribution. The standard deviation of this normal distribution is a single fit parameter (i.e., a homoscedastic distribution).
+* `sdm_pdm_03a_model_occurrence_poisson~dnorm_heteroscedastic.r`:  Fits the SDM for the species, assuming abundance follows a Poisson distribution. The expected value is an exponentiated normal distribution with its mean and variance each function of environmental covariates.
+* `sdm_pdm_03b_model_occurrence_zip~dnorm_heteroscedastic.r`: Fits the SDM for the species, assuming abundance follows a zero-inflated Poisson distribution with the mean a draw from an exponentiated normal distribution. The standard deviation of this normal distribution is a function of environmental covariates (i.e., a heteroscedastic distribution).
+
+* `sdm_pdm_04_simple_univariate_phenotype_models.r`: Fits simple maximum likelihood univariate trait-by-environment models on the plant phenotype data. Used to explore how each trait responds to each candidate environmental variable.
+
+* `sdm_pdm_05a_biomass_fx_of_environment_lognormal_homoscedastic_preliminary.r`: Exploratory model: Fits biomass-only distribution model assuming site-level distribution of biomass follows a lognormal distribution and is homoscedastic. Mean site-level biomass is a function of environmental covariates.
+* `sdm_pdm_05b_biomass_fx_of_environment_lognormal_heteroscedastic_preliminary.r`: Exploratory model: Fits biomass-only distribution model assuming site-level distribution of biomass follows a lognormal distribution and is heteroscedastic. Mean site-level biomass and the site-level standard deviation of biomass are functions of environmental covariates.
+* `sdm_pdm_05c_biomass_fx_of_environment_gamma_homoscedastic_preliminary.r`: Exploratory model: Fits biomass-only distribution model assuming site-level distribution of biomass follows a gamma distribution and is homoscedastic. Mean site-level biomass is a function of environmental covariates.
+* `sdm_pdm_05d_biomass_fx_of_environment_gamma_heteroscedastic_preliminary.r`: Exploratory model: Fits biomass-only distribution model assuming site-level distribution of biomass follows a gamma distribution and is heteroscedastic. Mean site-level biomass and the site-level standard deviation of biomass are functions of environmental covariates.
+
+* `sdm_pdm_06a_model_biomass_homoscedastic_fx_of_environment.r`: Fits biomass-only distribution model assuming site-level distribution of biomass follows a gamma distribution where the mean is a function of environmental covariates.
+* `sdm_pdm_06b_model_biomass_heteroscedastic_fx_of_environment.r`: Fits biomass-only distribution model assuming site-level distribution of biomass follows a gamma distribution where the mean *and* standard deviation are functions of an environmental covariate. The submodels for the mean and s.d. can respond to different predictors but must each respond to *one* predictor.
+* `sdm_pdm_06c_model_biomass_gamma_lognormal_fx_of_environment.r`: Fits biomass-only distribution model assuming site-level distribution of biomass follows a gamma distribution. The mean of the distribution is a draw from a normal distribution with a mean given by the exponentiation of a function of *one* environmental covariate (possibly with higher-order terms).
+* `sdm_pdm_06d_model_biomass_univariate_lognormal_dnorm_fx_of_environment.r`: Fits biomass-only distribution model assuming site-level distribution of biomass follows a lognormal distribution. The mean of the distribution is itself a draw from a normal distribution with a mean given by the exponentiation of a function of *one* environmental covariate (possibly with higher-order terms).
+* `sdm_pdm_06e_model_biomass_multivariate_lognormal_dnorm_fx_of_environment.r`: Fits biomass-only distribution model assuming site-level distribution of biomass follows a lognormal distribution. The mean of the distribution is itself a draw from a normal distribution with a mean given by the exponentiation of a function of *two or more* environmental covariates (possibly with higher-order terms).
+
+* `sdm_pdm_07a_model_occurrence_fx_of_biomass_homoscedastic_preliminary.r`: Exploratory model: Fits model of occurrence assuming abundance follows a Poisson distribution with the mean the exponentiation of a linear predictor of one or more environmental covariates *and* site-level biomass. Biomass at a site is assumed to follow a gamma distribution with the mean the exponentiation of linear predictor with *one* environmental covariate.
+
+* `sdm_pdm_07b_model_occurrence_fx_of_biomass_heteroscedastic_preliminary.r`: Fits model of biomass assuming a heteroscedastic gamma with mean and standard deviation a function of environmental covariates, the predictions of which are then used as a covariate for the SDM. The SDM uses environmental covariates in addition to biomass as a predictor.
+
+* `sdm_pdm_09_model_[integration_mvnorm]_[occurrence]_[biomass_univariate_gamma].r`: Integrated model of occurrence and biomass. Occurrence is assumed to follow a Poisson distribution with the mean a draw from a multivariate normal with the occurrence-mean an exponentiation of a function of environmental covariates. Biomass at the site level is assumed to follow a *gamma* distribution with the mean an exponentiated draw from a normal distribution, the mean of which drawn from a multivariate normal (the same as the one for occurrence), with the biomass-mean the exponentiation of a function of *one* environmental covariate.
+* `sdm_pdm_09_model_[integration_mvnorm]_[occurrence]_[biomass_univariate_gamma].r`: Integrated model of occurrence and biomass. Occurrence is assumed to follow a Poisson distribution with the mean a draw from a multivariate normal with the occurrence-mean an exponentiation of a function of environmental covariates. Biomass at the site level is assumed to follow a *lognormal* distribution with the mean an exponentiated draw from a normal distribution, the mean of which drawn from a multivariate normal (the same as the one for occurrence), with the biomass-mean the exponentiation of a function of *one* environmental covariate.
+
+* `sdm_pdm_10a_model_one_nonbiomass_gamma~normal_homoscedastic_univariate_fx_of_environment.r`: Distribution model of a single non-biomass trait where the site-level distribution is assumed to follow a gamma distribution. The mean of the gamma is given by an exponentiation of a linear predictor of *one* environmental covariate. The standard deviation is constant across sites and is estimated.
+* `sdm_pdm_10b_model_one_nonbiomass_gamma~normal_homoscedastic_multivariate_fx_of_environment.r`: Distribution model of a single non-biomass trait where the site-level distribution is assumed to follow a gamma distribution. The mean of the gamma is given by an exponentiation of a linear predictor of *two or more* environmental covariates. The standard deviation is constant across sites and is estimated.
+* `sdm_pdm_10c_model_one_nonbiomass_gamma~normal_heteroscedastic_univariate_fx_of_environment.r`: Distribution model of a single non-biomass trait where the site-level distribution is assumed to follow a gamma distribution. The mean and the standard deviation of the gamma is given by an exponentiation of a linear predictor of *one* environmental covariate.
+* `sdm_pdm_10d_model_one_nonbiomass_gamma~normal_heteroscedastic_multivariate_fx_of_environment.r`: Distribution model of a single non-biomass trait where the site-level distribution is assumed to follow a gamma distribution. The mean and the standard deviation of the gamma is given by an exponentiation of a linear predictor of *two or more* environmental covariates.
+
+# Variables
+Across scripts, files share key variable naming conventions and names. Some of these are shared across model types, and some are particular to the response variable.
+
+## Shared across (most/all) models
+`counties_x_<var>_[ssp245_2041_2070 | ssp245_2071_2100 | ssp370_2041_2070 | ssp370_2071_2100]`: Model matrix for for response variable `<var>` for future climatic conditions (given by the SSP string).
+`counties_x_<var>_sq`: Model matrix for response variable `<var>` for present-day conditions (climate: 1961-2020).
+`n_counties`: Number of counties to which to make predictions.
+`n_pheno_sites`: Number of sites at which phenotypic ane environmental variables were measured. Should be n = 26.
+`n_response_curve_values`: For creation of response curves, number of values along the focal environmental gradient to which to predict.
+`resp_curves_x_<var>`: Either a single model matrix or an array of model matrices in which all variables but one are held constant for generation of response curves. The matrix form is used when there is just one predictor. The array form is used when there is more than one, with each "page" corresponding to a different predictor.
+`x_by_site_<var>[_mu | _sigma]`: Model matrix for response variable `<var>` possibly for site-level mean (`mu`) or s.d. (`sigma`).
+
+## Biomass
+`beta_biomass_mu`: Vector of coefficients to be fit by model for site-level mean biomass.
+`beta_biomass_sigma`: Vector of coefficients to be fit by model for site-level standard deviation of biomass. Used only when biomass is modeled as heteroscedastic response to environment.
+`biomass_county_mu_[ssp245_2041_2070 | ssp245_2071_2100 | ssp370_2041_2070 | ssp370_2071_2100]`: Estimated "site-level" mean biomass within counties at the given time period and emissions scenario.
+`mu_biomass_county_sq`: Estimated "site-level" mean biomass across counties in the present (climate: 1961-2020).
+`site_biomass_plant_sigma_log`: Single coefficient fit by model for site-level standard deviation of biomass, assuming all sites have same s.d. Used only when distribution of biomass is modeled as homoscedastic across sites.
+`n_biomass`: Number of plants for which biomass was measured.
+`n_terms_biomass`: Number of model terms in biomass model.
+`response_curves_biomass_mu`: Response of "site-level" mean biomass to change in each focal predictor. Will be a vector (one predictor) or matrix (two or more).
+`response_curves_biomass_sigma`: Response of "site-level" standard deviation of biomass to change in each focal predictor. Will be a vector (one predictor) or matrix (two or more). Only in models where biomass is heteroscedastic.
+`site_index_biomass`: Index of which biomass measurements correspond to which site.
+

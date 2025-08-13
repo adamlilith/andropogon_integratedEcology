@@ -29,7 +29,7 @@
 # say('### cluster analysis on candidate predictors based on correlation matrix ###')
 # say('############################################################################')
 
-	ag_vect <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020.gpkg')
+	ag_vect <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020_climatena.gpkg')
 
 	preds <- c(paste0('bio', c(1:7, 10:12, 15, 18:19)), 'aridity', 'ph', 'soc', 'sand', 'silt', 'clay')
 	vars <- as.data.frame(ag_vect)
@@ -51,13 +51,13 @@ say('#########################################################')
 say('### preliminary analysis of candidate predictor terms ###')
 say('#########################################################')
 
-	ag_vect <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020.gpkg')
+	ag_vect <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020_climatena.gpkg')
 
 	# preds <- c(paste0('bio', c(1:7, 10:12, 15, 18:19)), 'aridity', 'ph', 'soc', 'sand', 'silt', 'clay')
 	preds <- c(paste0('bio', c(12, 1, 18, 5, 6, 7, 15, 2, 10)), 'aridity', 'ph', 'soc', 'sand', 'silt', 'clay')
 
-	numer <- ag_vect$any_ag_quality_1_to_3
-	denom <- ag_vect$num_poaceae_records
+	numer <- ag_vect$n_andropogon_gerardi
+	denom <- ag_vect$n_poaceae
 
 	resp <- numer / denom
 

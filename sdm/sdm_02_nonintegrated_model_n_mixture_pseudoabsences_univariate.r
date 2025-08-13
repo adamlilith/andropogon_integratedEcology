@@ -1,5 +1,5 @@
 ### MODELING ANDROPOGON GERARDI DISTRIBUTION, PHENOTYPE, PHYSIOLOGY, GENOTYPE, and ASSOCIATED MICROBIAL COMMUNITIES
-### Erica Newman | Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | 2023-12
+### Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | 2023-12
 ###
 ### This script constructs a non-integrated model for AG geographic distribution.
 ###
@@ -83,15 +83,15 @@
 # say('######################')
 
 	# ### load AG data
-	# ag_vect_sq <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020.gpkg')
+	# ag_vect_sq <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020_climatena.gpkg')
 
-	# fields <- c('area_km2', 'any_ag_quality_1_to_3', 'num_poaceae_records', predictor_names)
+	# fields <- c('area_km2', 'n_andropogon_gerardi', 'n_poaceae', predictor_names)
 	# ag_vect_sq <- ag_vect_sq[ , fields]
 
 	# # for counties with NA Poaceae and AG, assign a maximal number of Poaceae and 0 AG
-	# n_pseudoabs <- quantile(ag_vect_sq$num_poaceae_records, psa_quant, na.rm = TRUE)
-	# ag_vect_sq$num_poaceae_records[is.na(ag_vect_sq$num_poaceae_records)] <- n_pseudoabs
-	# ag_vect_sq$any_ag_quality_1_to_3[is.na(ag_vect_sq$any_ag_quality_1_to_3)] <- 0
+	# n_pseudoabs <- quantile(ag_vect_sq$n_poaceae, psa_quant, na.rm = TRUE)
+	# ag_vect_sq$n_poaceae[is.na(ag_vect_sq$n_poaceae)] <- n_pseudoabs
+	# ag_vect_sq$n_andropogon_gerardi[is.na(ag_vect_sq$n_andropogon_gerardi)] <- 0
 
 	# ### collate data
 	# ag_sq <- as.data.frame(ag_vect_sq)
@@ -105,7 +105,7 @@
 	# log_area_km2_scaled <- log_area_km2_scaled[ , 1]
 
 	# ### number of Poaceae records... used to model sampling bias
-	# log_num_poaceae_records <- log1p(ag_sq$num_poaceae_records) # log(x_sq + 1)
+	# log_num_poaceae_records <- log1p(ag_sq$n_poaceae) # log(x_sq + 1)
 	# log_num_poaceae_records_scaled <- scale(log_num_poaceae_records)
 	# log_num_poaceae_records_scaled <- log_num_poaceae_records_scaled[ , 1]
 
@@ -192,7 +192,7 @@
 # 	say('inputs:', level = 2)
 	
 # 		data <- list(
-# 			y = ag_sq$any_ag_quality_1_to_3 # number of AG records in each county
+# 			y = ag_sq$n_andropogon_gerardi # number of AG records in each county
 # 		)
 
 # 		n_counties <- nrow(ag_sq)
@@ -213,8 +213,8 @@
 
 # 		)
 
-# 		N_inits <- 10 * ag_sq$any_ag_quality_1_to_3
-# 		lambda_sq_inits <- 1 + ag_sq$any_ag_quality_1_to_3
+# 		N_inits <- 10 * ag_sq$n_andropogon_gerardi
+# 		lambda_sq_inits <- 1 + ag_sq$n_andropogon_gerardi
 
 # 		inits <- list(
 			
@@ -426,9 +426,9 @@ say('##########################################################')
 
 	predictor_names <- c('aridity', 'bio1', 'bio5', 'bio7', 'bio12', 'bio15')
 
-	ag_vect_sq <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020.gpkg')
+	ag_vect_sq <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020_climatena.gpkg')
 
-	ag_vect_sq <- ag_vect_sq[ , c('any_ag_quality_1_to_3', predictor_names)]
+	ag_vect_sq <- ag_vect_sq[ , c('n_andropogon_gerardi', predictor_names)]
 	ag_sq <- as.data.frame(ag_vect_sq)
 
 	# value of predictors at sampled sites
@@ -556,7 +556,7 @@ say('##########################################################')
 		# sd <- sqrt(sum((response$x[response$type == 'mean'] - weighted_mean_x)^2) / (sum(response$type == 'mean') - 1))
 
 		# rug plot of occurrences
-		ag_rug <- data.frame(x = ag_sq[ag_sq$any_ag_quality_1_to_3 > 0, predictor_name])
+		ag_rug <- data.frame(x = ag_sq[ag_sq$n_andropogon_gerardi > 0, predictor_name])
 
 		# rug plot of sampled sites
 		sampled_sites_rug <- data.frame(x = env_at_sites[ , predictor_name])

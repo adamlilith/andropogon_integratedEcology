@@ -1,5 +1,5 @@
 ### MODELING ANDROPOGON GERARDI DISTRIBUTION, PHENOTYPE, PHYSIOLOGY, GENOTYPE, and ASSOCIATED MICROBIAL COMMUNITIES
-### Erica Newman | Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | 2023-12
+### Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | 2023-12
 ###
 ### This script compiles response and environmental data for an integrated model combining occurrences of Andropogon gerardi and results from an ADMIXTURE analysis.
 ###

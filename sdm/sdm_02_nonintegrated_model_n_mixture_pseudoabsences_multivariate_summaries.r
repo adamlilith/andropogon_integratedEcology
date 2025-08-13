@@ -1,5 +1,5 @@
 ### MODELING ANDROPOGON GERARDI DISTRIBUTION, PHENOTYPE, PHYSIOLOGY, GENOTYPE, and ASSOCIATED MICROBIAL COMMUNITIES
-### Erica Newman | Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | 2023-12
+### Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | 2023-12
 ###
 ### This script evaluates alternative multivariate SDMs for AG distribution.
 ###

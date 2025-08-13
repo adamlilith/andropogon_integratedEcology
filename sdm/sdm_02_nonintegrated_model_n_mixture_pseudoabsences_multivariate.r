@@ -1,5 +1,5 @@
 ### MODELING ANDROPOGON GERARDI DISTRIBUTION, PHENOTYPE, PHYSIOLOGY, GENOTYPE, and ASSOCIATED MICROBIAL COMMUNITIES
-### Erica Newman | Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | 2023-12
+### Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | 2023-12
 ###
 ### This script constructs a non-integrated model for AG geographic distribution.
 ###
@@ -128,11 +128,11 @@ say(date(), post = 1)
 	form <- as.formula(form)
 
 	### load AG data
-	ag_vect_sq <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020.gpkg')
-	ag_vect_ssp245_2041_2070 <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_ensemble_8GCMs_ssp245_2041_2070.gpkg')
-	ag_vect_ssp245_2071_2100 <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_ensemble_8GCMs_ssp245_2071_2100.gpkg')
-	ag_vect_ssp370_2041_2070 <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_ensemble_8GCMs_ssp370_2041_2070.gpkg')
-	ag_vect_ssp370_2071_2100 <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_ensemble_8GCMs_ssp370_2071_2100.gpkg')
+	ag_vect_sq <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020_climatena.gpkg')
+	ag_vect_ssp245_2041_2070 <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_ensemble_8GCMs_ssp245_2041_2070_climatena.gpkg')
+	ag_vect_ssp245_2071_2100 <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_ensemble_8GCMs_ssp245_2071_2100_climatena.gpkg')
+	ag_vect_ssp370_2041_2070 <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_ensemble_8GCMs_ssp370_2041_2070_climatena.gpkg')
+	ag_vect_ssp370_2071_2100 <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_ensemble_8GCMs_ssp370_2071_2100_climatena.gpkg')
 
 	ag_vect_ssp245_2041_2070 <- ag_vect_ssp245_2041_2070[!is.infinite(ag_vect_ssp245_2041_2070$aridity) & !is.na(ag_vect_ssp245_2041_2070$aridity)]
 	ag_vect_ssp245_2071_2100 <- ag_vect_ssp245_2071_2100[!is.infinite(ag_vect_ssp245_2071_2100$aridity) & !is.na(ag_vect_ssp245_2071_2100$aridity)]
@@ -152,13 +152,13 @@ say(date(), post = 1)
 	# ag_vect_ssp370_2041_2070 <- cbind(ag_vect_ssp370_2041_2070, soil_columns)
 	# ag_vect_ssp370_2071_2100 <- cbind(ag_vect_ssp370_2071_2100, soil_columns)
 
-	fields <- c('area_km2', 'any_ag_quality_1_to_3', 'num_poaceae_records', predictor_names)
+	fields <- c('area_km2', 'n_andropogon_gerardi', 'n_poaceae', predictor_names)
 	ag_vect_sq <- ag_vect_sq[ , fields]
 
 	# for counties with NA Poaceae and AG, assign a maximal number of Poaceae and 0 AG
-	n_pseudoabs <- quantile(ag_vect_sq$num_poaceae_records, psa_quant, na.rm = TRUE)
-	ag_vect_sq$num_poaceae_records[is.na(ag_vect_sq$num_poaceae_records)] <- n_pseudoabs
-	ag_vect_sq$any_ag_quality_1_to_3[is.na(ag_vect_sq$any_ag_quality_1_to_3)] <- 0
+	n_pseudoabs <- quantile(ag_vect_sq$n_poaceae, psa_quant, na.rm = TRUE)
+	ag_vect_sq$n_poaceae[is.na(ag_vect_sq$n_poaceae)] <- n_pseudoabs
+	ag_vect_sq$n_andropogon_gerardi[is.na(ag_vect_sq$n_andropogon_gerardi)] <- 0
 
 	### collate data
 	ag_sq <- as.data.frame(ag_vect_sq)
@@ -172,7 +172,7 @@ say(date(), post = 1)
 	log_area_km2_scaled <- log_area_km2_scaled[ , 1]
 
 	### number of Poaceae records... used to model sampling bias
-	log_num_poaceae_records <- log1p(ag_sq$num_poaceae_records) # log(x_sq + 1)
+	log_num_poaceae_records <- log1p(ag_sq$n_poaceae) # log(x_sq + 1)
 	log_num_poaceae_records_scaled <- scale(log_num_poaceae_records)
 	log_num_poaceae_records_scaled <- log_num_poaceae_records_scaled[ , 1]
 
@@ -256,7 +256,7 @@ say(date(), post = 1)
 	)
 
 	# calculate means of each variable across counties with AG presences
-	ag_pres <- ag_vect_sq[ag_vect_sq$any_ag_quality_1_to_3 > 0]
+	ag_pres <- ag_vect_sq[ag_vect_sq$n_andropogon_gerardi > 0]
 	ag_pres <- as.data.frame(ag_pres)[ , predictor_names, drop = FALSE]
 	means <- colMeans(ag_pres)
 
@@ -297,7 +297,7 @@ say(date(), post = 1)
 	### inputs for nimble
 	say('Inputs:', level = 2)
 	data <- list(
-		y = ag_sq$any_ag_quality_1_to_3 # number of AG records in each county
+		y = ag_sq$n_andropogon_gerardi # number of AG records in each county
 	)
 
 	n_counties <- nrow(ag_sq)
@@ -328,9 +328,9 @@ say(date(), post = 1)
 
 	)
 
-	lambda_fut_inits <- rep(mean(ag_sq$any_ag_quality_1_to_3), n_counties_future)
-	N_inits <- 10 * ag_sq$any_ag_quality_1_to_3
-	lambda_sq_inits <- 1 + ag_sq$any_ag_quality_1_to_3
+	lambda_fut_inits <- rep(mean(ag_sq$n_andropogon_gerardi), n_counties_future)
+	N_inits <- 10 * ag_sq$n_andropogon_gerardi
+	lambda_sq_inits <- 1 + ag_sq$n_andropogon_gerardi
 
 	beta_inits <- rep(0, n_sdm_terms)
 	beta_inits[grepl(colnames(x_sq), pattern = '\\^2')] <- -2
@@ -557,7 +557,7 @@ say('###################################')
 	nam <- vect(paste0(drive, '/Research Data/GADM/Version 4.1/High Res North America Level 1 sans Great Lakes SpatVector WGS84.gpkg'))
 	nam <- project(nam, ag_vect_sq)
 
-	ag_vect_sq_pres <- ag_vect_sq[ag_vect_sq$any_ag_quality_1_to_3 > 0]
+	ag_vect_sq_pres <- ag_vect_sq[ag_vect_sq$n_andropogon_gerardi > 0]
 	extent <- ext(ag_vect_sq_pres)
 	extent <- as.vector(extent)
 	x_range <- (extent[2] - extent[1])
@@ -566,7 +566,7 @@ say('###################################')
 	extent[3] <- extent[3] + 0.125 * y_range
 	extent[4] <- extent[4] - 0.2 * y_range
 
-	cents_with_ag <- ag_vect_sq[ag_vect_sq$any_ag_quality_1_to_3 > 0]
+	cents_with_ag <- ag_vect_sq[ag_vect_sq$n_andropogon_gerardi > 0]
 	cents_with_ag <- centroids(cents_with_ag)
 
 	fill_scale <- c(

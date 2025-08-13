@@ -1,5 +1,5 @@
 ### MODELING ANDROPOGON GERARDI DISTRIBUTION, PHENOTYPE, PHYSIOLOGY, GENOTYPE, and ASSOCIATED MICROBIAL COMMUNITIES
-### Erica Newman | Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | 2023-12
+### Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | 2023-12
 ###
 ### This script constructs a non-integrated model for AG geographic distribution.
 ###
@@ -94,11 +94,11 @@ say(date(), post = 1)
 	form <- as.formula(form)
 
 	### load AG data
-	ag_vect_sq <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020.gpkg')
-	ag_vect_ssp245_2041_2070 <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_ensemble_8GCMs_ssp245_2041_2070.gpkg')
-	ag_vect_ssp245_2071_2100 <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_ensemble_8GCMs_ssp245_2071_2100.gpkg')
-	ag_vect_ssp370_2041_2070 <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_ensemble_8GCMs_ssp370_2041_2070.gpkg')
-	ag_vect_ssp370_2071_2100 <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_ensemble_8GCMs_ssp370_2071_2100.gpkg')
+	ag_vect_sq <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020_climatena.gpkg')
+	ag_vect_ssp245_2041_2070 <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_ensemble_8GCMs_ssp245_2041_2070_climatena.gpkg')
+	ag_vect_ssp245_2071_2100 <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_ensemble_8GCMs_ssp245_2071_2100_climatena.gpkg')
+	ag_vect_ssp370_2041_2070 <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_ensemble_8GCMs_ssp370_2041_2070_climatena.gpkg')
+	ag_vect_ssp370_2071_2100 <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_ensemble_8GCMs_ssp370_2071_2100_climatena.gpkg')
 
 	ag_vect_soil <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_soil.gpkg')
 	soil_names <- names(ag_vect_soil)
@@ -113,7 +113,7 @@ say(date(), post = 1)
 	ag_vect_ssp370_2041_2070 <- cbind(ag_vect_ssp370_2041_2070, soil_columns)
 	ag_vect_ssp370_2071_2100 <- cbind(ag_vect_ssp370_2071_2100, soil_columns)
 
-	fields <- c('area_km2', 'any_ag_quality1to3', 'num_poaceae_records', predictor_names)
+	fields <- c('area_km2', 'any_ag_quality1to3', 'n_poaceae', predictor_names)
 	ag_vect_sq <- ag_vect_sq[ , fields]
 	ag_vect_sq$num_ag_quality1to3 <- ag_vect_sq$any_ag_quality1to3 # becomes a sampling predictor
 	ag_vect_sq$any_ag_quality1to3 <- as.integer(ag_vect_sq$any_ag_quality1to3 > 0) # becomes the response
@@ -139,7 +139,7 @@ say(date(), post = 1)
 	log_area_km2_scaled <- log_area_km2_scaled[ , 1]
 
 	### number of Poaceae records... used to model sampling bias
-	log_num_poaceae_records <- log1p(ag_focus$num_poaceae_records) # log(x + 1)
+	log_num_poaceae_records <- log1p(ag_focus$n_poaceae) # log(x + 1)
 	log_num_poaceae_records_scaled <- scale(log_num_poaceae_records)
 	log_num_poaceae_records_scaled <- log_num_poaceae_records_scaled[ , 1]
 

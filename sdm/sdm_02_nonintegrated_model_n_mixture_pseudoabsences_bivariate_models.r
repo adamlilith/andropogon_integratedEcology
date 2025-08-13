@@ -41,11 +41,11 @@
 
 		# names of predictors for which to construct bivariate models
 		# all_predictor_names <- c('bio1', 'bio5', 'bio6', 'bio7', 'bio12', 'bio15', 'bio18', 'aridity')
-		# all_predictor_names <- c('bio18', 'aridity')
+		all_predictor_names <- c('bio18', 'aridity') # this one
 		# all_predictor_names <- c('bio12', 'aridity')
 		# all_predictor_names <- c('bio6', 'bio12')
-		# all_predictor_names <- c('bio5', 'bio18')
-		all_predictor_names <- c('bio1', 'bio12')
+		# all_predictor_names <- c('bio5', 'bio18') # this one
+		# all_predictor_names <- c('bio1', 'bio12') # this one
 
 		# predictors with correlation above this threshold will not be modeled together
 		correlation_threshold <- 0.7
@@ -54,9 +54,9 @@
 		# psa_quant <- 0 # to define pseudoabsences, use this quantile of Poaceae occurrences across counties with Poaceae occurrences 
 
 		### MCMC settings: for stubborn pairs
-		niter <- 8 * 240000
-		nburnin <- 8 * 40000
-		thin <- 8 * 200
+		niter <- 32 * 240000
+		nburnin <- 32 * 40000
+		thin <- 32 * 200
 		nchains <- 4
 		trial <- FALSE
 
@@ -78,7 +78,7 @@
 		out_dir <- paste0('./outputs_loretta/sdm_[nmixture]_[pseudoabsences_', psa_quant, ']_[climate_bivariate_quad]_[priors_dnorm]', ifelse(trial, '_TRIAL', ''), '/')
 		dirCreate(out_dir)
 
-		ag_vect_sq <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020.gpkg')
+		ag_vect_sq <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020_climatena.gpkg')
 
 #######################################################################
 ### cycle through each pairwise combination of predictors and model ###
@@ -124,13 +124,13 @@
 				say(form, post = 1, breaks = 80)
 				form <- as.formula(form)
 
-				fields <- c('area_km2', 'any_ag_quality_1_to_3', 'num_poaceae_records', predictor_names)
+				fields <- c('area_km2', 'n_andropogon_gerardi', 'n_poaceae', predictor_names)
 				this_ag_vect_sq <- ag_vect_sq[ , fields]
 
 				# for counties with NA Poaceae and AG, assign a maximal number of Poaceae and 0 AG
-				n_pseudoabs <- quantile(this_ag_vect_sq$num_poaceae_records, psa_quant, na.rm = TRUE)
-				this_ag_vect_sq$num_poaceae_records[is.na(this_ag_vect_sq$num_poaceae_records)] <- n_pseudoabs
-				this_ag_vect_sq$any_ag_quality_1_to_3[is.na(this_ag_vect_sq$any_ag_quality_1_to_3)] <- 0
+				n_pseudoabs <- quantile(this_ag_vect_sq$n_poaceae, psa_quant, na.rm = TRUE)
+				this_ag_vect_sq$n_poaceae[is.na(this_ag_vect_sq$n_poaceae)] <- n_pseudoabs
+				this_ag_vect_sq$n_andropogon_gerardi[is.na(this_ag_vect_sq$n_andropogon_gerardi)] <- 0
 
 				### collate data
 				ag_sq <- as.data.frame(this_ag_vect_sq)
@@ -144,7 +144,7 @@
 				log_area_km2_scaled <- log_area_km2_scaled[ , 1]
 
 				### number of Poaceae records... used to model sampling bias
-				log_num_poaceae_records <- log1p(ag_sq$num_poaceae_records) # log(x_sq + 1)
+				log_num_poaceae_records <- log1p(ag_sq$n_poaceae) # log(x_sq + 1)
 				log_num_poaceae_records_scaled <- scale(log_num_poaceae_records)
 				log_num_poaceae_records_scaled <- log_num_poaceae_records_scaled[ , 1]
 
@@ -184,7 +184,7 @@
 				)
 
 				# calculate means of each variable across counties with AG presences
-				ag_pres <- this_ag_vect_sq[this_ag_vect_sq$any_ag_quality_1_to_3 > 0]
+				ag_pres <- this_ag_vect_sq[this_ag_vect_sq$n_andropogon_gerardi > 0]
 				ag_pres <- as.data.frame(ag_pres)[ , predictor_names, drop = FALSE]
 				means <- colMeans(ag_pres)
 
@@ -225,7 +225,7 @@
 				### inputs for nimble
 				say('Inputs:', level = 2)
 				data <- list(
-					y = ag_sq$any_ag_quality_1_to_3 # number of AG records in each county
+					y = ag_sq$n_andropogon_gerardi # number of AG records in each county
 				)
 
 				n_counties <- nrow(ag_sq)
@@ -246,8 +246,8 @@
 
 				)
 
-				N_inits <- 10 * ag_sq$any_ag_quality_1_to_3
-				lambda_sq_inits <- 1 + ag_sq$any_ag_quality_1_to_3
+				N_inits <- 10 * ag_sq$n_andropogon_gerardi
+				lambda_sq_inits <- 1 + ag_sq$n_andropogon_gerardi
 
 				beta_inits <- rep(0, n_sdm_terms)
 				beta_inits[grepl(colnames(x_sq), pattern = '\\^2')] <- -2
@@ -457,7 +457,7 @@
 				nam <- vect(paste0(drive, '/Research Data/GADM/Version 4.1/High Res North America Level 1 sans Great Lakes SpatVector WGS84.gpkg'))
 				nam <- project(nam, this_ag_vect_sq)
 
-				ag_vect_sq_pres <- this_ag_vect_sq[this_ag_vect_sq$any_ag_quality_1_to_3 > 0]
+				ag_vect_sq_pres <- this_ag_vect_sq[this_ag_vect_sq$n_andropogon_gerardi > 0]
 				extent <- ext(ag_vect_sq_pres)
 				extent <- as.vector(extent)
 				x_range <- (extent[2] - extent[1])
@@ -466,7 +466,7 @@
 				extent[3] <- extent[3] + 0.125 * y_range
 				extent[4] <- extent[4] - 0.2 * y_range
 
-				cents_with_ag <- this_ag_vect_sq[this_ag_vect_sq$any_ag_quality_1_to_3 > 0]
+				cents_with_ag <- this_ag_vect_sq[this_ag_vect_sq$n_andropogon_gerardi > 0]
 				cents_with_ag <- centroids(cents_with_ag)
 
 				fill_scale <- c(
