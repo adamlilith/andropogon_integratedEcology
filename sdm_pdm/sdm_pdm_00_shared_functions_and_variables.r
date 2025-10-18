@@ -83,6 +83,7 @@
 	constants_shared_biomass <- list(
 
 		beta_biomass_mu_prior_dnorm_sd = 20,
+		beta_biomass_sigma_prior_dnorm_sd = 20,
 		beta_biomass_pzero_prior_dnorm_sd = 20,
 
 		sigma_biomass_among_sites_log_prior_sd = 2.5,

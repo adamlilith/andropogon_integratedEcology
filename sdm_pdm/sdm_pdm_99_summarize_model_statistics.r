@@ -82,7 +82,8 @@ say('#######################################')
 
 		# zero-inflated
 		if (occ$zero_inflated) {
-			form <- generic$formulae$formula_occs_pzero
+			
+			form <- generic$formulae$formula_occs
 			terms <- terms(form)
 			terms <- attr(terms, 'term.labels')
 			terms <- c('intercept', terms)
@@ -107,6 +108,8 @@ say('#######################################')
 		model_dir <- model_dirs[i]
 		say(model_dir)
 
+		bias_simple <- grepl(model_dir, pattern = 'p~dunif')
+
 		generic <- readRDS(paste0(model_dir, '/!meta_generic.rds'))
 		occ <- readRDS(paste0(model_dir, '/!meta_occs.rds'))
 
@@ -115,15 +118,42 @@ say('#######################################')
 		ll_upper <- ll[ll == max(ll)]
 		ll_mean <- ll[ll != max(ll) & ll != min(ll)]
 
+		dharma <- occ$dharma_resids
+		if (!inherits(dharma, 'data.table')) {
+		
+			dharma_sac <-
+				dharma_uniformity <-
+				dharma_dispersion <-
+				dharma_outliers <-
+				dharma_quantiles_overall <-
+				dharma_quantiles_upper <-
+				dharma_quantiles_middle <-
+				dharma_quantiles_lower <- NA
+		
+		} else {
+		
+			dharma_sac <- dharma$significant[dharma$test == 'spatial autocorrelation']
+			dharma_uniformity <- dharma$significant[dharma$test == 'uniformity']
+			dharma_dispersion <- dharma$significant[dharma$test == 'dispersion']
+			dharma_outliers <- dharma$significant[dharma$test == 'outliers']
+			dharma_quantiles_overall <- dharma$significant[dharma$test == 'quantiles, overall']
+			dharma_quantiles_upper <- dharma$significant[dharma$test == 'quantiles, upper']
+			dharma_quantiles_middle <- dharma$significant[dharma$test == 'quantiles, middle']
+			dharma_quantiles_lower <- dharma$significant[dharma$test == 'quantiles, lower']
+		
+		}
+
 		collated <- rbind(
 			collated,
 			data.table(
 				facet = generic$facet,
 				descrip = generic$descrip,
+				model_dir = model_dir,
 				homoscedastic = occ$homoscedastic,
 				zero_inflated = occ$zero_inflated,
 				formula_occs = paste(generic$formulae$formula_occs, collapse = ' '),
 				formula_bias = paste(generic$formulae$formula_occs_bias, collapse = ' '),
+				bias_simple = bias_simple,
 				waic = generic$waic$WAIC,
 				lppd = generic$waic$lppd,
 				pwaic = generic$waic$pWAIC,
@@ -132,20 +162,20 @@ say('#######################################')
 				log_lik_upper = ll_upper,
 				rhat_max_of_mean = max(generic$coeffs$rhat),
 				ess_min = min(generic$coeffs$eff_sample_size),
-				dharma_sac = occ$dharma_resids$significant[occ$dharma_resids$test == 'spatial autocorrelation'],
-				dharma_uniformity = occ$dharma_resids$significant[occ$dharma_resids$test == 'uniformity'],
-				dharma_dispersion = occ$dharma_resids$significant[occ$dharma_resids$test == 'dispersion'],
-				dharma_outliers = occ$dharma_resids$significant[occ$dharma_resids$test == 'outliers'],
-				dharma_quantiles_overall = occ$dharma_resids$significant[occ$dharma_resids$test == 'quantiles, overall'],
-				dharma_quantiles_upper = occ$dharma_resids$significant[occ$dharma_resids$test == 'quantiles, upper'],
-				dharma_quantiles_middle = occ$dharma_resids$significant[occ$dharma_resids$test == 'quantiles, middle'],
-				dharma_quantiles_lower = occ$dharma_resids$significant[occ$dharma_resids$test == 'quantiles, lower']
+				dharma_sac = dharma_sac,
+				dharma_uniformity = dharma_uniformity,
+				dharma_dispersion = dharma_dispersion,
+				dharma_outliers = dharma_outliers,
+				dharma_quantiles_overall = dharma_quantiles_overall,
+				dharma_quantiles_upper = dharma_quantiles_upper,
+				dharma_quantiles_middle = dharma_quantiles_middle,
+				dharma_quantiles_lower = dharma_quantiles_lower
 			)
 		)
 	
 	}
 
-	collated <- collated[order(pwaic)]
+	fwrite(collated, './outputs_loretta/integrated_sdm_pdm/summaries_occurrence_models.csv')
 
 
 say(date())

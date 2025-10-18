@@ -20,8 +20,8 @@
 ### user-defined values ###
 ###########################
 
-	trial <- TRUE # TRUE for testing
-	# trial <- FALSE # TRUE for testing
+	# trial <- TRUE # TRUE for testing
+	trial <- FALSE # TRUE for testing
 
 	# calib <- TRUE # use just counties with non-NA Poaceae for calibration region
 	calib <- FALSE # use all of North America for calibration region
@@ -38,11 +38,11 @@
 	# formula_occs <- ~ 1 + bio1 + bio12 + bio15 + ph + I(bio1^2) + I(bio12^2) + I(bio15^2) + I(ph^2) # response of occurrence to climate and soil
 	# preds_filename <- 'bio1^2_bio12^2_bio15^2_ph^2'
 
-	formula_occs <- ~ 1 + bio1 + bio12 + bio15 + sand + I(bio1^2) + I(bio12^2) + I(bio15^2) + I(sand^2) # response of occurrence to climate and soil
-	preds_filename <- 'bio1^2_bio12^2_bio15^2_sand^2'
+	# formula_occs <- ~ 1 + bio1 + bio12 + bio15 + sand + I(bio1^2) + I(bio12^2) + I(bio15^2) + I(sand^2) # response of occurrence to climate and soil
+	# preds_filename <- 'bio1^2_bio12^2_bio15^2_sand^2'
 
-	# formula_occs <- ~ 1 + bio1 + bio12 + bio15 + I(bio1^2) + I(bio12^2) + I(bio15^2) # response of occurrence to climate and soil
-	# preds_filename <- 'bio1^2_bio12^2_bio15^2'
+	formula_occs <- ~ 1 + bio1 + bio12 + bio15 + I(bio1^2) + I(bio12^2) + I(bio15^2) # response of occurrence to climate and soil
+	preds_filename <- 'bio1^2_bio12^2_bio15^2'
 
 	### output folder and bias formula
 	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_poisson~normal_heteroscedastic_', preds_filename, '_[bias~1]]', ifelse(trial, '_TRIAL', ''), '/')

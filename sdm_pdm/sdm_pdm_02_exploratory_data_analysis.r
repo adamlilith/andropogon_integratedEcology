@@ -7,7 +7,8 @@
 ###
 ### CONTENTS ###
 ### setup ###
-### trait histograms ###
+### trait histograms across sites ###
+### trait histograms within sites ###
 ### correlations between environmental variables at phenotypic sample sites and occurrence sites ###
 ### univariate plots of each phenotypic trait by covariate ###
 ### pre-screen simple models for each trait ###
@@ -43,10 +44,11 @@
 	library(predicts) # GIS & SDMing
 	library(readxl) # Excel
 	library(terra) # spatial objects
+	library(tidyr) # data wrangling
 
-# say('########################')
-# say('### trait histograms ###')
-# say('########################')
+# say('#####################################')
+# say('### trait histograms across sites ###')
+# say('#####################################')
 
 # 	dirCreate('./outputs_loretta/integrated_sdm_pdm')
 
@@ -61,7 +63,14 @@
 # 	x <- x[ , c('SITE', 'VegBiomass', 'ReproBiomass', 'Biomass', 'VegRepro_ratio')]
 # 	x <- x[complete.cases(x)]
 	
-# 	long <- melt(x, id.vars = "SITE", variable.name = "trait", value.name = "value")
+	# long <- pivot_longer(
+	# 	x,
+	# 	cols = all_of(traits),
+	# 	names_to = 'trait',
+	# 	values_to = 'value'
+	# )
+	# long <- as.data.table(long)
+
 
 # 	# plot
 # 	plots <- ggplot(long, aes(x = value)) +
@@ -78,8 +87,14 @@
 
 # 	x <- morpho_phys
 # 	x <- x[ , c('SITE', 'Delta13C', 'N_conc', 'CN_ratio', 'Height', 'BladeWidth', 'LeafThick', 'SPAD', 'CanopyDiam', 'WatPot', 'PhotoRate', 'StomCond', 'IntCO2', 'TranspRate')]
-	
-# 	long <- melt(x, id.vars = "SITE", variable.name = "trait", value.name = "value")
+
+	# long <- pivot_longer(
+	# 	x,
+	# 	cols = all_of(traits),
+	# 	names_to = 'trait',
+	# 	values_to = 'value'
+	# )
+	# long <- as.data.table(long)
 
 # 	# plot
 # 	plots <- ggplot(long, aes(x = value)) +
@@ -90,6 +105,99 @@
 # 		labs(title = 'Morphology/physiology trait histograms')
 
 # 	ggsave(plots, filename = './outputs_loretta/integrated_sdm_pdm/morphology_trait_histograms.png', width = 16, height = 12, dpi = 300, bg = 'white')
+
+# say('#####################################')
+# say('### trait histograms within sites ###')
+# say('#####################################')
+
+	# dirCreate('./outputs_loretta/integrated_sdm_pdm')
+
+	# sites <- readRDS('./data_from_loretta/sdm_pdm_00_merged_site_data_with_climate/sites.rds')
+	# biomass <- readRDS('./data_from_loretta/sdm_pdm_00_merged_site_data_with_climate/biomass.rds')
+	# morpho_phys <- readRDS('./data_from_loretta/sdm_pdm_00_merged_site_data_with_climate/morpho_phys.rds')
+
+	# ### biomass variables
+	# #####################
+
+	# traits <- c('VegBiomass', 'ReproBiomass', 'Biomass', 'VegRepro_ratio')
+
+	# x <- biomass
+	# x <- x[ , c('SITE', ..traits)]
+	# x <- x[complete.cases(x)]
+	
+	# long <- pivot_longer(
+		# x,
+		# cols = all_of(traits),
+		# names_to = 'trait',
+		# values_to = 'value'
+	# )
+	# long <- as.data.table(long)
+
+	# for (trait in unique(long$trait)) {
+
+		# keeps <- long$trait == trait
+		# this_long <- long[keeps]
+		# site_means <- this_long[ , .(mean_value = mean(value, na.rm = TRUE)), by = SITE]
+		# site_means <- site_means[order(mean_value)]
+		# this_long$SITE <- factor(this_long$SITE, levels = site_means$SITE)
+		# this_long <- this_long[order(this_long$SITE)]
+
+		# # plot
+		# plots <- ggplot(this_long, aes(x = value, y = 0)) +
+			# geom_point() +
+			# facet_wrap(~ SITE) +
+			# xlab(trait) +
+			# theme(
+				# axis.text.x = element_text(angle = 45, hjust = 1),
+				# axis.title.y = element_blank(),
+				# axis.text.y = element_blank(),
+				# axis.ticks.y = element_blank()
+			# )
+			
+		# ggsave(plots, filename = paste0('./outputs_loretta/integrated_sdm_pdm/trait_histograms_by_site_', tolower(trait), '.png'), width = 8, height = 8, dpi = 300, bg = 'white')
+
+	# }
+
+	# ### morphology/physiology variables
+	# ###################################
+
+	# traits <- c('Delta13C', 'N_conc', 'CN_ratio', 'Height', 'BladeWidth', 'LeafThick', 'SPAD', 'CanopyDiam', 'WatPot', 'PhotoRate', 'StomCond', 'IntCO2', 'TranspRate')
+
+	# x <- morpho_phys
+	# x <- x[ , c('SITE', ..traits)]
+	
+	# long <- pivot_longer(
+		# x,
+		# cols = all_of(traits),
+		# names_to = 'trait',
+		# values_to = 'value'
+	# )
+	# long <- as.data.table(long)
+
+	# for (trait in traits) {
+
+		# keeps <- long$trait == trait
+		# this_long <- long[keeps]
+		# site_means <- this_long[ , .(mean_value = mean(value, na.rm = TRUE)), by = SITE]
+		# site_means <- site_means[order(mean_value)]
+		# this_long$SITE <- factor(this_long$SITE, levels = site_means$SITE)
+		# this_long <- this_long[order(this_long$SITE)]
+
+		# # plot
+		# plots <- ggplot(this_long, aes(x = value, y = 0)) +
+			# geom_point() +
+			# facet_wrap(~ SITE) +
+			# xlab(trait) +
+			# theme(
+				# axis.text.x = element_text(angle = 45, hjust = 1),
+				# axis.title.y = element_blank(),
+				# axis.text.y = element_blank(),
+				# axis.ticks.y = element_blank()
+			# )
+
+		# ggsave(plots, filename = paste0('./outputs_loretta/integrated_sdm_pdm/trait_histograms_by_site_', tolower(trait), '.png'), width = 8, height = 8, dpi = 300, bg = 'white')
+
+	# }
 
 say('####################################################################################################')
 say('### correlations between environmental variables at phenotypic sample sites and occurrence sites ###')
@@ -117,6 +225,7 @@ say('###########################################################################
 
 		occs <- vect('./outputs_loretta/integrated_sdm_pdm/andropogon_gerardi_occurrences_with_environment_1961_2020_for_integration.gpkg')
 		occs <- occs[occs$n_poaceae > 0]
+		# occs <- occs[occs$n_andropogon_gerardi > 0]
 		occs <- as.data.table(occs)
 
 		vars <- c(paste0('bio', c(1, 5, 6, 7, 10, 12, 15, 18)), 'aridity', 'ph', 'sand', 'silt', 'clay')
@@ -146,11 +255,11 @@ say('###########################################################################
 
         sites_plot <- ggplot(segment(sites_dendro)) +
             geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
-            geom_text(
-                data = sites_labels,
-                aes(x = x, y = y, label = label, color = label),
-                hjust = 1.1, vjust = 0.5, size = 3, angle = 90
-            ) +
+			geom_text(
+				data = sites_labels,
+				aes(x = x, y = y, label = label, color = label),
+				hjust = 1.1, vjust = 0.5, angle = 90
+			) +
             scale_color_manual(values = label_colors, guide = "none") +
             geom_hline(yintercept = 0.3, color = 'red', linetype = 'dashed') +
             coord_cartesian(clip = 'off') +

@@ -1,9 +1,9 @@
 ### MODELING ANDROPOGON GERARDI DISTRIBUTION, PHENOTYPE, PHYSIOLOGY, GENOTYPE, and ASSOCIATED MICROBIAL COMMUNITIES
 ### Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | 2023-12
 ###
-### This script constructs a species distribution model Andropogon gerardi where "county" is the observational unit. It assumes (latent) abundance follows a zero-inflated Poisson distribution, and the observed number of AG is a binomial distribution where the probability of observing AG is an estimated constant. The expected abundance drawn from a normal distribution where the mean value and the standard deviation are given by functions of environmental predictors (climate, soil, etc.). The probability of a zero in the zero-inflation has the same functional form as the mean density model (but different coefficients).The model is run using nimble.
+### This script constructs a species distribution model Andropogon gerardi where "county" is the observational unit. It assumes (latent) abundance follows a Poisson distribution, and the observed number of AG is a binomial distribution where the probability of observing AG is a function of county area and the number of Poaceae recorded in the county (including AG). The expected abundance drawn from a normal distribution where the mean value is given by a function of environmental predictors (climate, soil, etc.). The model is run using nimble.
 ###
-### source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/sdm_pdm_03d_model_occurrence_zip~normal_heteroscedastic_bias~1.r')
+### source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/sdm_pdm_03a_model_occurrence_poisson~normal_homoscedastic.r')
 ### 
 #############
 ### setup ###
@@ -30,10 +30,13 @@
 	# do_crossvalidation <- TRUE
 	do_crossvalidation <- FALSE
 
-	homoscedastic <- FALSE # SPECIFIC TO THIS SCRIPT--SHOULD NOT BE CHANGED
-	zero_inflated <- TRUE # SPECIFIC TO THIS SCRIPT--SHOULD NOT BE CHANGED
+	homoscedastic <- TRUE # SPECIFIC TO THIS SCRIPT--SHOULD NOT BE CHANGED
+	zero_inflated <- FALSE # SPECIFIC TO THIS SCRIPT--SHOULD NOT BE CHANGED
 
 	### formula for how aspects of species responds to environment
+
+	formula_occs <- ~ 1 + bio1 + bio12 + bio15 + I(bio1^2) + I(bio12^2) + I(bio15^2) # response of occurrence to climate and soil
+	preds_filename <- 'bio1^2_bio12^2_bio15^2'
 
 	# formula_occs <- ~ 1 + bio1 + bio12 + bio15 + ph + I(bio1^2) + I(bio12^2) + I(bio15^2) + I(ph^2) # response of occurrence to climate and soil
 	# preds_filename <- 'bio1^2_bio12^2_bio15^2_ph^2'
@@ -41,14 +44,34 @@
 	# formula_occs <- ~ 1 + bio1 + bio12 + bio15 + sand + I(bio1^2) + I(bio12^2) + I(bio15^2) + I(sand^2) # response of occurrence to climate and soil
 	# preds_filename <- 'bio1^2_bio12^2_bio15^2_sand^2'
 
-	formula_occs <- ~ 1 + bio1 + bio12 + bio15 + I(bio1^2) + I(bio12^2) + I(bio15^2) # response of occurrence to climate and soil
-	preds_filename <- 'bio1^2_bio12^2_bio15^2'
+	# formula_occs <- ~ 1 + bio1 + bio12 + bio15 + silt + I(bio1^2) + I(bio12^2) + I(bio15^2) + I(silt^2) # response of occurrence to climate and soil
+	# preds_filename <- 'bio1^2_bio12^2_bio15^2_silt^2'
 
 	### output folder and bias formula
-	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_zip~normal_heteroscedastic_',preds_filename, '_[bias~1]]', ifelse(trial, '_TRIAL', ''), '/')
-	previous_dir_zip <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_zip~normal_homoscedastic_', preds_filename, '_[bias~1]]', ifelse(trial, '_TRIAL', ''), '/')
-	previous_dir_heteroscedastic <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_poisson~normal_heteroscedastic_', preds_filename, '_[bias~1]]', ifelse(trial, '_TRIAL', ''), '/')
-	formula_occs_bias <- ~ 1 # sampling bias for AG records
+
+	# out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_poisson~normal_homoscedastic_', preds_filename, '_[bias~quad_ia]]', ifelse(trial, '_TRIAL', ''), '/')
+	# formula_occs_bias <- ~ 1 + area_km2_log10 + n_poaceae_log10p1 + I(area_km2_log10^2) + I(n_poaceae_log10p1^2) + area_km2_log10:n_poaceae_log10p1 # sampling bias for AG records
+
+	# out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_poisson~normal_homoscedastic_', preds_filename, '_[bias~quad]]', ifelse(trial, '_TRIAL', ''), '/')
+	# formula_occs_bias <- ~ 1 + area_km2_log10 + n_poaceae_log10p1 + I(area_km2_log10^2) + I(n_poaceae_log10p1^2) # sampling bias for AG records
+
+	# out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_poisson~normal_homoscedastic_', preds_filename, '_[bias~ia]]', ifelse(trial, '_TRIAL', ''), '/')
+	# formula_occs_bias <- ~ 1 + area_km2_log10 + n_poaceae_log10p1 + area_km2_log10:n_poaceae_log10p1 # sampling bias for AG records
+
+	# out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_poisson~normal_homoscedastic_', preds_filename, '_[bias~linear]]', ifelse(trial, '_TRIAL', ''), '/')
+	# formula_occs_bias <- ~ 1 + area_km2_log10 + n_poaceae_log10p1 # sampling bias for AG records
+
+	# out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_poisson~normal_homoscedastic_', preds_filename, '_[bias~area]]', ifelse(trial, '_TRIAL', ''), '/')
+	# formula_occs_bias <- ~ area_km2_log10 # sampling bias for AG records
+
+	# out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_poisson~normal_homoscedastic_', preds_filename, '_[bias~area^2]]', ifelse(trial, '_TRIAL', ''), '/')
+	# formula_occs_bias <- ~ area_km2_log10 + I(area_km2_log10^2) # sampling bias for AG records
+
+	# out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_poisson~normal_homoscedastic_', preds_filename, '_[bias~poa]]', ifelse(trial, '_TRIAL', ''), '/')
+	# formula_occs_bias <- ~ n_poaceae_log10p1 # sampling bias for AG records
+
+	# out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_poisson~normal_homoscedastic_', preds_filename, '_[bias~poa^2]]', ifelse(trial, '_TRIAL', ''), '/')
+	# formula_occs_bias <- ~ n_poaceae_log10p1 + I(n_poaceae_log10p1^2) # sampling bias for AG records
 
 	if (!trial) {
 
@@ -58,6 +81,7 @@
 		nburnin <- niter / 2
 		thin <- 800
 		nchains <- 4
+		waic <- TRUE
 
 	} else {
 		
@@ -66,11 +90,6 @@
 		nburnin <- 100
 		thin <- 1
 		nchains <- 2
-
-		# niter <- 200000
-		# nburnin <- niter / 2
-		# thin <- 100
-		# nchains <- 4
 
 	}
 
@@ -89,7 +108,7 @@
 	##################
 	say('data collation', post = 1)
 
-	say('This script constructs a species distribution model Andropogon gerardi where "county" is the observational unit. It assumes (latent) abundance follows a zero-inflated Poisson distribution, and the observed number of AG is a binomial distribution where the probability of observing AG is an estimated constant. The expected abundance drawn from a normal distribution where the mean value and the standard deviation are given by functions of environmental predictors (climate, soil, etc.). The probability of a zero in the zero-inflation has the same functional form as the mean density model (but different coefficients). The model is run using nimble.', breaks = 60, post = 1)
+	say('This script constructs a species distribution model Andropogon gerardi where "county" is the observational unit. It assumes (latent) abundance follows a Poisson distribution, and the observed number of AG is a binomial distribution where the probability of observing AG is a function of county area and the number of Poaceae recorded in the county (including AG). The expected abundance drawn from a normal distribution where the mean value is given by a function of environmental predictors (climate, soil, etc.). The model is run using nimble.', breaks = 60, post = 1)
 
 	say('MCMC settings:', level = 2)
 	say('trial ........................ ', trial)
@@ -167,35 +186,31 @@
 	constants <- c(constants, constants_shared_occs)
 
 	N_inits_calib <- data_occs$y_n_ag * 2
-	N_inits_all_counties <- data_occs$ag_vect_sq$n_andropogon_gerardi * 2
+	N_inits_all_counties <- 2 * (1 + data_occs$ag_vect_sq$n_andropogon_gerardi)
 
-	previous_chains <- readRDS(paste0(previous_dir_zip, '/chains.rds'))
-	alpha_occs_inits_zip <- hammer_extract(previous_chains, 'alpha_occs', stat = 'mean')
-	beta_occs_mu_inits_zip <- hammer_extract(previous_chains, 'beta_occs_mu', j = TRUE, stat = 'mean')
-	beta_occs_pzero_inits <- hammer_extract(previous_chains, 'beta_occs_pzero', j = TRUE, stat = 'mean')
-	rm(previous_chains)
-	
-	previous_chains <- readRDS(paste0(previous_dir_heteroscedastic, '/chains.rds'))
-	alpha_occs_inits_heteroscedastic <- hammer_extract(previous_chains, 'alpha_occs', stat = 'mean')
-	beta_occs_mu_inits_heteroscedastic <- hammer_extract(previous_chains, 'beta_occs_mu', j = TRUE, stat = 'mean')
-	beta_occs_sigma_inits <- hammer_extract(previous_chains, 'beta_occs_sigma', j = TRUE, stat = 'mean')
-	rm(previous_chains)
+	# # initial values for occ ~ f(env)
+	# formula_occs_terms <- attr(terms(formula_occs), 'term.labels')
+	# formula_occs_terms <- c('(Intercept)', formula_occs_terms)
+	# beta_occs_inits <- rep(0, length(formula_occs_terms))
+	# beta_occs_inits[grepl(formula_occs_terms, pattern = '\\^2')] <- -1
 
-	alpha_occs_inits <- (alpha_occs_inits_zip + alpha_occs_inits_heteroscedastic) / 2
-	beta_occs_mu_inits <- (beta_occs_mu_inits_zip + beta_occs_mu_inits_heteroscedastic) / 2
+	prelim_data <- cbind(data_occs$w_occs_bias, data_occs$counties_x_occs_sq[ , 2:ncol(data_occs$counties_x_occs_sq)])
+	prelim_model <- glm.fit(prelim_data, y = data_occs$y_n_ag, family = poisson(log))
+
+	alpha_occs_inits <- prelim_model$coefficients[c('(Intercept)', data_occs$terms_occs_bias)]
+	beta_occs_inits <- prelim_model$coefficients[c('(Intercept)', data_occs$terms_occs)]
 
 	response_curves_occs_mu_inits <- matrix(2, nrow = n_response_curve_values, ncol = data_occs$n_covariates_occs)
 
 	inits <- list(
 
-		lambda_sigma_log = 0.5,
+		lambda_sigma = 1,
+		log_lambda_sigma = log(1),
 
 		y_n_ag_sim = data_occs$y_n_ag, # simulated values of observed number of AG (for DHARMa residuals)
 		log_lambda_mu_sq = rep(1, data_occs$n_counties_occs_calib), # expected value of number of AG
-		alpha_occs = alpha_occs_inits, # if we use a large number, p = 1 and likelihood is infinite
-		beta_occs_mu =beta_occs_mu_inits, # occurrence ~ environment coefficients (including intercept)
-		beta_occs_sigma = beta_occs_sigma_inits, # occurrence sd ~ environment coefficients (including intercept)
-		beta_occs_pzero = beta_occs_pzero_inits, # occurrence ~ environment coefficients (including intercept)
+		alpha_occs = alpha_occs_inits, # intercept, area, # of Poaceae
+		beta_occs_mu = beta_occs_inits, # occurrence ~ environment coefficients (including intercept)
 
 		N = N_inits_calib, # number of latent AG in calibration counties
 		N_ag_county_sq = N_inits_all_counties, # number of latent AG in all counties
@@ -215,12 +230,10 @@
 
 		N_ag_county_thirties = rep(10, data_occs$n_counties_20th_cent),
 		N_ag_county_fifties = rep(10, data_occs$n_counties_20th_cent),
-		
-		response_curves_occs_mu = response_curves_occs_mu_inits,
+
 		log_lambda_resp_curves_mu = response_curves_occs_mu_inits,
-
-		log_lik_y = rep(1, data_occs$n_counties_occs_calib)
-
+		response_curves_occs_mu = response_curves_occs_mu_inits
+		
 	)
 
 	say('Data:')
@@ -245,45 +258,31 @@
 			beta_occs_mu[i] ~ ddexp(0, rate = beta_occs_mu_prior_ddexp_rate)
 		}
 
-		# OCCURRENCE: priors for standard deviation of normal
-		beta_occs_sigma[1] ~ dnorm(0, sd = beta_occs_sigma_prior_dnorm_sd_1)
-		for (i in 2:n_terms_occs) {
-			beta_occs_sigma[i] ~ ddexp(0, rate = beta_occs_sigma_prior_ddexp_rate)
-		}
-
-		# OCCURRENCE: priors for zero-inflation
-		beta_occs_pzero[1] ~ dnorm(0, sd = beta_occs_pzero_prior_dnorm_sd_1)
-		for (i in 2:n_terms_occs) {
-			beta_occs_pzero[i] ~ dnorm(0, sd = beta_occs_pzero_prior_dnorm_sd)
-		}
-
 		# OCCURRENCE: priors for sampling bias
-		alpha_occs ~ dnorm(0, sd = alpha_occs_mu_prior_dnorm_sd_1)
-		logit(p) <- alpha_occs
+		alpha_occs[1] ~ dnorm(0, sd = alpha_occs_mu_prior_dnorm_sd_1)
+
+		# OCCURRENCE: prior for spread of normal distribution of lambda
+		log(lambda_sigma) ~ dnorm(0, sd = lambda_sigma_prior_sd) # half-Cauchy
 
 		# OCCURRENCE: likelihood
 		for (i in 1:n_counties_occs_calib) {
 			
 			### actual abundance (latent--unobserved)
-			N[i] ~ dzip(lambda_mu_sq[i], pzero = pzero_occs[i])
-
-			# probability of 0
-			logit(pzero_occs[i]) <- inprod(beta_occs_pzero[1:n_terms_occs], counties_x_occs_calib_sq[i, 1:n_terms_occs])
+			N[i] ~ dpois(lambda_mu_sq[i])
 
 			### observed number of AG and sampling bias
-			y_n_ag[i] ~ dbinom(prob = p, size = N[i])
+			logit(p[i]) <- inprod(alpha_occs[1:n_terms_occs_bias], w_occs_bias[i, 1:n_terms_occs_bias])
+			y_n_ag[i] ~ dbinom(prob = p[i], size = N[i])
 
 			# simulate observations for DHARMa residuals
-			y_n_ag_sim[i] ~ dbinom(prob = p, size = N[i])
+			y_n_ag_sim[i] ~ dbinom(prob = p[i], size = N[i])
 
 			# relationship between expected (latent) abundance and environment assuming NORMAL distribution
-			log(lambda_mu_sq[i]) ~ dnorm(phi_mu_sq[i], sd = lambda_sigma[i])
+			log(lambda_mu_sq[i]) ~ dnorm(phi_mu_sq[i], sd = lambda_sigma)
 			phi_mu_sq[i] <- inprod(beta_occs_mu[1:n_terms_occs], counties_x_occs_calib_sq[i, 1:n_terms_occs])
 
-			lambda_sigma[i] <- exp(inprod(beta_occs_sigma[1:n_terms_occs], counties_x_occs_calib_sq[i, 1:n_terms_occs]))
-
 			# likelihood
-			log_lik_y[i] <- dbinom(y_n_ag[i], prob = p, size = N[i], log = 1)
+			log_lik_y[i] <- dbinom(y_n_ag[i], prob = p[i], size = N[i], log = 1)
 
 		}
 
@@ -293,53 +292,34 @@
 		for (i in 1:n_counties) {
 
 			# sq (status quo)
-			N_ag_county_sq[i] ~ dzip(county_lambda_sq[i], pzero = pzero_occs_county_sq[i])
-			logit(pzero_occs_county_sq[i]) <- inprod(beta_occs_pzero[1:n_terms_occs], counties_x_occs_sq[i, 1:n_terms_occs])
-			log(county_lambda_sq[i]) ~ dnorm(phi_county_lambda_mu_sq[i], sd = county_lambda_sigma_sq[i])
+			N_ag_county_sq[i] ~ dpois(county_lambda_sq[i])
+			log(county_lambda_sq[i]) ~ dnorm(phi_county_lambda_mu_sq[i], sd = lambda_sigma)
 			phi_county_lambda_mu_sq[i] <-
 				inprod(beta_occs_mu[1:n_terms_occs], counties_x_occs_sq[i, 1:n_terms_occs])
-			county_lambda_sigma_sq[i] <-
-				exp(inprod(beta_occs_sigma[1:n_terms_occs], counties_x_occs_sq[i, 1:n_terms_occs]))
 
 			# ssp245_2041_2070
-			N_ag_county_ssp245_2041_2070[i] ~ dzip(county_lambda_ssp245_2041_2070[i], pzero = pzero_occs_county_ssp245_2041_2070[i])
-			logit(pzero_occs_county_ssp245_2041_2070[i]) <-
-				inprod(beta_occs_pzero[1:n_terms_occs], counties_x_occs_ssp245_2041_2070[i, 1:n_terms_occs])
-			log(county_lambda_ssp245_2041_2070[i]) ~ dnorm(phi_county_lambda_mu_ssp245_2041_2070[i], sd = county_lambda_sigma_ssp245_2041_2070[i])
+			N_ag_county_ssp245_2041_2070[i] ~ dpois(county_lambda_ssp245_2041_2070[i])
+			log(county_lambda_ssp245_2041_2070[i]) ~ dnorm(phi_county_lambda_mu_ssp245_2041_2070[i], sd = lambda_sigma)
 			phi_county_lambda_mu_ssp245_2041_2070[i] <-
 				inprod(beta_occs_mu[1:n_terms_occs], counties_x_occs_ssp245_2041_2070[i, 1:n_terms_occs])
-			county_lambda_sigma_ssp245_2041_2070[i] <-
-				exp(inprod(beta_occs_sigma[1:n_terms_occs], counties_x_occs_ssp245_2041_2070[i, 1:n_terms_occs]))
 
 			# ssp245_2071_2100
-			N_ag_county_ssp245_2071_2100[i] ~ dzip(county_lambda_ssp245_2071_2100[i], pzero = pzero_occs_county_ssp245_2071_2100[i])
-			logit(pzero_occs_county_ssp245_2071_2100[i]) <-
-				inprod(beta_occs_pzero[1:n_terms_occs], counties_x_occs_ssp245_2071_2100[i, 1:n_terms_occs])
-			log(county_lambda_ssp245_2071_2100[i]) ~ dnorm(phi_county_lambda_mu_ssp245_2071_2100[i], sd = county_lambda_sigma_ssp245_2071_2100[i])
+			N_ag_county_ssp245_2071_2100[i] ~ dpois(county_lambda_ssp245_2071_2100[i])
+			log(county_lambda_ssp245_2071_2100[i]) ~ dnorm(phi_county_lambda_mu_ssp245_2071_2100[i], sd = lambda_sigma)
 			phi_county_lambda_mu_ssp245_2071_2100[i] <-
 				inprod(beta_occs_mu[1:n_terms_occs], counties_x_occs_ssp245_2071_2100[i, 1:n_terms_occs])
-			county_lambda_sigma_ssp245_2071_2100[i] <-
-				exp(inprod(beta_occs_sigma[1:n_terms_occs], counties_x_occs_ssp245_2071_2100[i, 1:n_terms_occs]))
 
 			# ssp370_2041_2070
-			N_ag_county_ssp370_2041_2070[i] ~ dzip(county_lambda_ssp370_2041_2070[i], pzero = pzero_occs_county_ssp370_2041_2070[i])
-			logit(pzero_occs_county_ssp370_2041_2070[i]) <-
-				inprod(beta_occs_pzero[1:n_terms_occs], counties_x_occs_ssp370_2041_2070[i, 1:n_terms_occs])
-			log(county_lambda_ssp370_2041_2070[i]) ~ dnorm(phi_county_lambda_mu_ssp370_2041_2070[i], sd = county_lambda_sigma_ssp370_2041_2070[i])
+			N_ag_county_ssp370_2041_2070[i] ~ dpois(county_lambda_ssp370_2041_2070[i])
+			log(county_lambda_ssp370_2041_2070[i]) ~ dnorm(phi_county_lambda_mu_ssp370_2041_2070[i], sd = lambda_sigma)
 			phi_county_lambda_mu_ssp370_2041_2070[i] <-
 				inprod(beta_occs_mu[1:n_terms_occs], counties_x_occs_ssp370_2041_2070[i, 1:n_terms_occs])
-			county_lambda_sigma_ssp370_2041_2070[i] <-
-				exp(inprod(beta_occs_sigma[1:n_terms_occs], counties_x_occs_ssp370_2041_2070[i, 1:n_terms_occs]))
 
 			# ssp370_2071_2100
-			N_ag_county_ssp370_2071_2100[i] ~ dzip(county_lambda_ssp370_2071_2100[i], pzero = pzero_occs_county_ssp370_2071_2100[i])
-			logit(pzero_occs_county_ssp370_2071_2100[i]) <-
-				inprod(beta_occs_pzero[1:n_terms_occs], counties_x_occs_ssp370_2071_2100[i, 1:n_terms_occs])
-			log(county_lambda_ssp370_2071_2100[i]) ~ dnorm(phi_county_lambda_mu_ssp370_2071_2100[i], sd = county_lambda_sigma_ssp370_2071_2100[i])
+			N_ag_county_ssp370_2071_2100[i] ~ dpois(county_lambda_ssp370_2071_2100[i])
+			log(county_lambda_ssp370_2071_2100[i]) ~ dnorm(phi_county_lambda_mu_ssp370_2071_2100[i], sd = lambda_sigma)
 			phi_county_lambda_mu_ssp370_2071_2100[i] <-
 				inprod(beta_occs_mu[1:n_terms_occs], counties_x_occs_ssp370_2071_2100[i, 1:n_terms_occs])
-			county_lambda_sigma_ssp370_2071_2100[i] <-
-				exp(inprod(beta_occs_sigma[1:n_terms_occs], counties_x_occs_ssp370_2071_2100[i, 1:n_terms_occs]))
 
 		}
 
@@ -347,49 +327,95 @@
 		for (i in 1:n_counties_20th_cent) {
 
 			# 1930s
-			N_ag_county_thirties[i] ~ dzip(county_lambda_thirties[i], pzero = pzero_occs_county_thirties[i])
-			logit(pzero_occs_county_thirties[i]) <-
-				inprod(beta_occs_pzero[1:n_terms_occs], counties_x_occs_thirties[i, 1:n_terms_occs])
-			log(county_lambda_thirties[i]) ~ dnorm(phi_county_lambda_mu_thirties[i], sd = county_lambda_sigma_thirties[i])
+			N_ag_county_thirties[i] ~ dpois(county_lambda_thirties[i])
+			log(county_lambda_thirties[i]) ~ dnorm(phi_county_lambda_mu_thirties[i], sd = lambda_sigma)
 			phi_county_lambda_mu_thirties[i] <-
 				inprod(beta_occs_mu[1:n_terms_occs], counties_x_occs_thirties[i, 1:n_terms_occs])
-			county_lambda_sigma_thirties[i] <-
-				exp(inprod(beta_occs_sigma[1:n_terms_occs], counties_x_occs_thirties[i, 1:n_terms_occs]))
 
 			# 1950s
-			N_ag_county_fifties[i] ~ dzip(county_lambda_fifties[i], pzero = pzero_occs_county_fifties[i])
-			logit(pzero_occs_county_fifties[i]) <-
-				inprod(beta_occs_pzero[1:n_terms_occs], counties_x_occs_fifties[i, 1:n_terms_occs])
-			log(county_lambda_fifties[i]) ~ dnorm(phi_county_lambda_mu_fifties[i], sd = county_lambda_sigma_fifties[i])
+			N_ag_county_fifties[i] ~ dpois(county_lambda_fifties[i])
+			log(county_lambda_fifties[i]) ~ dnorm(phi_county_lambda_mu_fifties[i], sd = lambda_sigma)
 			phi_county_lambda_mu_fifties[i] <-
 				inprod(beta_occs_mu[1:n_terms_occs], counties_x_occs_fifties[i, 1:n_terms_occs])
-			county_lambda_sigma_fifties[i] <-
-				exp(inprod(beta_occs_sigma[1:n_terms_occs], counties_x_occs_fifties[i, 1:n_terms_occs]))
 
 		}
 
 		# OCCURRENCE: posterior predictive sampler for ENVIRONMENTAL response curves
 		# We're assuming occurrence responds to two or more environmental predictors, so the response curve "x" is an array with one "page" per predictor and output is a matrix with one column per predictor
-		# Declare response_curves_occs_sigma as a deterministic node
 		for (i in 1:n_covariates_occs) {
-			
+
 			for (j in 1:n_response_curve_values) {
 				
-				response_curves_occs_mu[j, i] ~ dzip(lambda_resp_curves_mu[j, i], pzero = response_curves_occs_pzero[j, i])
-				log(lambda_resp_curves_mu[j, i]) ~ dnorm(phi_lambda_resp_curves_mu[j, i], sd = response_curves_occs_sigma[j, i])
+				response_curves_occs_mu[j, i] ~ dpois(lambda_resp_curves_mu[j, i])
+				log(lambda_resp_curves_mu[j, i]) ~ dnorm(phi_lambda_resp_curves_mu[j, i], sd = lambda_sigma)
 				phi_lambda_resp_curves_mu[j, i] <-
 					inprod(beta_occs_mu[1:n_terms_occs], resp_curves_x_occs[j, 1:n_terms_occs, i])
-				response_curves_occs_sigma[j, i] <- exp(
-					inprod(beta_occs_sigma[1:n_terms_occs], resp_curves_x_occs[j, 1:n_terms_occs, i])
-				)
-				logit(response_curves_occs_pzero[j, i]) <-
-					inprod(beta_occs_pzero[1:n_terms_occs], resp_curves_x_occs[j, 1:n_terms_occs, i])
 
 			}
 
 		}
 
 	})
+
+	### NO bias covariate
+	if (data_occs$n_covariates_occs_bias == 0) {
+
+		bias_response_curve_code <- nimbleCode({
+
+			# OCCURRENCE: posterior predictive sampler for BIAS response curves
+			logit(response_curves_occs_bias) <- alpha_occs[1]
+
+		})
+
+		model_code <- glueNimbleCode(model_code, bias_response_curve_code)
+
+	} else if (data_occs$n_covariates_occs_bias == 1) {
+	### ONE bias covariate
+
+		bias_response_curve_code <- nimbleCode({
+
+			for (i in 2:n_terms_occs_bias) {
+				alpha_occs[i] ~ dnorm(0, sd = alpha_occs_mu_prior_dnorm_sd)
+			}
+
+			# OCCURRENCE: posterior predictive sampler for BIAS response curves
+			for (j in 1:n_response_curve_values) {
+				
+				logit(response_curves_occs_bias[j]) <-
+					inprod(alpha_occs[1:n_terms_occs_bias], resp_curves_w_occs[j, 1:n_terms_occs_bias])
+
+			}
+
+		})
+
+		model_code <- glueNimbleCode(model_code, bias_response_curve_code)
+
+	### MORE THAN ONE bias covariate
+	} else if (data_occs$n_covariates_occs_bias > 1) {
+
+		bias_response_curve_code <- nimbleCode({
+
+			for (i in 2:n_terms_occs_bias) {
+				alpha_occs[i] ~ dnorm(0, sd = alpha_occs_mu_prior_dnorm_sd)
+			}
+
+			# OCCURRENCE: posterior predictive sampler for BIAS response curves
+			for (i in 1:n_covariates_occs_bias) {
+				
+				for (j in 1:n_response_curve_values) {
+					
+					logit(response_curves_occs_bias[j, i]) <-
+						inprod(alpha_occs[1:n_terms_occs_bias], resp_curves_w_occs[j, 1:n_terms_occs_bias, i])
+
+				}
+
+			}
+
+		})
+
+		model_code <- glueNimbleCode(model_code, bias_response_curve_code)
+
+	}
 
 	print(model_code)
 
@@ -409,15 +435,15 @@
 	model$initializeInfo()
 	calc <- model$calculate()
 	say('model$calculate(): ', calc)
-	# if (is.na(calc) || is.infinite(calc)) stop('Impossible likelihood.')
+	if (is.na(calc) || is.infinite(calc)) stop('Impossible likelihood.')
 	# say('model$simulate()')
 	# model$simulate()
 	# say('model$calculate(): ', model$calculate())
 
 	say('configureMCMC():', level = 2)
 
-	monitors_coeffs_not_indexed <- c('alpha_occs', 'p')
-	monitors_coeffs_single_index <- c('beta_occs_mu', 'beta_occs_sigma', 'beta_occs_pzero')
+	monitors_coeffs_not_indexed <- 'lambda_sigma'
+	monitors_coeffs_single_index <- c('beta_occs_mu', 'alpha_occs')
 	monitors_coeffs_double_index <- c()
 
 	monitors_derived_not_indexed <- c('log_lik')
@@ -426,14 +452,11 @@
 
 	monitors_geog_nam <- c(
 		'N_ag_county_sq', 'N_ag_county_ssp245_2041_2070', 'N_ag_county_ssp245_2071_2100', 'N_ag_county_ssp370_2041_2070', 
-		'N_ag_county_ssp370_2071_2100',
-		'pzero_occs_county_sq', 'pzero_occs_county_ssp245_2041_2070', 'pzero_occs_county_ssp245_2071_2100', 'pzero_occs_county_ssp370_2041_2070', 'pzero_occs_county_ssp370_2071_2100'
+		'N_ag_county_ssp370_2071_2100'
 	)
 
-	monitors_geog_conus <- c()
 	monitors_geog_conus <- c(
-		'N_ag_county_thirties', 'N_ag_county_fifties',
-		'pzero_occs_county_thirties', 'pzero_occs_county_fifties'
+		'N_ag_county_thirties', 'N_ag_county_fifties'
 	)
 
 	monitors_dharma <- c(
@@ -441,8 +464,9 @@
 	)
 
 	monitors_resp_curves <- c(
-		'response_curves_occs_mu','response_curves_occs_sigma', 'response_curves_occs_pzero'
+		'response_curves_occs_mu'
 	)
+	if (data_occs$n_covariates_occs_bias > 0) monitors_resp_curves <- c(monitors_resp_curves, 'response_curves_occs_bias')
 
 	monitors <- c(monitors_coeffs_not_indexed, monitors_coeffs_single_index, monitors_coeffs_double_index, monitors_derived_not_indexed, monitors_derived_single_index, monitors_derived_double_index, monitors_geog_nam, monitors_geog_conus, monitors_dharma, monitors_resp_curves)
 
@@ -465,7 +489,9 @@
 	# say('RW_block sampler added to beta_occs_mu[1] and beta_occs_vs_biomass[1:2].')
 
 	# # AF slice sampler
-	# vars <- c(monitors_coeffs_not_indexed, monitors_coeffs_single_index, monitors_coeffs_double_index)
+	# vars <- c('alpha_occs', 'beta_occs_mu')
+	# if (!homoscedastic) vars <- c(vars, 'beta_occs_sigma')
+	# if (zero_inflated) vars <- c(vars, 'beta_occs_pzero')
 	# for (var in vars) {
 	# 	conf$removeSamplers(var)
 	# }
@@ -534,12 +560,13 @@ say('#################################################')
 say('### post-modeling diagnostics and predictions ###')
 say('#################################################')
 
-	descrip <- 'occurrence: zero-inflated Poisson ~ normal homoscedastic'
+	descrip <- 'occurrence: Poisson ~ normal homoscedastic'
 	workflow_postmodeling_generic(facet = 'occurrence', formulae = formulae, descrip = descrip, out_dir = out_dir)
-
+	
 	workflow_postmodeling_occurrence(homoscedastic = homoscedastic, zero_inflated = zero_inflated, formula_occs = formula_occs, formula_occs_bias = formula_occs_bias, pred_vect_nam = pred_vect_nam, out_dir = out_dir)
 	
 	if (do_crossvalidation) workflow_postmodeling_occurrence_crossvalidation(homoscedastic = homoscedastic, zero_inflated = zero_inflated, formula_occs = formula_occs, formula_occs_bias = formula_occs_bias, constants = constants, out_dir = out_dir)
+
 
 say(date())
 say('FINIS!', deco = '+', level = 1)

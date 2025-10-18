@@ -1,9 +1,9 @@
 ### MODELING ANDROPOGON GERARDI DISTRIBUTION, PHENOTYPE, PHYSIOLOGY, GENOTYPE, and ASSOCIATED MICROBIAL COMMUNITIES
 ### Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | 2023-12
 ###
-### This script constructs a species distribution model Andropogon gerardi where "county" is the observational unit. It assumes (latent) abundance follows a zero-inflated Poisson distribution, and the observed number of AG is a binomial distribution where the probability of observing AG is an estimated constant. The expected abundance drawn from a normal distribution where the mean value and the standard deviation are given by functions of environmental predictors (climate, soil, etc.). The probability of a zero in the zero-inflation has the same functional form as the mean density model (but different coefficients).The model is run using nimble.
+### This script constructs a species distribution model Andropogon gerardi where "county" is the observational unit. It assumes (latent) abundance follows a zero-inflated Poisson distribution, and the observed number of AG is a binomial distribution where the probability of observing AG is an estimated constant drawn from Unif(0, 1). The expected abundance drawn from a normal distribution where the mean value and the standard deviation are given by functions of environmental predictors (climate, soil, etc.). The probability of a zero in the zero-inflation has the same functional form as the mean density model (but different coefficients).The model is run using nimble.
 ###
-### source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/sdm_pdm_03d_model_occurrence_zip~normal_heteroscedastic_bias~1.r')
+### source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/sdm_pdm_03d_model_occurrence_zip~normal_heteroscedastic_bias~1_p~dunif.r')
 ### 
 #############
 ### setup ###
@@ -20,8 +20,8 @@
 ### user-defined values ###
 ###########################
 
-	# trial <- TRUE # TRUE for testing
-	trial <- FALSE # TRUE for testing
+	trial <- TRUE # TRUE for testing
+	# trial <- FALSE # TRUE for testing
 
 	# calib <- TRUE # use just counties with non-NA Poaceae for calibration region
 	calib <- FALSE # use all of North America for calibration region
@@ -34,20 +34,11 @@
 	zero_inflated <- TRUE # SPECIFIC TO THIS SCRIPT--SHOULD NOT BE CHANGED
 
 	### formula for how aspects of species responds to environment
-
-	# formula_occs <- ~ 1 + bio1 + bio12 + bio15 + ph + I(bio1^2) + I(bio12^2) + I(bio15^2) + I(ph^2) # response of occurrence to climate and soil
-	# preds_filename <- 'bio1^2_bio12^2_bio15^2_ph^2'
-
-	# formula_occs <- ~ 1 + bio1 + bio12 + bio15 + sand + I(bio1^2) + I(bio12^2) + I(bio15^2) + I(sand^2) # response of occurrence to climate and soil
-	# preds_filename <- 'bio1^2_bio12^2_bio15^2_sand^2'
-
 	formula_occs <- ~ 1 + bio1 + bio12 + bio15 + I(bio1^2) + I(bio12^2) + I(bio15^2) # response of occurrence to climate and soil
-	preds_filename <- 'bio1^2_bio12^2_bio15^2'
 
 	### output folder and bias formula
-	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_zip~normal_heteroscedastic_',preds_filename, '_[bias~1]]', ifelse(trial, '_TRIAL', ''), '/')
-	previous_dir_zip <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_zip~normal_homoscedastic_', preds_filename, '_[bias~1]]', ifelse(trial, '_TRIAL', ''), '/')
-	previous_dir_heteroscedastic <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_poisson~normal_heteroscedastic_', preds_filename, '_[bias~1]]', ifelse(trial, '_TRIAL', ''), '/')
+	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_zip~normal_heteroscedastic_bio1^2_bio12^2_bio15^2_[bias~1_p~dunif]]', ifelse(trial, '_TRIAL', ''), '/')
+	previous_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_zip~normal_homoscedastic_', preds_filename, '_[bias~1_p~dunif]]', ifelse(trial, '_TRIAL', ''), '/')
 	formula_occs_bias <- ~ 1 # sampling bias for AG records
 
 	if (!trial) {
@@ -89,7 +80,7 @@
 	##################
 	say('data collation', post = 1)
 
-	say('This script constructs a species distribution model Andropogon gerardi where "county" is the observational unit. It assumes (latent) abundance follows a zero-inflated Poisson distribution, and the observed number of AG is a binomial distribution where the probability of observing AG is an estimated constant. The expected abundance drawn from a normal distribution where the mean value and the standard deviation are given by functions of environmental predictors (climate, soil, etc.). The probability of a zero in the zero-inflation has the same functional form as the mean density model (but different coefficients). The model is run using nimble.', breaks = 60, post = 1)
+	say('This script constructs a species distribution model Andropogon gerardi where "county" is the observational unit. It assumes (latent) abundance follows a zero-inflated Poisson distribution, and the observed number of AG is a binomial distribution where the probability of observing AG is an estimated constant drawn from Unif(0, 1). The expected abundance drawn from a normal distribution where the mean value and the standard deviation are given by functions of environmental predictors (climate, soil, etc.). The probability of a zero in the zero-inflation has the same functional form as the mean density model (but different coefficients).The model is run using nimble.', breaks = 60, post = 1)
 
 	say('MCMC settings:', level = 2)
 	say('trial ........................ ', trial)
@@ -169,20 +160,12 @@
 	N_inits_calib <- data_occs$y_n_ag * 2
 	N_inits_all_counties <- data_occs$ag_vect_sq$n_andropogon_gerardi * 2
 
-	previous_chains <- readRDS(paste0(previous_dir_zip, '/chains.rds'))
-	alpha_occs_inits_zip <- hammer_extract(previous_chains, 'alpha_occs', stat = 'mean')
-	beta_occs_mu_inits_zip <- hammer_extract(previous_chains, 'beta_occs_mu', j = TRUE, stat = 'mean')
+	previous_chains <- readRDS(paste0(previous_dir, '/chains.rds'))
+	p_inits <- hammer_extract(previous_chains, 'p', stat = 'mean')
+	beta_occs_mu_inits <- hammer_extract(previous_chains, 'beta_occs_mu', j = TRUE, stat = 'mean')
 	beta_occs_pzero_inits <- hammer_extract(previous_chains, 'beta_occs_pzero', j = TRUE, stat = 'mean')
+	beta_occs_sigma_inits <- hammer_extract(previous_chains, 'beta_occs_mu', j = TRUE, stat = 'mean')
 	rm(previous_chains)
-	
-	previous_chains <- readRDS(paste0(previous_dir_heteroscedastic, '/chains.rds'))
-	alpha_occs_inits_heteroscedastic <- hammer_extract(previous_chains, 'alpha_occs', stat = 'mean')
-	beta_occs_mu_inits_heteroscedastic <- hammer_extract(previous_chains, 'beta_occs_mu', j = TRUE, stat = 'mean')
-	beta_occs_sigma_inits <- hammer_extract(previous_chains, 'beta_occs_sigma', j = TRUE, stat = 'mean')
-	rm(previous_chains)
-
-	alpha_occs_inits <- (alpha_occs_inits_zip + alpha_occs_inits_heteroscedastic) / 2
-	beta_occs_mu_inits <- (beta_occs_mu_inits_zip + beta_occs_mu_inits_heteroscedastic) / 2
 
 	response_curves_occs_mu_inits <- matrix(2, nrow = n_response_curve_values, ncol = data_occs$n_covariates_occs)
 
@@ -192,8 +175,8 @@
 
 		y_n_ag_sim = data_occs$y_n_ag, # simulated values of observed number of AG (for DHARMa residuals)
 		log_lambda_mu_sq = rep(1, data_occs$n_counties_occs_calib), # expected value of number of AG
-		alpha_occs = alpha_occs_inits, # if we use a large number, p = 1 and likelihood is infinite
-		beta_occs_mu =beta_occs_mu_inits, # occurrence ~ environment coefficients (including intercept)
+		p = p_inits, # probability of detection of an individual
+		beta_occs_mu = beta_occs_inits, # occurrence ~ environment coefficients (including intercept)
 		beta_occs_sigma = beta_occs_sigma_inits, # occurrence sd ~ environment coefficients (including intercept)
 		beta_occs_pzero = beta_occs_pzero_inits, # occurrence ~ environment coefficients (including intercept)
 
@@ -258,8 +241,7 @@
 		}
 
 		# OCCURRENCE: priors for sampling bias
-		alpha_occs ~ dnorm(0, sd = alpha_occs_mu_prior_dnorm_sd_1)
-		logit(p) <- alpha_occs
+		p ~ dunif(0, 1)
 
 		# OCCURRENCE: likelihood
 		for (i in 1:n_counties_occs_calib) {
@@ -416,7 +398,7 @@
 
 	say('configureMCMC():', level = 2)
 
-	monitors_coeffs_not_indexed <- c('alpha_occs', 'p')
+	monitors_coeffs_not_indexed <- c('p')
 	monitors_coeffs_single_index <- c('beta_occs_mu', 'beta_occs_sigma', 'beta_occs_pzero')
 	monitors_coeffs_double_index <- c()
 
