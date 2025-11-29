@@ -4,16 +4,16 @@
 #' chains					Chains from NIMBLE
 #' formula_occs_mu			Formula for occurrences
 #' formula_occs_sigma		Formula for occurrences s.d. or `NULL`
-#' formula_occs_pzero		Formula for occurrence probability of inflated zero or `NULL`
-burn_occs_into_vector <- function(demesne, chains, formula_occs, formula_occs_sigma, formula_occs_pzero) {
+#' formula_pzero		Formula for occurrence probability of inflated zero or `NULL`
+burn_occs_into_vector <- function(demesne, chains, formula_occs, formula_occs_sigma, formula_pzero) {
 
 	homoscedastic <- is.null(formula_occs_sigma)
-	zero_inflated <- !is.null(formula_occs_pzero)
+	zero_inflated <- !is.null(formula_pzero)
 
 	### occurrence data
 	data_occs <- prepare_occurrences(formula_occs = formula_occs, formula_occs_bias = ~ 1, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
 
-	if (zero_inflated) data_occs_pzero <- prepare_occurrences(formula_occs = formula_occs_pzero, formula_occs_bias = ~ 1, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
+	if (zero_inflated) data_occs_pzero <- prepare_occurrences(formula_occs = formula_pzero, formula_occs_bias = ~ 1, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
 
 	pred_vect <- if (demesne == 'nam') {
 		pred_vect <- data_occs$ag_vect_sq
@@ -86,7 +86,7 @@ burn_occs_into_vector <- function(demesne, chains, formula_occs, formula_occs_si
 	### predict probability of zero
 	###############################
 
-	if (!is.null(formula_occs_pzero)) {
+	if (!is.null(formula_pzero)) {
 		
 		x <- if (demesne == 'nam') {
 			data_occs_pzero$counties_x_occs_sq
@@ -122,10 +122,10 @@ burn_occs_into_vector <- function(demesne, chains, formula_occs, formula_occs_si
 			x <- data_occs[paste0('counties_x_occs_', fut)]
 			x <- x[[1]]
 		
-			x_pzero <- if (!zero_inflated) {
-				NULL
+			 if (!zero_inflated) {
+				x_pzero <- NULL
 			} else {
-				data_occs_pzero[paste0('counties_x_occs_', fut)]
+				x_pzero <- data_occs_pzero[paste0('counties_x_occs_', fut)]
 				x_pzero <- x_pzero[[1]]
 			}
 		
@@ -174,7 +174,7 @@ burn_occs_into_vector <- function(demesne, chains, formula_occs, formula_occs_si
 		### predict probability of zero abundance to future
 		###################################################
 
-		if (!is.null(formula_occs_pzero)) {
+		if (!is.null(formula_pzero)) {
 		
 			for (fut in futs) {
 

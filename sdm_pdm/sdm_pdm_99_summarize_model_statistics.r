@@ -88,8 +88,8 @@ say('#######################################')
 			terms <- attr(terms, 'term.labels')
 			terms <- c('intercept', terms)
 
-			this_coeffs$term[grepl(this_coeffs$coeff, pattern = 'beta_occs_pzero')] <- terms
-			this_coeffs$submodel[grepl(this_coeffs$coeff, pattern = 'beta_occs_pzero')] <- 'occurrence pzero'
+			this_coeffs$term[grepl(this_coeffs$coeff, pattern = 'beta_pzero')] <- terms
+			this_coeffs$submodel[grepl(this_coeffs$coeff, pattern = 'beta_pzero')] <- 'occurrence pzero'
 		}
 
 		coeffs <- rbind(coeffs, this_coeffs)

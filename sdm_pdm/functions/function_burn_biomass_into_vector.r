@@ -4,11 +4,11 @@
 #' chains					Chains from NIMBLE
 #' formula_biomass_mu		Formula for mean of site-level biomass
 #' formula_biomass_sigma	Formula for sd of site-level biomass. Ignored if `NULL`.
-#' formula_biomass_pzero	Formula for probability of zero biomass. Ignored if `NULL`.
-burn_biomass_into_vector <- function(demesne, chains, formula_biomass_mu, formula_biomass_sigma, formula_biomass_pzero) {
+#' formula_pzero	Formula for probability of zero biomass. Ignored if `NULL`.
+burn_biomass_into_vector <- function(demesne, chains, formula_biomass_mu, formula_biomass_sigma, formula_pzero) {
 
 	homoscedastic <- is.null(formula_biomass_sigma)
-	zero_inflated <- is.null(formula_biomass_pzero)
+	zero_inflated <- is.null(formula_pzero)
 
 	### mean site-level biomass	
 	data_biomass_mu <- prepare_biomass(formula_biomass = formula_biomass_mu, calib = calib)
@@ -76,7 +76,7 @@ burn_biomass_into_vector <- function(demesne, chains, formula_biomass_mu, formul
 	### predict probability of zero biomass
 	#######################################
 
-	if (!is.null(formula_biomass_pzero)) {
+	if (!is.null(formula_pzero)) {
 	
 		preds <- predict_biomass(chains = chains, x = x, homoscedastic = homoscedastic, type = 'pzero')
 		preds_mean <- colMeans(preds)
@@ -149,7 +149,7 @@ burn_biomass_into_vector <- function(demesne, chains, formula_biomass_mu, formul
 		### predict probability of zero biomass to future
 		#######################################
 
-		if (!is.null(formula_biomass_pzero)) {
+		if (!is.null(formula_pzero)) {
 		
 			for (fut in futs) {
 

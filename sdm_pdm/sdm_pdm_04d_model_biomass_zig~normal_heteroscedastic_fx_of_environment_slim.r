@@ -64,7 +64,7 @@
 	zero_inflated <- TRUE # SPECIFIC TO THIS SCRIPT--SHOULD NOT BE CHANGED
 
 	formula_biomass_sigma <- formula_biomass_mu
-	formula_biomass_pzero <- formula_biomass_mu
+	formula_pzero <- formula_biomass_mu
 
 	if (!trial) {
 
@@ -116,7 +116,7 @@
 	say('nchains ...................... ', nchains)
 	say('formula_biomass_mu ........... ', paste(as.character(formula_biomass_mu), collapse = ' '))
 	say('formula_biomass_sigma ........ ', paste(as.character(formula_biomass_sigma), collapse = ' '))
-	say('formula_biomass_pzero ........ ', paste(as.character(formula_biomass_pzero), collapse = ' '))
+	say('formula_pzero ........ ', paste(as.character(formula_pzero), collapse = ' '))
 	say('homoscedastic ................ ', homoscedastic)
 	say('zero_inflated ................ ', zero_inflated)
 	say('calib ........................ ', calib, post = 2)
@@ -127,7 +127,7 @@
 	formulae <- list(
 		formula_biomass_mu = formula_biomass_mu,
 		formula_biomass_sigma = formula_biomass_sigma,
-		formula_biomass_pzero = formula_biomass_pzero
+		formula_pzero = formula_pzero
 	)
 
 	########################s

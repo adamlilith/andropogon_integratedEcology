@@ -5,11 +5,10 @@
 #' @param pred_vect_nam SpatVector with predictions for all of North America
 #' @param pred_vect_conus SpatVector with predictions for CONUS
 #' @param pred_vect_1930s,pred_vect_1950s SpatVectors with predictions from 1930s and 1950s
-#' @param formula_biomass_mu,formula_biomass_sigma,formula_biomass_pzero `NULL` or formula for each
-map_biomass_traits_change_1930s <- function(facet, data_biomass_traits, pred_vect_nam, pred_vect_1930s, formula_biomass_mu, formula_biomass_sigma, formula_biomass_pzero) {
+#' @param formula_mu,formula_sigma,formula_pzero `NULL` or formula for each
+map_biomass_traits_change_1930s <- function(facet, data_biomass_traits, pred_vect_nam, pred_vect_1930s, formula_mu, formula_sigma, formula_pzero) {
 
-	homoscedastic <- is.null(formula_biomass_sigma)
-	zero_inflated <- !is.null(formula_biomass_pzero)
+	zero_inflated <- !is.null(formula_pzero)
 
 	if (facet == 'biomass') {
 		site_vect <- data_biomass_traits$site_vect_biomass

@@ -69,7 +69,7 @@
 	# zero_inflated <- FALSE # SPECIFIC TO THIS SCRIPT--SHOULD NOT BE CHANGED
 	zero_inflated <- TRUE # SPECIFIC TO THIS SCRIPT--SHOULD NOT BE CHANGED
 	formula_biomass_sigma <- NULL
-	formula_biomass_pzero <- NULL
+	formula_pzero <- NULL
 
 	if (!trial) {
 
@@ -393,7 +393,7 @@
 	descrip <- paste0(trait, ': gamma~normal homoscedastic')
 
 	workflow_postmodeling_generic(facet = trait, formulae = formulae, descrip = descrip, out_dir = out_dir)
-	workflow_postmodeling_biomass(chains = chains, descrip = descrip, formula_biomass_mu = formula_biomass_mu, formula_biomass_sigma = formula_biomass_sigma, formula_biomass_pzero = formula_biomass_pzero, crossvalidate = crossvalidate, out_dir = out_dir)
+	workflow_postmodeling_biomass(chains = chains, descrip = descrip, formula_biomass_mu = formula_biomass_mu, formula_biomass_sigma = formula_biomass_sigma, formula_pzero = formula_pzero, crossvalidate = crossvalidate, out_dir = out_dir)
 
 say(date())
 say('FINIS!', deco = '+', level = 1)

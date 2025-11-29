@@ -76,9 +76,9 @@ map_occurrence_change <- function(
 		layer_spatial(data_traits$site_vect_traits, pch = 3, size = 1) +
 		scale_fill_gradient2(
 			name = legend_title,
-			low = '#c51b7d',
-			mid = '#f7f7f7',
-			high = '#4d9221',
+			low = '#7b3294',
+			mid = 'beige',
+			high = '#008837',
 			midpoint = 0,
 			limits = resp_limits
 			# labels = scales::label_percent(digits = 2)

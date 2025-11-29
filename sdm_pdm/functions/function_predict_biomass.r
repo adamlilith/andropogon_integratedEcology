@@ -18,7 +18,7 @@ predict_biomass <- function(chains, x, homoscedastic, type = 'mu') {
 		vars <- paste0('beta_biomass_sigma')
 		betas_sigma <- hammer_subset(chains, vars, j = TRUE)
 	}
-
+	sigma_biomass_within_sites <- hammer_subset(chains, 'sigma_biomass_within_sites')
 
 	n_samples <- nrow(x)
 	nchains <- length(chains$samples)
@@ -38,23 +38,31 @@ predict_biomass <- function(chains, x, homoscedastic, type = 'mu') {
 			pred_untrans <- x %*% this_beta
 			pred_untrans <- pred_untrans[ , 1]
 
+			this_sigma_biomass_within_sites <- sigma_biomass_within_sites$samples[[chain]][iter, 'sigma_biomass_within_sites']
+
 			if (type == 'mu' & homoscedastic) {
 				
 				this_sigma_biomass_among_sites <- sigma_biomass_among_sites$samples[[chain]][iter]
-				pred <- rnorm(n_samples, mean = pred_untrans, sd = this_sigma_biomass_among_sites)
-				pred <- exp(pred)
-			
+				log_mu_biomass <- rnorm(n_samples, mean = pred_untrans, sd = this_sigma_biomass_among_sites)
+				mu_biomass <- exp(log_mu_biomass)
+
+				shape_biomass <- mu_biomass^2 / this_sigma_biomass_within_sites^2
+				rate_biomass <- mu_biomass / this_sigma_biomass_within_sites^2
+
+				pred <- rep(NA_real_, length(mu_biomass))
+				for (count in seq_along(pred)) pred[count] <- rgamma(1, shape = shape_biomass[count], rate = rate_biomass[count])
+
 			} else if (type == 'mu' & !homoscedastic) {
 				
-				this_beta_sigma <- betas_sigma$samples[[chain]][iter, ]
-				this_beta_sigma <- cbind(this_beta_sigma)
+				# this_beta_sigma <- betas_sigma$samples[[chain]][iter, ]
+				# this_beta_sigma <- cbind(this_beta_sigma)
 
-				pred_untrans_sigma <- x %*% this_beta_sigma
-				pred_untrans_sigma <- pred_untrans_sigma[ , 1]
+				# pred_untrans_sigma <- x %*% this_beta_sigma
+				# pred_untrans_sigma <- pred_untrans_sigma[ , 1]
 
-				this_sigma_biomass_among_sites <- exp(pred_untrans_sigma)
-				pred <- rnorm(n_samples, mean = pred_untrans_sigma, sd = this_sigma_biomass_among_sites)
-				pred <- exp(pred)
+				# this_sigma_biomass_among_sites <- exp(pred_untrans_sigma)
+				# pred <- rnorm(n_samples, mean = pred_untrans_sigma, sd = this_sigma_biomass_among_sites)
+				# pred <- exp(pred)
 			
 			} else if (type == 'pzero') {
 				pred <- expit(pred_untrans)

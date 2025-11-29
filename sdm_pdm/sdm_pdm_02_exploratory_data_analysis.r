@@ -14,6 +14,8 @@
 ### pre-screen simple models for each trait ###
 ### pre-screen simple models of relationship between environment and occurrence ###
 ### plots of occurrence and traits in environmental space ###
+### frequentist presence-absence modeling of occurrence ###
+### plot likelihood of joint, zero-inflated Poisson-gamma distribution ###
 
 #############
 ### setup ###
@@ -199,106 +201,106 @@
 
 	# }
 
-say('####################################################################################################')
-say('### correlations between environmental variables at phenotypic sample sites and occurrence sites ###')
-say('####################################################################################################')
+# say('####################################################################################################')
+# say('### correlations between environmental variables at phenotypic sample sites and occurrence sites ###')
+# say('####################################################################################################')
 
-	dirCreate('./outputs_loretta/integrated_sdm_pdm')
+# 	dirCreate('./outputs_loretta/integrated_sdm_pdm')
 
-	### sites
+# 	### sites
 
-		sites <- readRDS('./data_from_loretta/sdm_pdm_00_merged_site_data_with_climate/sites.rds')
-		vars <- c(paste0('bio', c(1, 5, 6, 7, 10, 12, 15, 18)), 'aridity', 'field_pH', 'SAND', 'SILT', 'CLAY')
+# 		sites <- readRDS('./data_from_loretta/sdm_pdm_00_merged_site_data_with_climate/sites.rds')
+# 		vars <- c(paste0('bio', c(1, 5, 6, 7, 10, 12, 15, 18)), 'aridity', 'field_pH', 'SAND', 'SILT', 'CLAY')
 
-		cors <- cor(sites[ , ..vars], method = 'spearman')
-		# rownames(cors) <- colnames(cors) <- c(paste0('BIO', c(1, 5, 6, 7, 10, 12, 15, 18)), 'Aridity', 'pH', 'Sand', 'Silt', 'Clay')
-		rownames(cors) <- colnames(cors) <- c('Mean Temp. (BIO1)', 'Max. Temp (BIO5)', 'Min. Temp (BIO6)', 'Temp. Range (BIO7)', 'Summer Temp (BIO10)', 'Annual Precip. (BIO12)', 'Precip. Variability (BIO15)', 'Summer Precip. (BIO18)', 'Aridity', 'pH', 'Sand', 'Silt', 'Clay')
-		dists <- 1 - abs(cors)
-		dists <- as.dist(dists)
+# 		cors <- cor(sites[ , ..vars], method = 'spearman')
+# 		# rownames(cors) <- colnames(cors) <- c(paste0('BIO', c(1, 5, 6, 7, 10, 12, 15, 18)), 'Aridity', 'pH', 'Sand', 'Silt', 'Clay')
+# 		rownames(cors) <- colnames(cors) <- c('Mean Temp. (BIO1)', 'Max. Temp (BIO5)', 'Min. Temp (BIO6)', 'Temp. Range (BIO7)', 'Summer Temp (BIO10)', 'Annual Precip. (BIO12)', 'Precip. Variability (BIO15)', 'Summer Precip. (BIO18)', 'Aridity', 'pH', 'Sand', 'Silt', 'Clay')
+# 		dists <- 1 - abs(cors)
+# 		dists <- as.dist(dists)
 
-		sites_cluster <- hclust(dists)
+# 		sites_cluster <- hclust(dists)
 
-		dendro <- as.dendrogram(sites_cluster)
-		sites_dendro <- dendro_data(dendro)
+# 		dendro <- as.dendrogram(sites_cluster)
+# 		sites_dendro <- dendro_data(dendro)
 
-	### occurrences
+# 	### occurrences
 
-		occs <- vect('./outputs_loretta/integrated_sdm_pdm/andropogon_gerardi_occurrences_with_environment_1961_2020_for_integration.gpkg')
-		occs <- occs[occs$n_poaceae > 0]
-		# occs <- occs[occs$n_andropogon_gerardi > 0]
-		occs <- as.data.table(occs)
+# 		occs <- vect('./outputs_loretta/integrated_sdm_pdm/andropogon_gerardi_occurrences_with_environment_1961_2020_for_integration.gpkg')
+# 		occs <- occs[occs$n_poaceae > 0]
+# 		# occs <- occs[occs$n_andropogon_gerardi > 0]
+# 		occs <- as.data.table(occs)
 
-		vars <- c(paste0('bio', c(1, 5, 6, 7, 10, 12, 15, 18)), 'aridity', 'ph', 'sand', 'silt', 'clay')
+# 		vars <- c(paste0('bio', c(1, 5, 6, 7, 10, 12, 15, 18)), 'aridity', 'ph', 'sand', 'silt', 'clay')
 
-		cors <- cor(occs[ , ..vars], method = 'spearman')
-		# rownames(cors) <- colnames(cors) <- c(paste0('BIO', c(1, 5, 6, 7, 10, 12, 15, 18)), 'Aridity', 'pH', 'Sand', 'Silt', 'Clay')
-		rownames(cors) <- colnames(cors) <- c('Mean Temp. (BIO1)', 'Max. Temp (BIO5)', 'Min. Temp (BIO6)', 'Temp. Range (BIO7)', 'Summer Temp (BIO10)', 'Annual Precip. (BIO12)', 'Precip. Variability (BIO15)', 'Summer Precip. (BIO18)', 'Aridity', 'pH', 'Sand', 'Silt', 'Clay')
-		dists <- 1 - abs(cors)
-		dists <- as.dist(dists)
+# 		cors <- cor(occs[ , ..vars], method = 'spearman')
+# 		# rownames(cors) <- colnames(cors) <- c(paste0('BIO', c(1, 5, 6, 7, 10, 12, 15, 18)), 'Aridity', 'pH', 'Sand', 'Silt', 'Clay')
+# 		rownames(cors) <- colnames(cors) <- c('Mean Temp. (BIO1)', 'Max. Temp (BIO5)', 'Min. Temp (BIO6)', 'Temp. Range (BIO7)', 'Summer Temp (BIO10)', 'Annual Precip. (BIO12)', 'Precip. Variability (BIO15)', 'Summer Precip. (BIO18)', 'Aridity', 'pH', 'Sand', 'Silt', 'Clay')
+# 		dists <- 1 - abs(cors)
+# 		dists <- as.dist(dists)
 
-		occs_cluster <- hclust(dists)
+# 		occs_cluster <- hclust(dists)
 
-		dendro <- as.dendrogram(occs_cluster)
-		occs_dendro <- dendro_data(dendro)
+# 		dendro <- as.dendrogram(occs_cluster)
+# 		occs_dendro <- dendro_data(dendro)
 
-	### plot
+# 	### plot
 
-        # Define consistent colors for labels
-        label_names <- c('Mean Temp. (BIO1)', 'Max. Temp (BIO5)', 'Min. Temp (BIO6)', 'Temp. Range (BIO7)', 'Summer Temp (BIO10)', 'Annual Precip. (BIO12)', 'Precip. Variability (BIO15)', 'Summer Precip. (BIO18)', 'Aridity', 'pH', 'Sand', 'Silt', 'Clay')
-        label_colors <- setNames(scales::hue_pal()(length(label_names)), label_names)
+#         # Define consistent colors for labels
+#         label_names <- c('Mean Temp. (BIO1)', 'Max. Temp (BIO5)', 'Min. Temp (BIO6)', 'Temp. Range (BIO7)', 'Summer Temp (BIO10)', 'Annual Precip. (BIO12)', 'Precip. Variability (BIO15)', 'Summer Precip. (BIO18)', 'Aridity', 'pH', 'Sand', 'Silt', 'Clay')
+#         label_colors <- setNames(scales::hue_pal()(length(label_names)), label_names)
 
-        sites_labels <- label(sites_dendro)
-        sites_labels$color <- label_colors[as.character(sites_labels$label)]
+#         sites_labels <- label(sites_dendro)
+#         sites_labels$color <- label_colors[as.character(sites_labels$label)]
 
-        occs_labels <- label(occs_dendro)
-        occs_labels$color <- label_colors[as.character(occs_labels$label)]
+#         occs_labels <- label(occs_dendro)
+#         occs_labels$color <- label_colors[as.character(occs_labels$label)]
 
-        sites_plot <- ggplot(segment(sites_dendro)) +
-            geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
-			geom_text(
-				data = sites_labels,
-				aes(x = x, y = y, label = label, color = label),
-				hjust = 1.1, vjust = 0.5, angle = 90
-			) +
-            scale_color_manual(values = label_colors, guide = "none") +
-            geom_hline(yintercept = 0.3, color = 'red', linetype = 'dashed') +
-            coord_cartesian(clip = 'off') +
-            theme_minimal() +
-            theme(
-                panel.grid = element_blank(),
-                axis.text.x = element_blank(),
-                plot.margin = margin(t = 5, r = 5, b = 100, l = 5)
-            ) +
-            labs(
-                title = 'a) Correlations at field sites',
-                y = "1 - |ρ|",
-                x = NULL
-            )
+#         sites_plot <- ggplot(segment(sites_dendro)) +
+#             geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
+# 			geom_text(
+# 				data = sites_labels,
+# 				aes(x = x, y = y, label = label, color = label),
+# 				hjust = 1.1, vjust = 0.5, angle = 90
+# 			) +
+#             scale_color_manual(values = label_colors, guide = "none") +
+#             geom_hline(yintercept = 0.3, color = 'red', linetype = 'dashed') +
+#             coord_cartesian(clip = 'off') +
+#             theme_minimal() +
+#             theme(
+#                 panel.grid = element_blank(),
+#                 axis.text.x = element_blank(),
+#                 plot.margin = margin(t = 5, r = 5, b = 100, l = 5)
+#             ) +
+#             labs(
+#                 title = 'a) Correlations at field sites',
+#                 y = "1 - |ρ|",
+#                 x = NULL
+#             )
 
-        occs_plot <- ggplot(segment(occs_dendro)) +
-            geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
-            geom_text(
-                data = occs_labels,
-                aes(x = x, y = y, label = label, color = label),
-                hjust = 1.1, vjust = 0.5, size = 3, angle = 90
-            ) +
-            scale_color_manual(values = label_colors, guide = "none") +
-            geom_hline(yintercept = 0.3, color = 'red', linetype = 'dashed') +
-            coord_cartesian(clip = 'off') +
-            theme_minimal() +
-            theme(
-                panel.grid = element_blank(),
-                axis.text.x = element_blank(),
-                plot.margin = margin(t = 5, r = 5, b = 100, l = 5)
-            ) +
-            labs(
-                title = 'b) Correlations across SDM calibration sites',
-                y = "1 - |ρ|",
-                x = NULL
-            )
+#         occs_plot <- ggplot(segment(occs_dendro)) +
+#             geom_segment(aes(x = x, y = y, xend = xend, yend = yend)) +
+#             geom_text(
+#                 data = occs_labels,
+#                 aes(x = x, y = y, label = label, color = label),
+#                 hjust = 1.1, vjust = 0.5, size = 3, angle = 90
+#             ) +
+#             scale_color_manual(values = label_colors, guide = "none") +
+#             geom_hline(yintercept = 0.3, color = 'red', linetype = 'dashed') +
+#             coord_cartesian(clip = 'off') +
+#             theme_minimal() +
+#             theme(
+#                 panel.grid = element_blank(),
+#                 axis.text.x = element_blank(),
+#                 plot.margin = margin(t = 5, r = 5, b = 100, l = 5)
+#             ) +
+#             labs(
+#                 title = 'b) Correlations across SDM calibration sites',
+#                 y = "1 - |ρ|",
+#                 x = NULL
+#             )
 
-		combo <- sites_plot + occs_plot
-		ggsave(combo, filename = './outputs_loretta/integrated_sdm_pdm/correlations_between_covariates_sites_and_counties_with_poaceae.svg', height = 5, width = 12, dpi = 600)
+# 		combo <- sites_plot + occs_plot
+# 		ggsave(combo, filename = './outputs_loretta/integrated_sdm_pdm/correlations_between_covariates_sites_and_counties_with_poaceae.svg', height = 5, width = 12, dpi = 600)
 
 # say('##############################################################')
 # say('### univariate plots of each phenotypic trait by covariate ###')
@@ -938,5 +940,122 @@ say('###########################################################################
 
 # 	maps <- plot_grid(plotlist = maps, ncol = 4)
 # 	ggsave(maps, filename = paste0(out_dir, '/maps_of_environmental_variables_in_focal_region.png'), width = 19.2, height = 10.8, bg = 'white')
+
+# say('###########################################################')
+# say('### frequentist presence-absence modeling of occurrence ###')
+# say('###########################################################')
+
+# 	# Here we evaluate alternative formulations for the probability of presence/absence. Using this to assess the best model form for zero-inflated occurrence modeling.
+
+# 	ag <- vect('./outputs_loretta/integrated_sdm_pdm/andropogon_gerardi_occurrences_with_environment_1961_2020_for_integration.gpkg')
+	
+# 	ag <- as.data.table(ag)
+# 	ag <- ag[!is.na(n_andropogon_gerardi)]
+# 	ag$pres_nonpres <- as.numeric(ag$n_andropogon_gerardi > 0)
+
+# 	# preds <- c('bio1', 'bio12', 'bio15', 'sand', 'ph', 'aridity')
+# 	preds <- c('bio1', 'bio12', 'bio15', 'sand', 'ph')
+# 	# preds <- c('bio1', 'bio12', 'bio15', 'silt')
+# 	# preds <- c('silt')
+
+# 	evals <- data.table()
+# 	folds <- length(unique(ag$geofold))
+# 	for (g in 1:folds) {
+	
+# 		say(g)
+
+# 		train_data <- ag[geofold != g]
+# 		test_data <- ag[geofold == g]
+
+# 		model <- trainGLM(train_data, preds = preds, resp = 'pres_nonpres', scale = TRUE, interaction = FALSE)
+
+# 		# predict
+# 		train_pred <- predictEnmSdm(model, train_data)
+# 		test_pred <- predictEnmSdm(model, test_data)
+
+# 		train_pres <- train_pred[train_data$pres_nonpres == 1]
+# 		train_abs <- train_pred[train_data$pres_nonpres == 0]
+
+# 		test_pres <- test_pred[test_data$pres_nonpres == 1]
+# 		test_abs <- test_pred[test_data$pres_nonpres == 0]
+
+# 		# evaluate
+# 		cbi_internal <- evalContBoyce(pres = train_pres, contrast = train_abs)
+# 		cbi_external <- evalContBoyce(pres = test_pres, contrast = test_abs)
+
+# 		auc_internal <- evalAUC(pres = train_pres, contrast = train_abs)
+# 		auc_external <- evalAUC(pres = test_pres, contrast = test_abs)
+
+# 		threshold <- evalThreshold(pres = train_pres, contrast = train_abs, at = 'msss')
+# 		thold_stats_train <- evalThresholdStats(threshold, pres = train_pres, contrast = train_abs)
+# 		thold_stats_test <- evalThresholdStats(threshold, pres = test_pres, contrast = test_abs)
+
+# 		se_internal <- thold_stats_train['sensitivity']
+# 		se_external <- thold_stats_test['sensitivity']
+
+# 		sp_internal <- thold_stats_train['specificity']
+# 		sp_external <- thold_stats_test['specificity']
+
+# 		coeffs <- coeffs(model)
+# 		coeff_names <- names(coeffs)
+# 		coeff_names <- paste(coeff_names, collapse = ', ')
+
+# 		evals <- rbind(
+# 			evals,
+# 			data.table(
+# 				g = g,
+# 				coeffs = coeff_names,
+# 				cbi_internal = cbi_internal,
+# 				cbi_external = cbi_external,
+# 				auc_internal = auc_internal,
+# 				auc_external = auc_external,
+# 				se_internal = se_internal,
+# 				se_external = se_external,
+# 				sp_internal = se_internal,
+# 				sp_external = se_external
+# 			)
+# 		)
+	
+# 	}
+
+# 	fwrite(evals, './outputs_loretta/integrated_sdm_pdm/presence_absence_glm.csv')
+
+# say('##########################################################################')
+# say('### plot likelihood of joint, zero-inflated Poisson-gamma distribution ###')
+# say('##########################################################################')
+
+# 	# make heat plots of likelihood of joint, zero-inflated Poisson-gamma distribution
+# 	lambda <- 10
+# 	shape <- 50
+# 	rate <- 2 # mean should be 25 because mu = shape / rate
+
+# 	# values along which to plot
+# 	poisson <- 0:20
+# 	gamma <- seq(0, 50, by = 5)
+# 	pzero <- c(0, 0.25, 0.5)
+
+# 	# likelihood
+# 	log_likes <- expand.grid(poisson = poisson, gamma = gamma, pzero = pzero)
+# 	log_likes$ll <- NA_real_
+# 	for (i in 1:nrow(log_likes)) {
+	
+# 		x <- c(log_likes$poisson[i], log_likes$gamma[i])
+# 		pzero <- log_likes$pzero[i]
+# 		log_likes$ll[i] <- dzipoisgamma1(x, lambda = lambda, shape = shape, rate = rate, pzero = pzero, log = 1)
+	
+# 	}
+
+# 	log_likes <- log_likes[!is.infinite(log_likes$ll), ]
+
+# 	pzeros <- ggplot(log_likes, aes(x = poisson, y = gamma, color = ll)) + 
+# 		geom_point(pch = 16, size = 4) +
+# 		scale_color_viridis_c(option = 'magma') +
+# 		xlab('x1 (Poisson)') + ylab('x1 (Gamma)') +
+# 		labs(color = 'log\nlikelihood') +
+# 		facet_wrap(~ pzero) +
+# 		theme_minimal()
+
+# 	ggsave(pzeros, filename = './outputs_loretta/integrated_sdm_pdm/likelihood_of_joint_zero_inflated_poisson_and_1_gamma.png', width = 15, height = 5, bg = 'white')
+
 
 say('FINIS!', level = 1)

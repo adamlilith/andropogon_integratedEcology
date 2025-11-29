@@ -192,7 +192,7 @@
 		alpha_occs = alpha_occs_inits, # intercept, area, # of Poaceae
 		beta_occs_mu = beta_occs_inits, # occurrence ~ environment coefficients (including intercept)
 		beta_occs_sigma = beta_occs_inits, # occurrence sd ~ environment coefficients (including intercept)
-		beta_occs_pzero = beta_occs_pzero_inits, # occurrence ~ environment coefficients (including intercept)
+		beta_pzero = beta_occs_pzero_inits, # occurrence ~ environment coefficients (including intercept)
 
 		N = N_inits_calib, # number of latent AG in calibration counties
 		N_ag_county_sq = N_inits_all_counties, # number of latent AG in all counties
@@ -244,9 +244,9 @@
 		}
 
 		# OCCURRENCE: priors for zero-inflation
-		beta_occs_pzero[1] ~ dnorm(0, sd = beta_occs_pzero_prior_dnorm_sd_1)
+		beta_pzero[1] ~ dnorm(0, sd = beta_occs_pzero_prior_dnorm_sd_1)
 		for (i in 2:n_terms_occs) {
-			beta_occs_pzero[i] ~ dnorm(0, sd = beta_occs_pzero_prior_dnorm_sd)
+			beta_pzero[i] ~ dnorm(0, sd = beta_occs_pzero_prior_dnorm_sd)
 		}
 
 		# OCCURRENCE: priors for sampling bias
@@ -262,7 +262,7 @@
 			N[i] ~ dzip(lambda_mu_sq[i], pzero = pzero_occs[i])
 
 			# probability of 0
-			logit(pzero_occs[i]) <- inprod(beta_occs_pzero[1:n_terms_occs], counties_x_occs_calib_sq[i, 1:n_terms_occs])
+			logit(pzero_occs[i]) <- inprod(beta_pzero[1:n_terms_occs], counties_x_occs_calib_sq[i, 1:n_terms_occs])
 
 			### observed number of AG and sampling bias
 			logit(p[i]) <- inprod(alpha_occs[1:n_terms_occs_bias], w_occs_bias[i, 1:n_terms_occs_bias])
@@ -289,7 +289,7 @@
 
 			# sq (status quo)
 			N_ag_county_sq[i] ~ dzip(county_lambda_sq[i], pzero = pzero_occs_county_sq[i])
-			logit(pzero_occs_county_sq[i]) <- inprod(beta_occs_pzero[1:n_terms_occs], counties_x_occs_sq[i, 1:n_terms_occs])
+			logit(pzero_occs_county_sq[i]) <- inprod(beta_pzero[1:n_terms_occs], counties_x_occs_sq[i, 1:n_terms_occs])
 			log(county_lambda_sq[i]) ~ dnorm(phi_county_lambda_mu_sq[i], sd = county_lambda_sigma_sq[i])
 			phi_county_lambda_mu_sq[i] <-
 				inprod(beta_occs_mu[1:n_terms_occs], counties_x_occs_sq[i, 1:n_terms_occs])
@@ -299,7 +299,7 @@
 			# ssp245_2041_2070
 			N_ag_county_ssp245_2041_2070[i] ~ dzip(county_lambda_ssp245_2041_2070[i], pzero = pzero_occs_county_ssp245_2041_2070[i])
 			logit(pzero_occs_county_ssp245_2041_2070[i]) <-
-				inprod(beta_occs_pzero[1:n_terms_occs], counties_x_occs_ssp245_2041_2070[i, 1:n_terms_occs])
+				inprod(beta_pzero[1:n_terms_occs], counties_x_occs_ssp245_2041_2070[i, 1:n_terms_occs])
 			log(county_lambda_ssp245_2041_2070[i]) ~ dnorm(phi_county_lambda_mu_ssp245_2041_2070[i], sd = county_lambda_sigma_ssp245_2041_2070[i])
 			phi_county_lambda_mu_ssp245_2041_2070[i] <-
 				inprod(beta_occs_mu[1:n_terms_occs], counties_x_occs_ssp245_2041_2070[i, 1:n_terms_occs])
@@ -309,7 +309,7 @@
 			# ssp245_2071_2100
 			N_ag_county_ssp245_2071_2100[i] ~ dzip(county_lambda_ssp245_2071_2100[i], pzero = pzero_occs_county_ssp245_2071_2100[i])
 			logit(pzero_occs_county_ssp245_2071_2100[i]) <-
-				inprod(beta_occs_pzero[1:n_terms_occs], counties_x_occs_ssp245_2071_2100[i, 1:n_terms_occs])
+				inprod(beta_pzero[1:n_terms_occs], counties_x_occs_ssp245_2071_2100[i, 1:n_terms_occs])
 			log(county_lambda_ssp245_2071_2100[i]) ~ dnorm(phi_county_lambda_mu_ssp245_2071_2100[i], sd = county_lambda_sigma_ssp245_2071_2100[i])
 			phi_county_lambda_mu_ssp245_2071_2100[i] <-
 				inprod(beta_occs_mu[1:n_terms_occs], counties_x_occs_ssp245_2071_2100[i, 1:n_terms_occs])
@@ -319,7 +319,7 @@
 			# ssp370_2041_2070
 			N_ag_county_ssp370_2041_2070[i] ~ dzip(county_lambda_ssp370_2041_2070[i], pzero = pzero_occs_county_ssp370_2041_2070[i])
 			logit(pzero_occs_county_ssp370_2041_2070[i]) <-
-				inprod(beta_occs_pzero[1:n_terms_occs], counties_x_occs_ssp370_2041_2070[i, 1:n_terms_occs])
+				inprod(beta_pzero[1:n_terms_occs], counties_x_occs_ssp370_2041_2070[i, 1:n_terms_occs])
 			log(county_lambda_ssp370_2041_2070[i]) ~ dnorm(phi_county_lambda_mu_ssp370_2041_2070[i], sd = county_lambda_sigma_ssp370_2041_2070[i])
 			phi_county_lambda_mu_ssp370_2041_2070[i] <-
 				inprod(beta_occs_mu[1:n_terms_occs], counties_x_occs_ssp370_2041_2070[i, 1:n_terms_occs])
@@ -329,7 +329,7 @@
 			# ssp370_2071_2100
 			N_ag_county_ssp370_2071_2100[i] ~ dzip(county_lambda_ssp370_2071_2100[i], pzero = pzero_occs_county_ssp370_2071_2100[i])
 			logit(pzero_occs_county_ssp370_2071_2100[i]) <-
-				inprod(beta_occs_pzero[1:n_terms_occs], counties_x_occs_ssp370_2071_2100[i, 1:n_terms_occs])
+				inprod(beta_pzero[1:n_terms_occs], counties_x_occs_ssp370_2071_2100[i, 1:n_terms_occs])
 			log(county_lambda_ssp370_2071_2100[i]) ~ dnorm(phi_county_lambda_mu_ssp370_2071_2100[i], sd = county_lambda_sigma_ssp370_2071_2100[i])
 			phi_county_lambda_mu_ssp370_2071_2100[i] <-
 				inprod(beta_occs_mu[1:n_terms_occs], counties_x_occs_ssp370_2071_2100[i, 1:n_terms_occs])
@@ -344,7 +344,7 @@
 			# 1930s
 			N_ag_county_thirties[i] ~ dzip(county_lambda_thirties[i], pzero = pzero_occs_county_thirties[i])
 			logit(pzero_occs_county_thirties[i]) <-
-				inprod(beta_occs_pzero[1:n_terms_occs], counties_x_occs_thirties[i, 1:n_terms_occs])
+				inprod(beta_pzero[1:n_terms_occs], counties_x_occs_thirties[i, 1:n_terms_occs])
 			log(county_lambda_thirties[i]) ~ dnorm(phi_county_lambda_mu_thirties[i], sd = county_lambda_sigma_thirties[i])
 			phi_county_lambda_mu_thirties[i] <-
 				inprod(beta_occs_mu[1:n_terms_occs], counties_x_occs_thirties[i, 1:n_terms_occs])
@@ -354,7 +354,7 @@
 			# 1950s
 			N_ag_county_fifties[i] ~ dzip(county_lambda_fifties[i], pzero = pzero_occs_county_fifties[i])
 			logit(pzero_occs_county_fifties[i]) <-
-				inprod(beta_occs_pzero[1:n_terms_occs], counties_x_occs_fifties[i, 1:n_terms_occs])
+				inprod(beta_pzero[1:n_terms_occs], counties_x_occs_fifties[i, 1:n_terms_occs])
 			log(county_lambda_fifties[i]) ~ dnorm(phi_county_lambda_mu_fifties[i], sd = county_lambda_sigma_fifties[i])
 			phi_county_lambda_mu_fifties[i] <-
 				inprod(beta_occs_mu[1:n_terms_occs], counties_x_occs_fifties[i, 1:n_terms_occs])
@@ -378,7 +378,7 @@
 					inprod(beta_occs_sigma[1:n_terms_occs], resp_curves_x_occs[j, 1:n_terms_occs, i])
 				)
 				logit(response_curves_occs_pzero[j, i]) <-
-					inprod(beta_occs_pzero[1:n_terms_occs], resp_curves_x_occs[j, 1:n_terms_occs, i])
+					inprod(beta_pzero[1:n_terms_occs], resp_curves_x_occs[j, 1:n_terms_occs, i])
 
 			}
 
@@ -424,7 +424,7 @@
 	say('configureMCMC():', level = 2)
 
 	monitors_coeffs_not_indexed <- c()
-	monitors_coeffs_single_index <- c('beta_occs_mu', 'beta_occs_sigma', 'beta_occs_pzero', 'alpha_occs')
+	monitors_coeffs_single_index <- c('beta_occs_mu', 'beta_occs_sigma', 'beta_pzero', 'alpha_occs')
 	monitors_coeffs_double_index <- c()
 
 	monitors_derived_not_indexed <- c('log_lik')

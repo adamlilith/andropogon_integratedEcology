@@ -4,7 +4,8 @@
 #' @param resp_type "mu" or "sigma" or "pzero"
 #' @param chains MCMC chains
 #' @param data From prepare_occurrences().
-graph_response_curves_occurrence_vs_environment <- function(out_dir, resp_type, chains, data) {
+#' @param log_precip If `TRUE`, bios 12-14 and 16-19 were logged
+graph_response_curves_occurrence_vs_environment <- function(out_dir, resp_type, chains, data, log_precip) {
 
 	n_covariates <- data$n_covariates_occs
 	covariates <- data$covariates_occs
@@ -45,6 +46,8 @@ graph_response_curves_occurrence_vs_environment <- function(out_dir, resp_type, 
 
 		# unscaled predictor value
 		x <- resp_curves_unscaled[ , pred]
+
+		if (log_precip & pred %in% paste0('bio', c(12:14, 16:19))) x <- 10^x - 1
 		
 		response_mean <- hammer_extract(chains, param = param, j = 1:n_response_curve_values, k = i, stat = 'mean')
 		response_lower <- hammer_extract(chains, param = param, j = 1:n_response_curve_values, k = i, stat = 'lower')

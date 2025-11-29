@@ -63,7 +63,7 @@
 	calib <- FALSE # use all of North America for calibration region
 
 	formula_biomass_sigma <- formula_biomass_mu # SPECIFIC TO THIS SCRIPT--SHOULD NOT BE CHANGED
-	formula_biomass_pzero <- NULL # SPECIFIC TO THIS SCRIPT--SHOULD NOT BE CHANGED
+	formula_pzero <- NULL # SPECIFIC TO THIS SCRIPT--SHOULD NOT BE CHANGED
 
 	if (!trial) {
 
@@ -114,9 +114,9 @@
 	say('nchains ...................... ', nchains)
 	say('formula_biomass_mu ........... ', paste(as.character(formula_biomass_mu), collapse = ' '))
 	say('formula_biomass_sigma ........ ', paste(as.character(formula_biomass_sigma), collapse = ' '))
-	say('formula_biomass_pzero ........ ', paste(as.character(formula_biomass_pzero), collapse = ' '))
+	say('formula_pzero ........ ', paste(as.character(formula_pzero), collapse = ' '))
 	say('homoscedastic ................ ', is.null(formula_biomass_sigma))
-	say('zero_inflated ................ ', is.null(formula_biomass_pzero))
+	say('zero_inflated ................ ', is.null(formula_pzero))
 	say('calib ........................ ', calib, post = 2)
 
 	say('out_dir:')
@@ -410,7 +410,7 @@
 	descrip <- paste0(trait, ': gamma~normal heteroscedastic')
 
 	workflow_postmodeling_generic(facet = trait, formulae = formulae, descrip = descrip, out_dir = out_dir)
-	workflow_postmodeling_biomass(chains = chains, descrip = descrip, formula_biomass_mu = formula_biomass_mu, formula_biomass_sigma = formula_biomass_sigma, formula_biomass_pzero = formula_biomass_pzero, crossvalidate = crossvalidate, out_dir = out_dir)
+	workflow_postmodeling_biomass(chains = chains, descrip = descrip, formula_biomass_mu = formula_biomass_mu, formula_biomass_sigma = formula_biomass_sigma, formula_pzero = formula_pzero, crossvalidate = crossvalidate, out_dir = out_dir)
 
 say(date())
 say('FINIS!', deco = '+', level = 1)

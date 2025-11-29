@@ -2,24 +2,22 @@
 #'
 #' @param homoscedastic If `TRUE`, then do not analyze behavior of sigma
 #' @param zero_inflated Logical.
-#' @param formula_occs,formula_occs_sigma,formula_occs_pzero,formula_occs_bias Formulae for occurrences, sigma, probability of zero-inflation, and  occurrence bias
+#' @param formula_occs,formula_occs_sigma,formula_pzero,formula_occs_bias Formulae for occurrences, sigma, probability of zero-inflation, and  occurrence bias
 #' @param out_dir Folder into which to save results.
-workflow_postmodeling_occurrence <- function(formula_occs, formula_occs_sigma, formula_occs_pzero, formula_occs_bias, pred_vect_nam, out_dir) {
+workflow_postmodeling_occurrence <- function(formula_occs, formula_occs_sigma, formula_pzero, formula_occs_bias, out_dir) {
 
 	homoscedastic <- is.null(formula_occs_sigma)
-	zero_inflated <- !is.null(formula_occs_pzero)
+	zero_inflated <- !is.null(formula_pzero)
 
 	if (zero_inflated) data_traits <- prepare_nonbiomass_traits(trait = 'height', formula = ~ 1, n_response_curve_values = n_response_curve_values, calib = calib)
-
-
 
 	### burn predictions into vector
 	################################
 	say('OCCURRENCE: burn prediction vectors', level = 2)
 
-		pred_vect_nam <- burn_occs_into_vector(demesne = 'nam', chains = chains, formula_occs = formula_occs, formula_occs_sigma = formula_occs_sigma, formula_occs_pzero = formula_occs_pzero)
+		pred_vect_nam <- burn_occs_into_vector(demesne = 'nam', chains = chains, formula_occs = formula_occs, formula_occs_sigma = formula_occs_sigma, formula_pzero = formula_pzero)
 
-		pred_vect_1930s <- burn_occs_into_vector(demesne = '1930s', chains = chains, formula_occs = formula_occs, formula_occs_sigma = formula_occs_sigma, formula_occs_pzero = formula_occs_pzero)
+		pred_vect_1930s <- burn_occs_into_vector(demesne = '1930s', chains = chains, formula_occs = formula_occs, formula_occs_sigma = formula_occs_sigma, formula_pzero = formula_pzero)
 
 		writeVector(pred_vect_nam, paste0(out_dir, '/prediction_vector_nam.gpkg'), overwrite = TRUE)
 		writeVector(pred_vect_1930s, paste0(out_dir, '/prediction_vector_conus_1930s.gpkg'), overwrite = TRUE)
@@ -326,7 +324,8 @@ workflow_postmodeling_occurrence <- function(formula_occs, formula_occs_sigma, f
 		zero_inflated = zero_inflated,
 		formulae = list(
 			formula_occs = formula_occs,
-			formula_occs_bias = formula_occs_bias
+			formula_occs_bias = formula_occs_bias,
+			formula_pzero = formula_pzero
 		),
 		dharma_resids = dharma_resids
 	)

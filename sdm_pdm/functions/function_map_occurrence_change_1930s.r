@@ -58,9 +58,9 @@ map_occurrence_change_1930s <- function(zero_inflated, pred_vect_nam, pred_vect_
 		) +
 		scale_fill_gradient2(
 			name = paste0('Ratio of\n1930s-to-\npresent\nabundance'),
-			low = '#c51b7d',
-			mid = '#f7f7f7',
-			high = '#4d9221',
+			low = '#7b3294',
+			mid = 'beige',
+			high = '#008837',
 			midpoint = 0,
 			trans = 'log10',
 			# limits = resp_limits_n

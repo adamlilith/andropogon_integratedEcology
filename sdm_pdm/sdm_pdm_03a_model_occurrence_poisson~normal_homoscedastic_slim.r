@@ -20,8 +20,8 @@
 ### user-defined values ###
 ###########################
 
-	trial <- TRUE # TRUE for testing
-	# trial <- FALSE # TRUE for testing
+	# trial <- TRUE # TRUE for testing
+	trial <- FALSE # TRUE for testing
 
 	# calib <- TRUE # use just counties with non-NA Poaceae for calibration region
 	calib <- FALSE # use all of North America for calibration region
@@ -32,16 +32,29 @@
 
 	### formula for how aspects of species responds to environment
 
-	formula_occs <- ~ 1 + bio1 + bio12 + bio15 + I(bio1^2) + I(bio12^2) + I(bio15^2) # response of occurrence to climate and soil
+	formula_occs <- ~ 1 + bio1 + bio12 + bio15 + I(bio1^2) +  I(bio12^2) + I(bio15^2) # response of occurrence to climate and soil
 	preds_filename <- 'bio1^2_bio12^2_bio15^2'
 
+	# formula_occs <- ~ 1 + bio1 + bio12 + bio15 + I(bio1^2) + sand + ph + I(bio12^2) + I(bio15^2) + I(sand^2)# response of occurrence to climate and soil
+	# preds_filename <- 'bio1^2_bio12^2_bio15^2_sand^2'
+
+	# formula_occs <- ~ 1 + bio1 + bio12 + bio15 + I(bio1^2) + sand + ph + I(bio12^2) + I(bio15^2) + I(ph^2)# response of occurrence to climate and soil
+	# preds_filename <- 'bio1^2_bio12^2_bio15^2_ph^2'
+
+	# formula_occs_bias <- ~ 1 + n_poaceae_log10p1 # sampling bias for AG records
+	# bias_filename <- 'poaceae'
+
+	# formula_occs_bias <- ~ 1 + area_km2_log10 # sampling bias for AG records
+	# bias_filename <- 'area'
+
 	formula_occs_bias <- ~ 1 + area_km2_log10 + n_poaceae_log10p1 # sampling bias for AG records
-	# formula_occs_bias <- ~ 1 # sampling bias for AG records
 	bias_filename <- 'area_poaceae'
+
+	# formula_occs_bias <- ~ 1 # sampling bias for AG records
 	# bias_filename <- '1'
 
 	### output folder and bias formula
-	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/', ifelse(trial, 'TRIAL_', ''), '[occs_poisson~normal_homoscedastic_', preds_filename, '_[bias~', bias_filename, ']]/')
+	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/', ifelse(trial, 'TRIAL_', ''), '[occs_poisson~normal_homoscedastic~', preds_filename, '_[bias~', bias_filename, ']]/')
 
 	if (!trial) {
 
@@ -65,7 +78,7 @@
 
 	# DO NOT CHANGE--SPECIFIC TO THIS SCRIPT
 	formula_occs_sigma <- NULL
-	formula_occs_pzero <- NULL
+	formula_pzero <- NULL
 
 #############
 ### model ###
@@ -92,7 +105,7 @@
 	say('nchains ...................... ', nchains)
 	say('formula_occs ................. ', paste(as.character(formula_occs), collapse = ' '))
 	say('formula_sigma ................ ', paste(as.character(formula_occs_sigma), collapse = ' '))
-	say('formula_pzero ................ ', paste(as.character(formula_occs_pzero), collapse = ' '))
+	say('formula_pzero ................ ', paste(as.character(formula_pzero), collapse = ' '))
 	say('formula_occs_bias ............ ', paste(as.character(formula_occs_bias), collapse = ' '))
 
 	say('out_dir')
@@ -101,7 +114,7 @@
 	formulae <- list(
 		formula_occs = formula_occs,
 		formula_occs_sigma = formula_occs_sigma,
-		formula_occs_pzero = formula_occs_pzero,
+		formula_pzero = formula_pzero,
 		formula_occs_bias = formula_occs_bias
 	)
 	saveRDS(formula, paste0(out_dir, '/formulae.rds'))
@@ -379,16 +392,15 @@
 	# conf$addSampler(target = vars, type = 'NUTS')
 	# say('NUTS sampler added to ', paste(vars, collapse = ' & '), '.')
 
-	# # RW block samplers for correlated parameters
-	# conf$removeSamplers('beta_occs_mu[1]')
-	# conf$removeSamplers('beta_occs_vs_biomass')
-	# conf$addSampler(target = c('beta_occs_mu[1]', 'beta_occs_vs_biomass[1]', 'beta_occs_vs_biomass[2]'), type = 'RW_block')
-	# say('RW_block sampler added to beta_occs_mu[1] and beta_occs_vs_biomass[1:2].')
+	# RW block samplers for correlated parameters
+	conf$removeSamplers('alpha_occs')
+	conf$addSampler(target = c(' alpha_occs'), type = 'RW_block')
+	say('RW_block sampler added to  alpha_occs[].')
 
 	# # AF slice sampler
 	# vars <- c('alpha_occs', 'beta_occs_mu')
 	# if (!homoscedastic) vars <- c(vars, 'beta_occs_sigma')
-	# if (zero_inflated) vars <- c(vars, 'beta_occs_pzero')
+	# if (zero_inflated) vars <- c(vars, 'beta_pzero')
 	# for (var in vars) {
 	# 	conf$removeSamplers(var)
 	# }
@@ -432,9 +444,9 @@ say('#################################################')
 	descrip <- 'occurrence: Poisson ~ normal homoscedastic'
 	workflow_postmodeling_generic(facet = 'occurrence', formulae = formulae, descrip = descrip, out_dir = out_dir)
 	
-	workflow_postmodeling_occurrence(formula_occs = formula_occs, formula_occs_sigma = formula_occs_sigma, formula_occs_pzero = formula_occs_pzero, formula_occs_bias = formula_occs_bias, pred_vect_nam = pred_vect_nam, out_dir = out_dir)
+	workflow_postmodeling_occurrence(formula_occs = formula_occs, formula_occs_sigma = formula_occs_sigma, formula_pzero = formula_pzero, formula_occs_bias = formula_occs_bias, out_dir = out_dir)
 	
-	if (do_crossvalidation) workflow_postmodeling_occurrence_crossvalidation(formula_occs = formula_occs, formula_occs_bias = formula_occs_bias, formula_occs_sigma = formula_occs_sigma, formula_occs_pzero = formula_occs_pzero, constants = constants, out_dir = out_dir)
+	if (do_crossvalidation) workflow_postmodeling_occurrence_crossvalidation(formula_occs = formula_occs, formula_occs_bias = formula_occs_bias, formula_occs_sigma = formula_occs_sigma, formula_pzero = formula_pzero, constants = constants, out_dir = out_dir)
 
 
 say(date())

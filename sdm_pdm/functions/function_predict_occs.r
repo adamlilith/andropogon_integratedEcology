@@ -4,13 +4,17 @@
 #' @param x Model matrix
 #' @param homoscedastic `TRUE` or `FALSE`
 #' @param zero_inflated `TRUE` or `FALSE`
-#' @param type 'mu' or 'sigma' or 'pzero'
+#' @param type 'mu' or 'sigma'
 #' @param x_pzero Model matrix for probability of zero abundance or `NULL`
 #'
 #' @returns A matrix of predictions. Rows are iterations and columns are sample IDs.
 predict_occs <- function(chains, x, homoscedastic, zero_inflated, type = 'mu', x_pzero = NULL) {
 
-	vars <- paste0('beta_occs_', type)
+	if (type %in% c('mu', 'sigma')) {
+		vars <- paste0('beta_occs_', type)
+	} else {
+		vars <- 'beta_pzero'
+	}
 	betas <- hammer_subset(chains, vars, j = TRUE)
 
 	if (homoscedastic) {
@@ -19,7 +23,7 @@ predict_occs <- function(chains, x, homoscedastic, zero_inflated, type = 'mu', x
 		# vars <- paste0('beta_biomass_sigma')
 		# betas_sigma <- hammer_subset(chains, vars, j = TRUE)
 	}
-	if (zero_inflated) betas_pzero <- hammer_subset(chains, 'beta_occs_pzero', j = TRUE)
+	if (zero_inflated) betas_pzero <- hammer_subset(chains, 'beta_pzero', j = TRUE)
 
 	n_samples <- nrow(x)
 	nchains <- hammer_n_chains(chains)
@@ -51,7 +55,7 @@ predict_occs <- function(chains, x, homoscedastic, zero_inflated, type = 'mu', x
 				phi_lambda_mu <- phi_lambda_mu[ , 1]
 
 				log_lambda <- rnorm(n_samples, phi_lambda_mu, sd = this_lambda_sigma)
-				lambda <- exp(log_county_lambda_sq)
+				lambda <- exp(log_lambda)
 				pred <- rpois(n_samples, lambda)
 
 			# predicting mean, homoscedastic, zero-inflated
@@ -89,6 +93,7 @@ predict_occs <- function(chains, x, homoscedastic, zero_inflated, type = 'mu', x
 			} else if (type == 'pzero') {
 
 				preds_untrans <- x %*% this_beta
+				preds_untrans <- preds_untrans[ , 1]
 				pred <- expit(preds_untrans)
 
 			# predicting sigma

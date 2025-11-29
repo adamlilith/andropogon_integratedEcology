@@ -49,11 +49,11 @@
 
 	# out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_biomass/', ifelse(trial, 'TRIAL_', ''), '[biomass_gamma~normal_homoscedastic_', preds_filename, ']/')
 	# zero_inflated <- FALSE # SPECIFIC TO THIS SCRIPT--SHOULD NOT BE CHANGED
-	# formula_biomass_pzero <- NULL
+	# formula_pzero <- NULL
 
 	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_biomass/', ifelse(trial, 'TRIAL_', ''), '[biomass_zig~normal_homoscedastic_', preds_filename, ']/')
 	zero_inflated <- TRUE # SPECIFIC TO THIS SCRIPT--SHOULD NOT BE CHANGED
-	formula_biomass_pzero <- formula_biomass_mu
+	formula_pzero <- formula_biomass_mu
 
 	# calib <- TRUE # use just counties with non-NA Poaceae for calibration region
 	calib <- FALSE # use all of North America for calibration region
@@ -66,8 +66,8 @@
 
 	chains <- readRDS(paste0(out_dir, '/chains.rds'))
 
-	pred_vect_nam <- burn_biomass_into_vector(demesne = 'nam', chains = chains, formula_biomass_mu = formula_biomass_mu, formula_biomass_sigma = formula_biomass_sigma, formula_biomass_pzero = formula_biomass_pzero)
-	pred_vect_1930s <- burn_biomass_into_vector(demesne = '1930s', chains = chains, formula_biomass_mu = formula_biomass_mu, formula_biomass_sigma = formula_biomass_sigma, formula_biomass_pzero = formula_biomass_pzero)
+	pred_vect_nam <- burn_biomass_into_vector(demesne = 'nam', chains = chains, formula_biomass_mu = formula_biomass_mu, formula_biomass_sigma = formula_biomass_sigma, formula_pzero = formula_pzero)
+	pred_vect_1930s <- burn_biomass_into_vector(demesne = '1930s', chains = chains, formula_biomass_mu = formula_biomass_mu, formula_biomass_sigma = formula_biomass_sigma, formula_pzero = formula_pzero)
 
 	### BIOMASS: current map
 	########################
@@ -101,7 +101,7 @@
 			ag_core_quant = 0.95
 		)
 print(NON)
-		if (!is.null(formula_biomass_pzero)) {
+		if (!is.null(formula_pzero)) {
 			
 			facet <- 'biomass'
 			map <- map_pzero(
@@ -153,7 +153,7 @@ print(NON)
 				ag_core_quant = 0.95
 			)
 
-			if (!is.null(formula_biomass_pzero)) {
+			if (!is.null(formula_pzero)) {
 
 				face <- 'biomass'				
 				map_fut_pzero <- map_pzero(
@@ -208,7 +208,7 @@ print(NON)
 	# 			ag_core_quant = ag_core_quant
 	# 		)
 
-	# 		if (!is.null(formula_biomass_pzero)) {
+	# 		if (!is.null(formula_pzero)) {
 
 	# 			title <- bquote('Change in probability of zero biomass ')
 

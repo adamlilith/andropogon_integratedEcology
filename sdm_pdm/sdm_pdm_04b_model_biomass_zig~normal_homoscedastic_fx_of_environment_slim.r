@@ -93,7 +93,7 @@
 
 	# do not change
 	formula_biomass_sigma <- NULL
-	formula_biomass_pzero <- formula_biomass_mu
+	formula_pzero <- formula_biomass_mu
 
 #############
 ### model ###
@@ -119,7 +119,7 @@
 	say('thin ......................... ', thin)
 	say('nchains ...................... ', nchains)
 	say('formula_biomass_mu ........... ', paste(as.character(formula_biomass_mu), collapse = ' '))
-	say('formula_biomass_pzero ........ ', paste(as.character(formula_biomass_pzero), collapse = ' '))
+	say('formula_pzero ........ ', paste(as.character(formula_pzero), collapse = ' '))
 	say('homoscedastic ................ ', homoscedastic)
 	say('zero_inflated ................ ', zero_inflated)
 	say('calib ........................ ', calib, post = 2)
@@ -129,7 +129,7 @@
 
 	formulae <- list(
 		formula_biomass_mu = formula_biomass_mu,
-		formula_biomass_pzero = formula_biomass_pzero
+		formula_pzero = formula_pzero
 	)
 
 	########################s
@@ -410,7 +410,7 @@
 	descrip <- paste0(trait, ': zero-inflated gamma~normal homoscedastic')
 
 	workflow_postmodeling_generic(facet = trait, formulae = formulae, descrip = descrip, out_dir = out_dir)
-	workflow_postmodeling_biomass(chains = chains, descrip = descrip, formula_biomass_mu = formula_biomass_mu, formula_biomass_sigma = formula_biomass_sigma, formula_biomass_pzero = formula_biomass_pzero, crossvalidate = crossvalidate, out_dir = out_dir)
+	workflow_postmodeling_biomass(chains = chains, descrip = descrip, formula_biomass_mu = formula_biomass_mu, formula_biomass_sigma = formula_biomass_sigma, formula_pzero = formula_pzero, crossvalidate = crossvalidate, out_dir = out_dir)
 
 say(date())
 say('FINIS!', deco = '+', level = 1)

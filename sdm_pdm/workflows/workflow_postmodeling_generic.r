@@ -1,4 +1,5 @@
 #' Post-modeling workflow for any model.
+#' source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/workflows/workflow_postmodeling_generic.r')
 #'
 #' @param facet Name of the facet being modeled (e.g., occurrence, biomass, plant height, etc.)
 #' @param formulae `List` of model formula.
@@ -6,19 +7,6 @@
 #' @param homoscedastic `TRUE` if model is homoscedastic.
 #' @param out_dir Folder in which to save results.
 workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedastic, out_dir) {
-
-	# ### model fit
-	# #####################
-	# say('model fit', level = 2)
-
-	# 	### WAIC
-	# 	########
-
-	# 	sink(paste0(out_dir, '/waic.txt'), split = TRUE)
-	# 	say('WAIC')
-	# 	say(date(), post = 2)
-	# 	print(chains$WAIC)
-	# 	sink()
 
 	### model convergence
 	#####################
@@ -29,9 +17,18 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 		if (length(vars) > 0) {
 			for (var in vars) {
 
-				mcmc <- hammer_subset(chains, var)
-				mcmc <- mcmc$samples
-				mcmc <- ggs(mcmc)
+				if (var == 'correlation[1, 2]') {
+				
+					var <- 'correlation'
+					mcmc <- ggs(chains$samples)
+
+				} else {
+
+					mcmc <- hammer_subset(chains, var)
+					mcmc <- mcmc$samples
+					mcmc <- ggs(mcmc)
+
+				}
 
 				trace <- ggs_traceplot(mcmc, family = var)
 				density <- ggs_density(mcmc, family = var, hpd = TRUE)
@@ -154,9 +151,21 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 
 			for (var in vars) {
 
-				mcmc <- hammer_subset(chains, var)
-				mcmc <- mcmc$samples
-				ggs_mcmc <- ggs(mcmc)
+				if (var == 'correlation[1, 2]') {
+				
+					var <- 'correlation'
+					ggs_mcmc <- ggs(chains$samples)
+
+				} else {
+
+					mcmc <- hammer_subset(chains, var)
+					mcmc <- mcmc$samples
+					mcmc <- ggs(mcmc)
+					mcmc <- hammer_subset(chains, var)
+					mcmc <- mcmc$samples
+					ggs_mcmc <- ggs(mcmc)
+
+				}
 
 				ac <- ggs_autocorrelation(ggs_mcmc, family = var)
 				ggsave(ac, file = paste0(out_dir, '/', var, '_autocorrelation.png'), width = 19.2, height = 10.8, dpi = 300)
@@ -197,6 +206,73 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 
 		}
 
+		### correlation between parameters
+		##################################
+		say('correlation between parameters', level = 2)
+
+			### density/trace plots
+			if (exists('param_stack')) rm(param_stack)
+			n_chains <- hammer_n_chains(chains)
+			vars <- monitors_coeffs_not_indexed
+			if (length(vars) > 0) {
+				for (var in vars) {
+
+					this_param_stack <- hammer_stack(chains, var)
+					if (exists('param_stack')) {
+						param_stack <- cbind(param_stack, this_param_stack)
+					} else {
+						param_stack <- this_param_stack
+					}
+
+				}
+			}
+
+			vars <- monitors_coeffs_single_index
+			if (length(vars) > 0) {
+				for (var in vars) {
+
+					this_param_stack <- hammer_stack(chains, var, j = TRUE)
+					if (exists('param_stack')) {
+						param_stack <- cbind(param_stack, this_param_stack)
+					} else {
+						param_stack <- this_param_stack
+					}
+				
+				}
+			}
+
+			vars <- monitors_coeffs_double_index
+			if (length(vars) > 0) {
+				for (var in vars) {
+
+					this_param_stack <- hammer_stack(chains, var, j = TRUE, k = TRUE)
+					if (exists('param_stack')) {
+						param_stack <- cbind(param_stack, this_param_stack)
+					} else {
+						param_stack <- this_param_stack
+					}
+				
+				}
+			}
+
+			cors <- cor(param_stack, method = 'pearson', use = 'complete.obs')
+			cors_df <- as.data.frame(as.table(cors))
+			names(cors_df) <- c('Var1', 'Var2', 'Correlation')
+			cors_df$high_cor <- abs(cors_df$Correlation) > 0.5 & cors_df$Var1 != cors_df$Var2
+
+			cor_plot <- ggplot(cors_df, aes(x = Var1, y = Var2, fill = Correlation)) +
+				geom_tile() +
+				geom_point(data = subset(cors_df, high_cor), aes(x = Var1, y = Var2), 
+					color = 'black', shape = 1, size = 3, stroke = 1.5) +
+				scale_fill_gradient2(low = 'red', mid = 'white', high = 'blue', 
+					midpoint = 0, limits = c(-1, 1)) +
+				theme_minimal() +
+				theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+				labs(x = '', y = '', title = 'Parameter Correlations')
+
+			ggsave(cor_plot, file = paste0(out_dir, '/parameter_correlations.png'), width = 11, height = 10, dpi = 300, bg = 'white')
+
+
 	### parameter estimates
 	#######################
 	say('parameter estimates', level = 2)
@@ -205,13 +281,24 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 		
 		vars <- monitors_coeffs_not_indexed
 		if (length(vars) > 0) {
+
 			for (var in vars) {
 
-				mcmc <- hammer_subset(chains, var)
-				mcmc <- ggs(mcmc$samples)
+				if (var == 'correlation[1, 2]') {
+				
+					var <- 'correlation'
+					ggs_mcmc <- ggs(chains$samples)
+
+				} else {
+
+					mcmc <- hammer_subset(chains, var)
+					mcmc <- mcmc$samples
+					ggs_mcmc <- ggs(mcmc)
+
+				}
 
 				graphs[[length(graphs) + 1]] <- 
-					ggs_caterpillar(mcmc, family = var) +
+					ggs_caterpillar(ggs_mcmc, family = var) +
 					xlab('Estimated value') +
 					ggtitle(var) +
 					theme(

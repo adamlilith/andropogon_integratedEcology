@@ -1,10 +1,11 @@
 #' This function loads and prepares the biomass data for distribution modeling. See the "return()` line for details on the output.
 #' 
 #' @param formula_biomass A formula_biomass object specifying the model to be fit. Include an intercept and the RHS only.
+#' @param log_precip If `TRUE`, take log of precipitation variables (BIOs 12-14, 16-19)
 #' @param n_response_curve_values A numeric value specifying the number of values to use for the response curve. Default is 200.
 #' @param calib If `TRUE`, then the training data is subset only to counties with non-`NA` for Poaceae.
 #'
-prepare_biomass <- function(formula_biomass, n_response_curve_values = 200, calib = TRUE) {
+prepare_biomass <- function(formula_biomass, log_precip, n_response_curve_values = 200, calib = TRUE) {
 
 	# formula
 	terms <- terms(formula_biomass)
@@ -87,6 +88,12 @@ prepare_biomass <- function(formula_biomass, n_response_curve_values = 200, cali
 	names(x)[names(x) == 'SILT'] <- 'silt'
 	names(x)[names(x) == 'CLAY'] <- 'clay'
 	x <- x[ , ..covariates]
+
+	if (log_precip & any(covariates %in% paste0('bio', c(12:14, 16:19)))) {
+		these <- which(covariates %in% paste0('bio', c(12:14, 16:19)))
+		for (i in these) x[[i]] <- log10(x[[i]] + 1)
+	}
+
 	x <- scale(x)
 	x_centers <- attr(x, 'scaled:center')
 	x_scales <- attr(x, 'scaled:scale')
@@ -108,6 +115,12 @@ prepare_biomass <- function(formula_biomass, n_response_curve_values = 200, cali
 	ag_vect_sq <- vect('./outputs_loretta/integrated_sdm_pdm/andropogon_gerardi_occurrences_with_environment_1961_2020_for_integration.gpkg')
 	ag_sq <- as.data.frame(ag_vect_sq)
 	ag_sq <- ag_sq[ , covariates, drop = FALSE]
+
+	if (log_precip & any(covariates %in% paste0('bio', c(12:14, 16:19)))) {
+		these <- which(covariates %in% paste0('bio', c(12:14, 16:19)))
+		for (i in these) ag_sq[[i]] <- log10(ag_sq[[i]] + 1)
+	}
+
 	ag_sq <- scale(ag_sq, center = x_centers[covariates], scale = x_scales[covariates])
 	ag_sq <- as.data.frame(ag_sq)
 	counties_x_sq <- model.matrix(formula_biomass, ag_sq)
@@ -133,6 +146,12 @@ prepare_biomass <- function(formula_biomass, n_response_curve_values = 200, cali
 		assign(paste0('counties_', fut), this_fut)
 
 		this_fut <- as.data.frame(this_fut)[ , covariates, drop = FALSE]
+
+		if (log_precip & any(covariates %in% paste0('bio', c(12:14, 16:19)))) {
+			these <- which(covariates %in% paste0('bio', c(12:14, 16:19)))
+			for (i in these) this_fut[[i]] <- log10(this_fut[[i]] + 1)
+		}
+
 		this_fut <- scale(this_fut, center = x_centers[covariates], scale = x_scales[covariates])
 		this_fut <- as.data.frame(this_fut)
 		this_fut <- model.matrix(formula_biomass, this_fut)
@@ -143,9 +162,10 @@ prepare_biomass <- function(formula_biomass, n_response_curve_values = 200, cali
 
 	# 20th century climate
 	thirties <- vect(paste0('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1931_1940_prism.gpkg'))
-	fifties <- vect(paste0('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1952_1961_prism.gpkg'))
+	# fifties <- vect(paste0('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1952_1961_prism.gpkg'))
 	
-	for (clim in c('thirties', 'fifties')) {
+	# for (clim in c('thirties', 'fifties')) {
+	for (clim in c('thirties')) {
 
 		x <- get(clim)
 		x <- x[ , c('country', 'state_province', 'county', covariates)]
@@ -156,6 +176,11 @@ prepare_biomass <- function(formula_biomass, n_response_curve_values = 200, cali
 				
 				xx <- x[[covariate]]
 				xx <- unlist(xx)
+
+				if (log_precip & covariate %in% paste0('bio', c(12:14, 16:19))) {
+					xx <- log10(xx + 1)
+				}
+
 				xx <- scale(xx, center = x_centers[covariate], scale = x_scales[covariate])
 				xx <- as.numeric(xx)
 				x[ , covariate] <- xx
@@ -180,6 +205,7 @@ prepare_biomass <- function(formula_biomass, n_response_curve_values = 200, cali
 	### response array
 	resp_arrays <- create_response_curve_array(
 		formula = formula_biomass,
+		log_precip = log_precip,
 		centers = x_centers,
 		scales = x_scales,
 		ag_vect_sq = ag_vect_sq[ag_vect_sq$n_andropogon_gerardi > 0],
@@ -188,7 +214,7 @@ prepare_biomass <- function(formula_biomass, n_response_curve_values = 200, cali
 			counties_ssp245_2071_2100[ag_vect_sq$n_andropogon_gerardi > 0],
 			counties_ssp370_2041_2070[ag_vect_sq$n_andropogon_gerardi > 0],
 			counties_ssp370_2071_2100[ag_vect_sq$n_andropogon_gerardi > 0],
-			thirties, fifties
+			thirties#, fifties
 		),
 		n_response_curve_values = n_response_curve_values
 	)
@@ -229,10 +255,10 @@ prepare_biomass <- function(formula_biomass, n_response_curve_values = 200, cali
 
 		n_counties_20th_cent = n_counties_20th_cent, # SpatVector of county-level environmental data for 20th century
 		counties_thirties = thirties, # SpatVector of county-level environmental data for 20th century
-		counties_fifties = fifties, # SpatVector of county-level environmental data for 20th century
+		# counties_fifties = fifties, # SpatVector of county-level environmental data for 20th century
 
 		counties_x_biomass_thirties = counties_x_biomass_thirties, # model matrix of county-level environmental data for 20th century
-		counties_x_biomass_fifties = counties_x_biomass_fifties, # model matrix of county-level environmental data for 20th century
+		# counties_x_biomass_fifties = counties_x_biomass_fifties, # model matrix of county-level environmental data for 20th century
 
 		resp_curves_x_biomass = resp_arrays$response_curves_x_scaled,			# model matrices for response curves
 		resp_curve_x_biomass_unscaled = resp_arrays$resp_curves_x_unscaled	# matrices for response curves

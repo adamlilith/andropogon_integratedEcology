@@ -32,6 +32,7 @@
 	library(spdep) # spatial statistics
 	library(statisfactory) # statistics
 	library(terra) # spatial objects
+	library(viridis) # colors
 
 	devtools::load_all('C:/Kaji/R/mcmcHammer') # Bayesian object helpers
 	# library(mcmcHammer)
@@ -46,10 +47,10 @@
 	### LOAD HELPER FUNCTIONS
 	#########################
 
-	fxs <- listFiles('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm', pattern = 'function_')
+	fxs <- listFiles('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/functions', pattern = 'function_')
 	for (fx in fxs) source(fx)
 
-	fxs <- listFiles('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm', pattern = 'workflow_')
+	fxs <- listFiles('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/workflows', pattern = 'workflow_')
 	for (fx in fxs) source(fx)
 
 	# functions to create nice lower/upper ranges from data for plotting

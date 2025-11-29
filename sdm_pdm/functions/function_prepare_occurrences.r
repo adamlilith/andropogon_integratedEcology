@@ -2,11 +2,12 @@
 #' 
 #' @param formula_occs A formula object specifying the model to be fit for the response of AG abundance to the environment. Include an intercept and the RHS only.
 #' @param formula_occs_bias A formula object specifying the model to be fit for the sampling bias in the number of AG observed occurrences. Include an intercept and the RHS only.
+#' @param log_precip If `TRUE`, take log of precipitation variables (BIOs 12-14, 16-19)
 #' @param n_response_curve_values A numeric value specifying the number of values to use for the response curve. Default is 200.
 #' @param psa_quant A numeric value between 0 and 1 specifying the quantile of Poaceae records to use for pseudo-absences. Default is 0.99.
 #' @param calib If `TRUE`, then the training data is subset only to counties with non-`NA` for Poaceae.
 #'
-prepare_occurrences <- function(formula_occs, formula_occs_bias, n_response_curve_values = 200, psa_quant = 0.99, calib = TRUE) {
+prepare_occurrences <- function(formula_occs, formula_occs_bias, log_precip, n_response_curve_values = 200, psa_quant = 0.99, calib = FALSE) {
 
 	# formulae
 	terms_occs <- terms(formula_occs)
@@ -32,6 +33,11 @@ prepare_occurrences <- function(formula_occs, formula_occs_bias, n_response_curv
 	# load county-level environmental data
 	ag_vect_sq <- vect('./outputs_loretta/integrated_sdm_pdm/andropogon_gerardi_occurrences_with_environment_1961_2020_for_integration.gpkg')
 	ag_vect_sq <- ag_vect_sq[ , c('focal_region', 'geofold', 'country', 'state_province', 'county', 'area_km2', 'elevation_m', 'n_andropogon_gerardi', 'n_poaceae', covariates)]
+
+	if (log_precip & any(covariates %in% paste0('bio', c(12:14, 16:19)))) {
+		these <- which(names(ag_vect_sq) %in% paste0('bio', c(12:14, 16:19)))
+		for (i in these) ag_vect_sq[[i]] <- log10(ag_vect_sq[[i]] + 1)
+	}
 
 	# remove occurrences in largest parts of Ontario and Manitoba on basis that they are just too big to indicate species-environment relationships
 	redacts <- c(
@@ -73,12 +79,22 @@ prepare_occurrences <- function(formula_occs, formula_occs_bias, n_response_curv
 
 	# scale covariates... only use calibration region for calculating centers and scales
 	covars <- ag_sq[ag_vect_sq$calib_region, c(covariates)]
+	# if (log_precip & any(covariates %in% paste0('bio', c(12:14, 16:19)))) {
+	# 	these <- which(covariates %in% paste0('bio', c(12:14, 16:19)))
+	# 	for (i in these) covars[ , i] <- log10(covars[ , i] + 1)
+	# }
 	covars_scaled <- scale(covars)
 
 	x_centers <- attributes(covars_scaled)$`scaled:center`
 	x_scales <- attributes(covars_scaled)$`scaled:scale`
+	names(x_centers) <- covariates
+	names(x_scales) <- covariates
 
 	ag_sq <- ag_sq[ , covariates, drop = FALSE]
+	# if (log_precip & any(covariates %in% paste0('bio', c(12:14, 16:19)))) {
+	# 	these <- which(covariates %in% paste0('bio', c(12:14, 16:19)))
+	# 	for (i in these) ag_sq[ , i] <- log10(ag_sq[ , i] + 1)
+	# }
 	ag_sq <- scale(ag_sq, center = x_centers[covariates], scale = x_scales[covariates])
 	ag_sq <- as.data.frame(ag_sq)
 	counties_x_sq <- model.matrix(formula_occs, ag_sq)
@@ -89,24 +105,21 @@ prepare_occurrences <- function(formula_occs, formula_occs_bias, n_response_curv
 	
 		this_fut <- vect(paste0('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_ensemble_8GCMs_', fut, '_climatena.gpkg'))
 
-		this_fut <- this_fut[ , c('country', 'state_province', 'county', covariates)]
-
+		if (n_covariates > 0) this_fut <- this_fut[ , covariates]
 		assign(paste0('counties_', fut), this_fut)
 
-		for (covariate in covariates) {
-			
-			x <- this_fut[[covariate]]
-			x <- unlist(x)
-			x <- scale(x, center = x_centers[covariate], scale = x_scales[covariate])
-			x <- as.numeric(x)
-			this_fut[ , covariate] <- x
+		this_fut <- as.data.frame(this_fut)[ , covariates, drop = FALSE]
 
+		if (log_precip & any(covariates %in% paste0('bio', c(12:14, 16:19)))) {
+			these <- which(covariates %in% paste0('bio', c(12:14, 16:19)))
+			for (i in these) this_fut[[i]] <- log10(this_fut[[i]] + 1)
 		}
 
-		mm <- as.data.frame(this_fut)[ , covariates, drop = FALSE] 
-		mm <- model.matrix(formula_occs, mm)
+		this_fut <- scale(this_fut, center = x_centers[covariates], scale = x_scales[covariates])
+		this_fut <- as.data.frame(this_fut)
+		this_fut <- model.matrix(formula_occs, this_fut)
 
-		assign(paste0('counties_x_', fut), mm)
+		assign(paste0('counties_x_', fut), this_fut)
 	
 	}
 
@@ -124,6 +137,7 @@ prepare_occurrences <- function(formula_occs, formula_occs_bias, n_response_curv
 			
 			xx <- x[[covariate]]
 			xx <- unlist(xx)
+			if (log_precip & any(covariate %in% paste0('bio', c(12:14, 16:19)))) xx <- log10(xx + 1)
 			xx <- scale(xx, center = x_centers[covariate], scale = x_scales[covariate])
 			xx <- as.numeric(xx)
 			x[ , covariate] <- xx
@@ -141,6 +155,7 @@ prepare_occurrences <- function(formula_occs, formula_occs_bias, n_response_curv
 	### response curve array: occurrence vs environment
 	resp_arrays <- create_response_curve_array(
 		formula = formula_occs,
+		log_precip = log_precip,
 		centers = x_centers,
 		scales = x_scales,
 		ag_vect_sq = ag_vect_sq[ag_vect_sq$focal_region],
@@ -160,6 +175,7 @@ prepare_occurrences <- function(formula_occs, formula_occs_bias, n_response_curv
 	ag_vect_sq_bias$n_poaceae_log10p1 <- log10(1 + ag_vect_sq_bias$n_poaceae)
 	resp_arrays_bias <- create_response_curve_array(
 		formula = formula_occs_bias,
+		log_precip = FALSE,
 		centers = bias_centers,
 		scales = bias_scales,
 		ag_vect_sq = ag_vect_sq_bias[ag_vect_sq_bias$focal_region],

@@ -6,15 +6,15 @@
 #' @param descrip Model description.
 #' @param formula_biomass_mu Biomass-environment formula for site-level mean.
 #' @param formula_biomass_sigma Biomass-environment formula for site-level sd.
-#' @param formula_biomass_pzero Biomass-environment probability of 0 biomass.
+#' @param formula_pzero Biomass-environment probability of 0 biomass.
 #' @param homoscedastic If `TRUE`, then the model assumes biomass mean is a function of the environment and biomass σ is constant across sites.
 #' @param zero_inflated If `TRUE`, then model is zero-inflated.
 #' @param crossvalidate If `TRUE`, do cross-validations.
 #' @param out_dir Folder in which to save results.
-workflow_postmodeling_biomass <- function(chains, descrip, formula_biomass_mu, formula_biomass_sigma, formula_biomass_pzero, crossvalidate, out_dir) {
+workflow_postmodeling_biomass <- function(chains, descrip, formula_biomass_mu, formula_biomass_sigma, formula_pzero, crossvalidate, out_dir) {
 
 	homoscedastic <- is.null(formula_biomass_sigma)
-	zero_inflated <- !is.null(formula_biomass_pzero)
+	zero_inflated <- !is.null(formula_pzero)
 
 	### BIOMASS: plant-level residuals analysis
 	###########################################
@@ -292,9 +292,9 @@ workflow_postmodeling_biomass <- function(chains, descrip, formula_biomass_mu, f
 	#################
 	say('BIOMASS: burn prediction vectors', level = 2)
 
-		pred_vect_nam <- burn_biomass_into_vector(demesne = 'nam', chains = chains, formula_biomass_mu = formula_biomass_mu, formula_biomass_sigma = formula_biomass_sigma, formula_biomass_pzero = formula_biomass_pzero)
+		pred_vect_nam <- burn_biomass_into_vector(demesne = 'nam', chains = chains, formula_biomass_mu = formula_biomass_mu, formula_biomass_sigma = formula_biomass_sigma, formula_pzero = formula_pzero)
 
-		pred_vect_1930s <- burn_biomass_into_vector(demesne = '1930s', chains = chains, formula_biomass_mu = formula_biomass_mu, formula_biomass_sigma = formula_biomass_sigma, formula_biomass_pzero = formula_biomass_pzero)
+		pred_vect_1930s <- burn_biomass_into_vector(demesne = '1930s', chains = chains, formula_biomass_mu = formula_biomass_mu, formula_biomass_sigma = formula_biomass_sigma, formula_pzero = formula_pzero)
 
 		writeVector(pred_vect_nam, paste0(out_dir, '/prediction_vector_nam.gpkg'), overwrite = TRUE)
 		writeVector(pred_vect_1930s, paste0(out_dir, '/prediction_vector_conus_1930s.gpkg'), overwrite = TRUE)
@@ -350,7 +350,7 @@ workflow_postmodeling_biomass <- function(chains, descrip, formula_biomass_mu, f
 
 		}
 
-		if (!is.null(formula_biomass_pzero)) {
+		if (!is.null(formula_pzero)) {
 			
 			facet <- 'biomass'
 			map <- map_pzero(
@@ -402,7 +402,7 @@ workflow_postmodeling_biomass <- function(chains, descrip, formula_biomass_mu, f
 				ag_core_quant = 0.95
 			)
 
-			if (!is.null(formula_biomass_pzero)) {
+			if (!is.null(formula_pzero)) {
 
 				face <- 'biomass'				
 				map_fut_pzero <- map_pzero(
@@ -457,7 +457,7 @@ workflow_postmodeling_biomass <- function(chains, descrip, formula_biomass_mu, f
 				ag_core_quant = ag_core_quant
 			)
 
-			if (!is.null(formula_biomass_pzero)) {
+			if (!is.null(formula_pzero)) {
 
 				title <- bquote('Change in probability of zero biomass ')
 
@@ -485,7 +485,7 @@ workflow_postmodeling_biomass <- function(chains, descrip, formula_biomass_mu, f
 	#################################
 	say('BIOMASS: 1930s change maps', level = 2)
 
-	map_thirties <- map_biomass_traits_change_1930s(facet = 'biomass', data_biomass_traits = data_biomass_mu, pred_vect_nam = pred_vect_nam, pred_vect_1930s = pred_vect_1930s, formula_biomass_mu = formula_biomass_mu, formula_biomass_sigma = formula_biomass_sigma, formula_biomass_pzero = formula_biomass_pzero)
+	map_thirties <- map_biomass_traits_change_1930s(facet = 'biomass', data_biomass_traits = data_biomass_mu, pred_vect_nam = pred_vect_nam, pred_vect_1930s = pred_vect_1930s, formula_biomass_mu = formula_biomass_mu, formula_biomass_sigma = formula_biomass_sigma, formula_pzero = formula_pzero)
 
 	### occurrence: crossvalidation
 	###############################

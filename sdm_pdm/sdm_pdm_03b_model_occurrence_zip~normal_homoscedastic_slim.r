@@ -20,8 +20,8 @@
 ### user-defined values ###
 ###########################
 
-	trial <- TRUE # TRUE for testing
-	# trial <- FALSE # TRUE for testing
+	# trial <- TRUE # TRUE for testing
+	trial <- FALSE # TRUE for testing
 
 	# calib <- TRUE # use just counties with non-NA Poaceae for calibration region
 	calib <- FALSE # use all of North America for calibration region
@@ -32,11 +32,20 @@
 
 	### formula for how aspects of species responds to environment
 
-	formula_occs <- ~ 1 + bio1 + bio12 + bio15 + I(bio1^2) + I(bio12^2) + I(bio15^2) # response of occurrence to climate and soil
-	preds_filename <- 'bio1^2_bio12^2_bio15^2'
+	# formula_occs <- ~ 1 + bio1 + bio12 + bio15 + I(bio1^2) + I(bio12^2) + I(bio15^2) # response of occurrence to climate and soil
+	# preds_filename <- 'bio1^2_bio12^2_bio15^2'
 
-	formula_occs_pzero <- ~ 1 + bio1 + bio12 + bio15 + I(bio1^2) + I(bio12^2) + I(bio15^2)
-	zip_filename <- 'bio1^2_bio12^2_bio15^2'
+	formula_occs <- ~ 1 + bio1 + bio12 + bio15 + sand + I(bio1^2) + I(bio12^2) + I(bio15^2) + I(sand^2) # response of occurrence to climate and soil
+	preds_filename <- 'bio1^2_bio12^2_bio15^2_sand^2'
+
+	formula_pzero <- ~ 1 + bio1 + bio12 + bio15 + sand + I(bio1^2) + I(bio12^2) + I(bio15^2) + I(sand^2)
+	zip_filename <- 'bio1^2_bio12^2_bio15^2_sand^2'
+
+	# formula_pzero <- ~ 1 + bio1 + bio12 + bio15 + ph + I(bio1^2) + I(bio12^2) + I(bio15^2) + I(ph^2)
+	# zip_filename <- 'bio1^2_bio12^2_bio15^2_ph^2'
+
+	# formula_pzero <- ~ 1 + bio1 + bio12 + bio15 + I(bio1^2) + I(bio12^2) + I(bio15^2)
+	# zip_filename <- 'bio1^2_bio12^2_bio15^2'
 
 	# formula_occs_bias <- ~ 1 + area_km2_log10 + n_poaceae_log10p1 # sampling bias for AG records
 	# bias_filename <- 'area_poaceae'
@@ -45,7 +54,7 @@
 	bias_filename <- '1'
 
 	### output folder and bias formula
-	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/', ifelse(trial, 'TRIAL_', ''), '[occs_zip[', zip_filename, ']~normal_homoscedastic_', preds_filename, '_[bias~', bias_filename, ']]/')
+	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/', ifelse(trial, 'TRIAL_', ''), '[occs_zip[zero~', zip_filename, ']~normal_homoscedastic~', preds_filename, '_[bias~', bias_filename, ']]/')
 
 	if (!trial) {
 
@@ -95,7 +104,7 @@
 	say('nchains ...................... ', nchains)
 	say('formula_occs ................. ', paste(as.character(formula_occs), collapse = ' '))
 	say('formula_sigma ................ ', paste(as.character(formula_occs_sigma), collapse = ' '))
-	say('formula_pzero ................ ', paste(as.character(formula_occs_pzero), collapse = ' '))
+	say('formula_pzero ................ ', paste(as.character(formula_pzero), collapse = ' '))
 	say('formula_occs_bias ............ ', paste(as.character(formula_occs_bias), collapse = ' '))
 
 	say('out_dir')
@@ -104,7 +113,7 @@
 	formulae <- list(
 		formula_occs = formula_occs,
 		formula_occs_sigma = formula_occs_sigma,
-		formula_occs_pzero = formula_occs_pzero,
+		formula_pzero = formula_pzero,
 		formula_occs_bias = formula_occs_bias
 	)
 	saveRDS(formula, paste0(out_dir, '/formulae.rds'))
@@ -115,7 +124,7 @@
 
 	data_occs <- prepare_occurrences(formula_occs = formula_occs, formula_occs_bias = formula_occs_bias, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
 
-	data_occs_pzero <- prepare_occurrences(formula_occs = formula_occs_pzero, formula_occs_bias = formula_occs_bias, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
+	data_occs_pzero <- prepare_occurrences(formula_occs = formula_pzero, formula_occs_bias = formula_occs_bias, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
 
 	#########################
 	### inputs for nimble ###
@@ -182,7 +191,7 @@
 		log_lambda_mu_sq = rep(1, data_occs$n_counties_occs_calib), # expected value of number of AG
 		alpha_occs = alpha_occs_inits, # intercept, area, # of Poaceae
 		beta_occs_mu = beta_occs_inits, # occurrence ~ environment coefficients (including intercept)
-		beta_occs_pzero = beta_occs_pzero_inits, # pzero ~ environment coefficients (including intercept)
+		beta_pzero = beta_occs_pzero_inits, # pzero ~ environment coefficients (including intercept)
 
 		N = N_inits_calib, # number of latent AG in calibration counties
 
@@ -213,9 +222,9 @@
 			beta_occs_mu[i] ~ ddexp(0, rate = beta_occs_mu_prior_ddexp_rate)
 		}
 
-		beta_occs_pzero[1] ~ dnorm(0, sd = beta_occs_pzero_prior_dnorm_sd_1)
+		beta_pzero[1] ~ dnorm(0, sd = beta_occs_pzero_prior_dnorm_sd_1)
 		for (i in 2:n_terms_occs_pzero) {
-			beta_occs_pzero[i] ~ ddexp(0, rate = beta_occs_pzero_prior_dnorm_sd)
+			beta_pzero[i] ~ ddexp(0, rate = beta_occs_pzero_prior_dnorm_sd)
 		}
 
 		# OCCURRENCE: priors for sampling bias
@@ -242,7 +251,7 @@
 			phi_mu_sq[i] <- inprod(beta_occs_mu[1:n_terms_occs], counties_x_occs_calib_sq[i, 1:n_terms_occs])
 
 			# (inflated) probability of zero abundance
-			logit(pzero_occs[i]) <- inprod(beta_occs_pzero[1:n_terms_occs_pzero], counties_x_occs_pzero_calib_sq[i, 1:n_terms_occs_pzero])
+			logit(pzero_occs[i]) <- inprod(beta_pzero[1:n_terms_occs_pzero], counties_x_occs_pzero_calib_sq[i, 1:n_terms_occs_pzero])
 
 			# likelihood
 			log_lik_y[i] <- dbinom(y_n_ag[i], prob = p[i], size = N[i], log = 1)
@@ -265,7 +274,7 @@
 					inprod(beta_occs_mu[1:n_terms_occs], resp_curves_x_occs[j, 1:n_terms_occs, i])
 				
 				logit(response_curves_occs_pzero[j, i]) <-
-					inprod(beta_occs_pzero[1:n_terms_occs_pzero], resp_curves_x_occs_pzero[j, 1:n_terms_occs_pzero, i])
+					inprod(beta_pzero[1:n_terms_occs_pzero], resp_curves_x_occs_pzero[j, 1:n_terms_occs_pzero, i])
 
 			}
 
@@ -374,7 +383,7 @@
 	say('configureMCMC():', level = 2)
 
 	monitors_coeffs_not_indexed <- 'lambda_sigma'
-	monitors_coeffs_single_index <- c('beta_occs_mu', 'beta_occs_pzero', 'alpha_occs')
+	monitors_coeffs_single_index <- c('beta_occs_mu', 'beta_pzero', 'alpha_occs')
 	monitors_coeffs_double_index <- c()
 
 	monitors_derived_not_indexed <- c('log_lik')
@@ -413,7 +422,7 @@
 	# # AF slice sampler
 	# vars <- c('alpha_occs', 'beta_occs_mu')
 	# if (!homoscedastic) vars <- c(vars, 'beta_occs_sigma')
-	# if (zero_inflated) vars <- c(vars, 'beta_occs_pzero')
+	# if (zero_inflated) vars <- c(vars, 'beta_pzero')
 	# for (var in vars) {
 	# 	conf$removeSamplers(var)
 	# }
@@ -457,9 +466,9 @@ say('#################################################')
 	descrip <- 'occurrence: Poisson ~ normal homoscedastic'
 	workflow_postmodeling_generic(facet = 'occurrence', formulae = formulae, descrip = descrip, out_dir = out_dir)
 	
-	workflow_postmodeling_occurrence(formula_occs = formula_occs, formula_occs_sigma = formula_occs_sigma, formula_occs_pzero = formula_occs_pzero, formula_occs_bias = formula_occs_bias, pred_vect_nam = pred_vect_nam, out_dir = out_dir)
+	workflow_postmodeling_occurrence(formula_occs = formula_occs, formula_occs_sigma = formula_occs_sigma, formula_pzero = formula_pzero, formula_occs_bias = formula_occs_bias, out_dir = out_dir)
 	
-	if (do_crossvalidation) workflow_postmodeling_occurrence_crossvalidation(formula_occs = formula_occs, formula_occs_bias = formula_occs_bias, formula_occs_sigma = formula_occs_sigma, formula_occs_pzero = formula_occs_pzero, constants = constants, out_dir = out_dir)
+	if (do_crossvalidation) workflow_postmodeling_occurrence_crossvalidation(formula_occs = formula_occs, formula_occs_bias = formula_occs_bias, formula_occs_sigma = formula_occs_sigma, formula_pzero = formula_pzero, constants = constants, out_dir = out_dir)
 
 
 say(date())
