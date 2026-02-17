@@ -1,18 +1,31 @@
-#' Post-modeling cv_occs for occurrence-only models and models with an occurrence component
+#' Post-modeling cross-validation for joint occurrence/biomass model
 #'
-#' @param constants `constants` `list` from model preparation.
-#' @param inits `inits` `list` from model preparation.
-#' @param formula_occs,formula_occs_bias Formulae for occurrences and for occurrence bias
-#' @param formula_biomass_mu,formula_biomass_sigma Biomass formulae.
-#' @param formula_pzero Formula for probability of zero abundance and biomass.
-#' @param out_dir Folder into which to save results.
+#' constants		`constants` `list` from model preparation.
+#' inits 			`list` from model preparation.
+#' formula_occs, formula_occs_bias, formula_biomass_mu, formula_psi Formulae for occurrences and for occurrence bias
+#' resp_distrib 	Named vector of response distributions. For occurrence, this can be 'Poisson' or 'ZIP'. For biomass this can be 'gamma', 'ZIG' (zero-inflated gamma), 'lognormal', or 'ZILN' (zero-inflated lognormal)
+#' transform		Named vector of transformations to translate MVN to mean occurrence intensity or biomass: 'identity', 'softplus' or 'exponential'.
+#' out_dir Folder into which to save results.
 #'
-workflow_postmodeling_occurrence_biomass_crossvalidation <- function(chains, constants, inits, formula_occs, formula_occs_sigma, formula_occs_bias, formula_biomass_mu, formula_biomass_sigma, formula_pzero, out_dir) {
+workflow_postmodeling_occurrence_biomass_crossvalidation <- function(
+	chains,
+	constants,
+	inits,
+	formula_occs,
+	formula_occs_sigma,
+	formula_occs_bias,
+	formula_biomass_mu,
+	formula_psi,
+	resp_distrib,
+	transform,
+	out_dir
+) {
 
 	say('OCCURRENCE + BIOMASS: cross-validation', level = 2)
 
-	homoscedastic <- is.null(formula_occs_sigma)
-	zero_inflated <- !is.null(formula_pzero)
+	zero_inflated <- !is.null(formula_psi)
+
+	ag_vect <- vect('./outputs_loretta/integrated_sdm_pdm/andropogon_gerardi_occurrences_with_environment_1961_2020_for_integration.gpkg')
 
 	max_k_folds <- if (trial) { 1 } else { k_folds }
 	cv_occs <- cv_biomass <- data.table()
@@ -25,10 +38,10 @@ workflow_postmodeling_occurrence_biomass_crossvalidation <- function(chains, con
 		fold_inits <- inits
 
 		# county test/train sites
-		test_counties <- get(paste0('fold_', k, '_occs'))
+		test_counties <- which(data_occs$ag_vect$geofold == k)
 
 		# biomass test/train sites
-		test_plants <- get(paste0('fold_', k, '_biomass'))
+		test_plants <- which(data_biomass$raw_data_biomass$geofold == k)
 		test_sites <- sort(unique(fold_constants$site_index_biomass[test_plants]))
 		train_sites <- sort(unique(fold_constants$site_index_biomass[-test_plants]))
 
@@ -46,7 +59,7 @@ workflow_postmodeling_occurrence_biomass_crossvalidation <- function(chains, con
 		fold_constants$x_by_site_occs <- fold_constants$x_by_site_occs[train_sites, ]
 		fold_constants$x_by_site_biomass <- fold_constants$x_by_site_biomass[train_sites, ]
 		
-		if (zero_inflated) fold_constants$counties_x_occs_pzero_calib_sq <- fold_constants$counties_x_occs_pzero_calib_sq[-test_counties, ]
+		if (zero_inflated) fold_constants$counties_x_occs_psi_calib_sq <- fold_constants$counties_x_occs_psi_calib_sq[-test_counties, ]
 		fold_constants$w_occs_bias <- fold_constants$w_occs_bias[-test_counties, ]
 
 		# constants: biomass... order matters in assigning these!
@@ -62,29 +75,45 @@ workflow_postmodeling_occurrence_biomass_crossvalidation <- function(chains, con
 		x_by_site_biomass_test <- constants$x_by_site_biomass[test_sites, ]
 
 		if (zero_inflated) {
-			test_x_pzero <- constants$counties_x_occs_pzero_calib_sq[test_counties, ]
+			test_x_psi_counties <- constants$x_by_county_psi[test_counties, ]
+			test_x_psi_sites <- constants$x_by_site_psi[test_sites, ]
 		} else {
-			test_x_pzero <- NULL
+			test_x_psi_counties <- NULL
+			test_x_psi_sites <- NULL
 		}
 
 		# inits: occurrences
+		fold_inits$alpha_occs <- mc_extract(chains, 'alpha_occs', j = TRUE)
+		fold_inits$beta_occs <- mc_extract(chains, 'beta_occs', j = TRUE)
 		fold_inits$lambda_mu_sq <- inits$lambda_mu_sq[-test_counties]
-		fold_inits$alpha_occs <- hammer_extract(chains, 'alpha_occs', j = TRUE)
-		fold_inits$beta_occs_mu <- hammer_extract(chains, 'beta_occs_mu', j = TRUE)
 		
-		fold_inits$beta_biomass_mu <- hammer_extract(chains, 'beta_biomass_mu', j = TRUE)
-
 		fold_inits$y_n_ag_sim <- fold_inits$y_n_ag_sim[-test_counties]
 		fold_inits$N <- fold_inits$N[-test_counties]
 
 		# inits: biomass
-		fold_inits$mu_biomass_site <- hammer_extract(chains, 'mu_biomass_site', j = TRUE)[-test_sites]
-		fold_inits$sigma_biomass_within_sites_log <- log(hammer_extract(chains, 'sigma_biomass_within_sites'))
+		fold_inits$beta_biomass <- mc_extract(chains, 'beta_biomass', j = TRUE)
+		fold_inits$mu_biomass_site <- mc_extract(chains, 'mu_biomass_site', j = TRUE)[-test_sites]
+		fold_inits$sigma_biomass_within_sites_log <- log(mc_extract(chains, 'sigma_biomass_within_sites'))
 		fold_inits$y_biomass_sim <- fold_inits$y_biomass_sim[-test_plants]
 
 		# inits: integration
+		fold_inits$eta <- mc_extract(chains, 'eta')
+		sigmas <- mc_extract(chains, 'sigmas', j = TRUE)
+		fold_inits$log_sigmas <- log(sigmas)
+		U_post <- mc_extract(chains, 'U', j = TRUE, k = TRUE)
+		U_post <- matrix(U_post, nrow = 2)
+		fold_inits$U_star <- U_post / matrix(sigmas, nrow = 2, ncol = 2, byrow = TRUE)
 		fold_inits$Phi_county <- inits$Phi_county[-test_counties, ]
 		fold_inits$Phi_site <- inits$Phi_site[train_sites, ]
+
+		# inits: zero-inflation
+		if (zero_inflated) {
+		
+			fold_inits$beta_psi <- mc_extract(chains, 'beta_psi', j = TRUE)
+			fold_inits$z_site <- fold_inits$z_size[-test_sites]
+			fold_inits$z_county <- fold_inits$z_county[-test_counties]
+		
+		}
 
 		fold_model <- nimbleModel(
 			code = model_code,
@@ -96,9 +125,8 @@ workflow_postmodeling_occurrence_biomass_crossvalidation <- function(chains, con
 			buildDerivs = TRUE
 		)
 
-		fold_monitors <- c('beta_occs_mu', 'U', 'beta_biomass_mu', 'mu_biomass_site', 'sigma_biomass_within_sites')
-		if (!homoscedastic)	fold_monitors <- c(fold_monitors, 'beta_occs_sigma', 'beta_biomass_sigma')
-		if (zero_inflated) fold_monitors <- c(fold_monitors, 'beta_pzero')
+		fold_monitors <- c('beta_occs', 'U', 'beta_biomass', 'mu_biomass_site', 'sigma_biomass_within_sites')
+		if (zero_inflated) fold_monitors <- c(fold_monitors, 'beta_psi')
 
 		fold_conf <- configureMCMC(
 			fold_model,
@@ -120,15 +148,24 @@ workflow_postmodeling_occurrence_biomass_crossvalidation <- function(chains, con
 		fold_conf$addSampler(target = vars, type = 'NUTS')
 		say('NUTS sampler added to ', paste(vars, collapse = ' & '), '.')
 
-		var <- 'beta_occs_mu'
+		var <- 'beta_occs'
 		fold_conf$removeSamplers(var)
 		fold_conf$addSampler(target = var, type = 'AF_slice')
 		say('AF_slice sampler added to ', paste(var, collapse = ' & '), '.')
 
-		var <- 'beta_biomass_mu'	
+		var <- 'beta_biomass'
 		fold_conf$removeSamplers(var)
 		fold_conf$addSampler(target = var, type = 'AF_slice')
 		say('AF_slice sampler added to ', paste(var, collapse = ' & '), '.')
+
+		if (!is.null(formula_psi)) {
+			
+			var <- 'beta_psi'
+			fold_conf$removeSamplers(var)
+			fold_conf$addSampler(target = var, type = 'AF_slice')
+			say('AF_slice sampler added to ', paste(var, collapse = ' & '), '.')
+			
+		}
 
 		fold_build <- buildMCMC(fold_conf)
 		fold_compiled <- compileNimble(fold_model, fold_build, showCompilerOutput = FALSE)
@@ -149,11 +186,11 @@ workflow_postmodeling_occurrence_biomass_crossvalidation <- function(chains, con
 
 		### OCCURRENCE: evaluate predictions
 		say('evaluate occurrence predictions')
-		preds <- predict_occs_biomass(chains = fold_chains, x_occs = x_by_county_occs_test, x_biomass = x_by_county_biomass_test, homoscedastic = homoscedastic, zero_inflated = zero_inflated, type = 'mu', x_pzero = test_x_pzero)
+		preds <- predict_occs_biomass(chains = fold_chains, resp_distrib = resp_distrib, transform = transform, x_occs = x_by_county_occs_test, x_biomass = x_by_county_biomass_test, x_psi = test_x_psi_counties)
 
-		preds <- preds$preds_occs
+		preds_occs <- preds$preds_occs
 
-		# if (zero_inflated) preds_pzero <- predict_occs(chains = fold_chains, x = test_x_pzero, homoscedastic = homoscedastic, zero_inflated = zero_inflated, type = 'pzero', x_pzero = NULL)
+		if (zero_inflated) preds_psi <- predict_psi(chains = fold_chains, x = test_x_psi_counties)
 		
 		test_n <- data$y_n_ag[test_counties]
 		test_binary <- as.numeric(test_n > 0)
@@ -161,22 +198,22 @@ workflow_postmodeling_occurrence_biomass_crossvalidation <- function(chains, con
 		pres_test_counties <- which(test_binary == 1)
 		bg_test_counties <- which(test_binary == 0)
 
-		preds_pres <- preds[ , pres_test_counties]
-		preds_bg <- preds[ , bg_test_counties]
+		preds_pres <- preds_occs[ , pres_test_counties]
+		preds_bg <- preds_occs[ , bg_test_counties]
 
 		# calculate accuracy statistics
-		cbi <- mae <- auc <- biserial <- spearman <- pzero_acc <- rep(NA_real_, nrow(preds))
-		for (iter in 1:nrow(preds)) {
+		cbi <- mae <- auc <- biserial <- spearman <- psi_acc <- rep(NA_real_, nrow(preds_occs))
+		for (iter in 1:nrow(preds_occs)) {
 
-			this_preds <- preds[iter, , drop = TRUE]
-			if (zero_inflated) this_preds_pzero <- preds_pzero[iter, , drop = TRUE]
+			this_preds <- preds_occs[iter, , drop = TRUE]
+			if (zero_inflated) this_preds_psi <- preds_psi[iter, , drop = TRUE]
 
 			biserial[iter] <- cor(this_preds, test_binary)
 			auc[iter] <- enmSdmX::evalAUC(preds_pres[iter, , drop = TRUE], preds_bg[iter, , drop = TRUE])
 			cbi[iter] <- enmSdmX::evalContBoyce(this_preds, preds_bg[iter, , drop = TRUE])
 			mae[iter] <- mae_fx(this_preds, test_n)
 			spearman[iter] <- cor(this_preds, test_n, method = 'spearman')
-			if (zero_inflated) pzero_acc[iter] <- cor(-1 * test_binary, this_preds_pzero)
+			if (zero_inflated) psi_acc[iter] <- cor(test_binary, this_preds_psi)
 		
 		}
 
@@ -210,9 +247,9 @@ workflow_postmodeling_occurrence_biomass_crossvalidation <- function(chains, con
 				mae_mean = mean(mae, na.rm = TRUE),
 				mae_upper = quantile(mae, 0.975, na.rm = TRUE),
 
-				pzero_acc_lower = quantile(pzero_acc, 0.025, na.rm = TRUE),
-				pzero_acc_mean = mean(pzero_acc, na.rm = TRUE),
-				pzero_acc_upper = quantile(pzero_acc, 0.975, na.rm = TRUE)
+				psi_acc_lower = quantile(psi_acc, 0.025, na.rm = TRUE),
+				psi_acc_mean = mean(psi_acc, na.rm = TRUE),
+				psi_acc_upper = quantile(psi_acc, 0.975, na.rm = TRUE)
 
 
 			)
@@ -220,9 +257,9 @@ workflow_postmodeling_occurrence_biomass_crossvalidation <- function(chains, con
 
 		### BIOMASS: evaluate predictions
 		say('evaluate biomass predictions')
-		preds <- predict_occs_biomass(chains = fold_chains, x_occs = x_by_site_occs_test, x_biomass = x_by_site_biomass_test, homoscedastic = homoscedastic, zero_inflated = zero_inflated, type = 'mu', x_pzero = test_x_pzero)
+		preds <- predict_occs_biomass(chains = fold_chains, resp_distrib = resp_distrib, transform = transform, x_occs = x_by_site_occs_test, x_biomass = x_by_site_biomass_test, x_psi = test_x_psi_sites)
 		
-		preds <- preds$preds_biomass
+		preds_biomass <- preds$preds_biomass
 
 		### evaluate predictions
 		# observed site means
@@ -235,19 +272,21 @@ workflow_postmodeling_occurrence_biomass_crossvalidation <- function(chains, con
 		}
 
 		# RMSE, mean abs prediction error, mean absolute error, correlation between observed and predicted
-		rmse <- mape <- mae <- correl <- rep(NA_real_, nrow(preds))
-		for (iter in 1:nrow(preds)) {
-			correl[iter] <- cor(preds[iter, , drop = TRUE], site_means)
-			mae[iter] <- mae_fx(preds[iter, , drop = TRUE], site_means)
-			mape[iter] <- mean_abs_percent_error_fx(preds[iter, , drop = TRUE], site_means)
-			rmse[iter] <- rmse_fx(preds[iter, , drop = TRUE], site_means)
+		rmse <- mape <- mae <- correl <- rep(NA_real_, nrow(preds_biomass))
+		for (iter in 1:nrow(preds_biomass)) {
+			correl[iter] <- cor(preds_biomass[iter, , drop = TRUE], site_means)
+			mae[iter] <- mae_fx(preds_biomass[iter, , drop = TRUE], site_means)
+			mape[iter] <- mean_abs_percent_error_fx(preds_biomass[iter, , drop = TRUE], site_means)
+			rmse[iter] <- rmse_fx(preds_biomass[iter, , drop = TRUE], site_means)
 		}
+
+		correl[is.na(correl)] <- 0
 
 		# quantile of predictions in which observed values fall
 		obs_quants <- rep(NA_real_, length(test_sites))
-		n <- nrow(preds)
+		n <- nrow(preds_biomass)
 		for (i in seq_along(test_sites)) {
-			obs_quants[i] <- sum(preds[ , i] < site_means[i]) / n
+			obs_quants[i] <- sum(preds_biomass[ , i] < site_means[i]) / n
 		}
 
 		# proportion of observations within the inner 90th quantile of the distribution of predicted values
@@ -321,9 +360,9 @@ workflow_postmodeling_occurrence_biomass_crossvalidation <- function(chains, con
 				mae_mean = mean(cv_occs$mae_mean),
 				mae_upper = mean(cv_occs$mae_upper),
 
-				pzero_acc_lower = mean(cv_occs$pzero_acc_lower),
-				pzero_acc_mean = mean(cv_occs$pzero_acc_mean),
-				pzero_acc_upper = mean(cv_occs$pzero_acc_upper)
+				psi_acc_lower = mean(cv_occs$psi_acc_lower),
+				psi_acc_mean = mean(cv_occs$psi_acc_mean),
+				psi_acc_upper = mean(cv_occs$psi_acc_upper)
 		)
 	)
 
@@ -367,14 +406,12 @@ workflow_postmodeling_occurrence_biomass_crossvalidation <- function(chains, con
 	meta_crossvalidation <- list(
 		facet = 'occurrence',
 		date = date(),
-		homoscedastic = homoscedastic,
 		zero_inflated = zero_inflated,
 		formulae = list(
 			formula_occs = formula_occs,
 			formula_occs_bias = formula_occs_bias,
 			formula_biomass_mu = formula_biomass_mu,
-			formula_biomass_sigma = formula_biomass_sigma,
-			formula_pzero = formula_pzero
+			formula_psi = formula_psi
 		),
 		cv_occs = cv_occs,
 		cv_biomass = cv_biomass

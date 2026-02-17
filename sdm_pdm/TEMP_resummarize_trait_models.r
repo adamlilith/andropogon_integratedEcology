@@ -36,7 +36,7 @@ for (trait in traits) {
 
 		formula_traits <- formulae$formula_trait
 
-		data_traits <- prepare_nonbiomass_traits(trait = trait, formula = formula_traits, n_response_curve_values = n_response_curve_values, calib = FALSE)
+		data_traits <- prepare_nonbiomass_facets(trait = trait, formula = formula_traits, n_response_curve_values = n_response_curve_values, calib = FALSE)
 
 
 		### NON-BIOMASS TRAIT: plant-level residuals analysis
@@ -44,12 +44,12 @@ for (trait in traits) {
 		say('NON-BIOMASS TRAIT: plant-level residuals analysis', level = 2)
 
 		# NB this uses the mean predicted value of a site as a plant-level prediction
-		sims_by_plant <- hammer_subset(chains, param = 'y_traits_sim', j = TRUE)
-		sims_by_plant <- hammer_rbind(sims_by_plant)
+		sims_by_plant <- mc_subset(chains, param = 'y_traits_sim', j = TRUE)
+		sims_by_plant <- mc_rbind(sims_by_plant)
 		sims_by_plant <- t(sims_by_plant)
 
-		estimates <- hammer_subset(chains, param = 'site_traits_mu', j = TRUE)
-		estimates <- hammer_rbind(estimates)
+		estimates <- mc_subset(chains, param = 'site_traits_mu', j = TRUE)
+		estimates <- mc_rbind(estimates)
 
 		site_counts <- data_traits$raw_data_traits[ , .N, by = SITE]
 		fit_by_site <- apply(estimates, 2, median)
@@ -139,7 +139,7 @@ for (trait in traits) {
 		for (i in seq_len(data_traits$n_covariates)) {
 
 			if (data_traits$covariates_traits[i] == 'ph') {
-				x <- data_traits$raw_data_traits[['site_soil_pH']]
+				x <- data_traits$raw_data_traits[['site_ph']]
 			} else {
 				x <- data_traits$raw_data_traits[[data_traits$covariates_traits[i]]]
 			}
@@ -199,11 +199,11 @@ for (trait in traits) {
 		for (i in seq_along(sites)) {
 		
 			site <- sites[i]
-			trait_column_name <- get_raw_trait_name(trait)
+			trait_column_name <- get_raw_trait_name_from_rfriendly(trait)
 			observed[i] <- mean(data_traits$raw_data_traits[[trait_column_name]][data_traits$raw_data_traits$SITE == site])
 
 		}
-		estimated <- hammer_extract(chains, 'site_traits_mu', j = TRUE)
+		estimated <- mc_extract(chains, 'site_traits_mu', j = TRUE)
 		estimated <- unname(estimated)
 		correl_mu <- cor(observed, estimated)
 		say('Correlation between site-level mean observed and estimated mean trait value: ', correl_mu)
@@ -219,7 +219,7 @@ for (trait in traits) {
 		if (!homoscedastic) {
 		
 			observed <- data_traits$raw_data_biomass[ , .(sd_biomass = mean(Biomass)), by = SITE][['sd_biomass']]
-			estimated <- hammer_extract(chains, 'site_traits_sigma', j = TRUE)
+			estimated <- mc_extract(chains, 'site_traits_sigma', j = TRUE)
 			correl_sigma <- cor(observed, estimated)
 			say('Correlation between site-level mean observed and estimated s.d. of taut values: ', correl)
 

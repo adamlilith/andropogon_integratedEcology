@@ -7,7 +7,7 @@ get_nice_predictor <- function(pred) {
 	# get traits
 	if (pred == 'aridity') {
 		short <- 'Aridity'
-		long <- 'Aridity ((temp. + 10) / (precip. / 1000))'
+		long <- 'Aridity ((temp. + 10) / ((1 + precip.) / 1000))'
 		units <- ''
 		range_fx <- standard_range_fx
 	} else if (pred == 'bio1') {
@@ -70,6 +70,11 @@ get_nice_predictor <- function(pred) {
 		long <- 'Soil organic matter'
 		units <- '???'
 		range_fx <- standard_range_fx
+	} else if (pred == 'site_nitrogen') {
+		short <- 'Soil Nitrogen'
+		long <- 'Soil nitrogen'
+		units <- '%'
+		range_fx <- percent_range_fx
 	}
 
 	list(short = short, long = long, units = units, range_fx = range_fx)

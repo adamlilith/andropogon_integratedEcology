@@ -240,8 +240,8 @@ library(ggmcmc)
 coeffs_trad <- c('beta0_hat', 'beta1_hat', 'sigma_hat')
 coeffs_nn <- c(coeffs_trad, 'sigma_prime_hat', 'sigma_combined_hat')
 
-mcmc_trad_coeffs <- hammer_subset(mcmc_trad, coeffs_trad)
-mcmc_nn_coeffs <- hammer_subset(mcmc_nn, coeffs_nn)
+mcmc_trad_coeffs <- mc_subset(mcmc_trad, coeffs_trad)
+mcmc_nn_coeffs <- mc_subset(mcmc_nn, coeffs_nn)
 
 ggs_trad <- ggs(mcmc_trad_coeffs$samples)
 ggs_nn <- ggs(mcmc_nn_coeffs$samples)

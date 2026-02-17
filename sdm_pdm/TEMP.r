@@ -1,4 +1,13 @@
-# source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/TEMP.r')
+### MODELING ANDROPOGON GERARDI DISTRIBUTION, PHENOTYPE, PHYSIOLOGY, GENOTYPE, and ASSOCIATED MICROBIAL COMMUNITIES
+### Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | 2023-12
+###
+### This script constructs a species distribution model Andropogon gerardi where "county" is the observational unit. It assumes (latent) abundance follows a zero-inflated Poisson distribution, and the observed number of AG is a binomial distribution where the probability of observing AG is a function of county area and the number of Poaceae recorded in the county (including AG). The expected abundance drawn from a normal distribution where the mean value is given by a function of environmental predictors (climate, soil, etc.). The probability of (inflated) zero is a function of environmental covariates. The model is run using nimble.
+###
+### source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/TEMP.r')
+### 
+#############
+### setup ###
+#############
 
 	rm(list = ls())
 
@@ -7,235 +16,461 @@
 	setwd(paste0(drive, '/Research/Andropogon/Andropogon'))
 	source(paste0(drive, '/R/andropogon_integratedEcology/sdm_pdm/sdm_pdm_00_shared_functions_and_variables.r'))
 
+###########################
+### user-defined values ###
+###########################
 
 	# trial <- TRUE # TRUE for testing
 	trial <- FALSE # TRUE for testing
 
-	# do cross-validation?
-	# crossvalidate <- FALSE
-	crossvalidate <- TRUE
-
-	### formula for how aspects of species responds to environment
-
-	# formula_biomass_mu <- ~ 1 + bio12 # response of biomass to environment
-	# preds_filename <- 'bio12'
-
-	# formula_biomass_mu <- ~ 1 + bio12 + I(bio12^2) # response of biomass to environment
-	# preds_filename <- 'bio12^2'
-
-	# formula_biomass_mu <- ~ 1 + bio1 # response of biomass to environment
-	# preds_filename <- 'bio1'
-
-	# formula_biomass_mu <- ~ 1 + bio1 + I(bio1^2) # response of biomass to environment
-	# preds_filename <- 'bio1^2'
-
-	# formula_biomass_mu <- ~ 1 + bio1 + bio12 # response of biomass to environment
-	# preds_filename <- 'bio1_bio12'
-
-	# formula_biomass_mu <- ~ 1 + bio1 + bio12 + bio1:bio12 # response of biomass to environment
-	# preds_filename <- 'bio1_x_bio12'
-
-	# formula_biomass_mu <- ~ 1 + bio1 + bio12 + I(bio1^2) # response of biomass to environment
-	# preds_filename <- 'bio1^2_bio12'
-
-	# formula_biomass_mu <- ~ 1 + bio1 + bio12 + I(bio12^2) # response of biomass to environment
-	# preds_filename <- 'bio1_bio12^2'
-
-	# formula_biomass_mu <- ~ 1 + bio1 + bio12 + I(bio1^2) + I(bio12^2) # response of biomass to environment
-	# preds_filename <- 'bio1^2_bio12^2'
-
-	formula_biomass_mu <- ~ 1 + bio1 + bio12 + I(bio1^2) + bio1:bio12 # response of biomass to environment
-	preds_filename <- 'bio1^2_x_bio12'
-
-	# out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_biomass/', ifelse(trial, 'TRIAL_', ''), '[biomass_gamma~normal_homoscedastic_', preds_filename, ']/')
-	# zero_inflated <- FALSE # SPECIFIC TO THIS SCRIPT--SHOULD NOT BE CHANGED
-	# formula_pzero <- NULL
-
-	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_biomass/', ifelse(trial, 'TRIAL_', ''), '[biomass_zig~normal_homoscedastic_', preds_filename, ']/')
-	zero_inflated <- TRUE # SPECIFIC TO THIS SCRIPT--SHOULD NOT BE CHANGED
-	formula_pzero <- formula_biomass_mu
-
 	# calib <- TRUE # use just counties with non-NA Poaceae for calibration region
 	calib <- FALSE # use all of North America for calibration region
 
-	homoscedastic <- TRUE # SPECIFIC TO THIS SCRIPT--SHOULD NOT BE CHANGED
-	formula_biomass_sigma <- NULL
+	# do cross-validation?
+	do_crossvalidation <- TRUE
+	# do_crossvalidation <- FALSE
 
-	data_biomass_mu <- prepare_biomass(formula_biomass = formula_biomass_mu, n_response_curve_values = n_response_curve_values, calib = calib)
-	data_occs <- prepare_occurrences(formula_occs = ~ 1, formula_occs_bias = ~ 1, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
+	# use log of BIOs 12-14 and 16-19?
+	# log_precip <- FALSE
+	log_precip <- TRUE
 
+	### formula for how aspects of species responds to environment
+
+	formula_occs <- ~ 1 + bio1 + bio12 + bio15 + I(bio1^2) + I(bio12^2) + I(bio15^2) # response of occurrence to climate and soil
+	preds_filename <- 'bio1^2_bio12^2_bio15^2'
+
+	# formula_occs <- ~ 1 + bio1 + bio12 + bio15 + sand + I(bio1^2) + I(bio12^2) + I(bio15^2) + I(sand^2) # response of occurrence to climate and soil
+	# preds_filename <- 'bio1^2_bio12^2_bio15^2_sand^2'
+
+	# formula_psi <- ~ 1 + bio1 + bio12 + bio15 + sand + I(bio1^2) + I(bio12^2) + I(bio15^2) + I(sand^2)
+	# zip_filename <- 'bio1^2_bio12^2_bio15^2_sand^2'
+
+	# formula_psi <- ~ 1 + bio1 + bio12 + bio15 + ph + I(bio1^2) + I(bio12^2) + I(bio15^2) + I(ph^2)
+	# zip_filename <- 'bio1^2_bio12^2_bio15^2_ph^2'
+
+	formula_psi <- ~ 1 + bio1 + bio12 + bio15 + I(bio1^2) + I(bio12^2) + I(bio15^2)
+	zip_filename <- 'bio1^2_bio12^2_bio15^2'
+
+	# formula_occs_bias <- ~ 1 + area_km2_log10 + n_poaceae_log10p1 # sampling bias for AG records
+	# bias_filename <- 'area_poaceae'
+	
+	# formula_occs_bias <- ~ 1 + area_km2_log10 # sampling bias for AG records
+	# bias_filename <- 'area'
+	
+	formula_occs_bias <- ~ 1 + area_km2_log10 # sampling bias for AG records
+	bias_filename <- 'poaceae'
+	
+	# formula_occs_bias <- ~ 1 # sampling bias for AG records
+	# bias_filename <- '1'
+
+	### output folder and bias formula
+	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/', ifelse(trial, 'TRIAL_', ''), '[occs_zip[psi~', zip_filename, ']~normal~', preds_filename, '_[bias~', bias_filename, ']]', ifelse(log_precip, '_log_precip', ''), '/')
+
+	if (!trial) {
+
+		### MCMC settings
+		# need these settings to achieve independent samples using bio1^2, bio12^2, bio15^
+		niter <- 1600000
+		nburnin <- niter / 2
+		thin <- 800
+		nchains <- 4
+
+	} else {
+		
+		### MCMC settings FOR TESTING
+		niter <- 1100
+		nburnin <- 100
+		thin <- 1
+		nchains <- 2
+
+	}
+
+#############
+### model ###
+#############
+
+	# if (!trial) if (file.exists(out_dir)) stop('Output folder already exists.')
+	# dirCreate(out_dir)
+
+	# sink(paste0(out_dir, '/runtime_log.txt'), split = TRUE)
+	# say('MODELING OCCURRENCE')
+	# say('Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | ', date(), post = 1)
+
+	# ### data collation
+	# ##################
+	# say('data collation', post = 1)
+
+	# say('This script constructs a species distribution model Andropogon gerardi where "county" is the observational unit. It assumes (latent) abundance follows a zero-inflated Poisson distribution, and the observed number of AG is a binomial distribution where the probability of observing AG is a function of county area and the number of Poaceae recorded in the county (including AG). The expected abundance drawn from a normal distribution where the mean value is given by a function of environmental predictors (climate, soil, etc.). The probability of (inflated) zero is a function of environmental covariates. The model is run using nimble.', breaks = 60, post = 1)
+
+	# say('MCMC settings:', level = 2)
+	# say('trial ........................ ', trial)
+	# say('niter ........................ ', niter)
+	# say('nburnin ...................... ', nburnin)
+	# say('thin ......................... ', thin)
+	# say('nchains ...................... ', nchains)
+	# say('formula_occs ................. ', paste(as.character(formula_occs), collapse = ' '))
+	# say('formula_psi .................. ', paste(as.character(formula_psi), collapse = ' '))
+	# say('formula_occs_bias ............ ', paste(as.character(formula_occs_bias), collapse = ' '))
+
+	# say('out_dir')
+	# say(out_dir, post = 2)
+
+	formulae <- list(
+		formula_occs = formula_occs,
+		formula_psi = formula_psi,
+		formula_occs_bias = formula_occs_bias
+	)
+	saveRDS(formula, paste0(out_dir, '/formulae.rds'))
+
+	########################s
+	### data preparation ###
+	########################
+
+	data_occs <- prepare_occurrence_data(formula_occs = formula_occs, formula_occs_bias = formula_occs_bias, log_precip = log_precip, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
+
+	data_occs_psi <- prepare_occurrence_data(formula_occs = formula_psi, formula_occs_bias = formula_occs_bias, log_precip = log_precip, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
+
+	#########################
+	### inputs for nimble ###
+	#########################
+
+	say('Inputs:', level = 2)
+	data <- list(
+		y_n_ag = data_occs$y_n_ag				# number of AG observations in each county
+	)
+
+	constants <- list(
+		
+		# y_n_ag_min = data_occs$y_n_ag,
+
+		### occurrences
+		n_counties_occs_calib = data_occs$n_counties_occs_calib, # number of counties in calibration region
+		n_terms_occs = data_occs$n_terms_occs, # number of terms in formula for occurrence model (including intercept)
+		n_terms_occs_psi = data_occs_psi$n_terms_occs, # number of terms in sampling bias model
+
+		w_occs_bias = data_occs$w_occs_bias, # model matrix of sampling bias of AG observed occurrences
+		n_terms_occs_bias = data_occs$n_terms_occs_bias, # number of terms in sampling bias model
+
+		n_covariates_occs = data_occs$n_covariates_occs, # number of covariates in formula for occurrence model
+		n_covariates_occs_bias = data_occs$n_covariates_occs_bias, # number of covariates in formula for occurrence model
+		resp_curves_x_occs = data_occs$resp_curves_x_occs, # response curve array for occurrences vs environment
+		resp_curves_x_occs_psi = data_occs_psi$resp_curves_x_occs, # response curve array for occurrences vs environment
+		resp_curves_w_occs = data_occs$resp_curves_w_occs, # response curve array for occurrences vs environment
+
+		counties_x_occs_calib_sq = data_occs$counties_x_occs_sq,
+		counties_x_occs_psi_calib_sq = data_occs_psi$counties_x_occs_sq,
+
+		# response curves (general)
+		n_response_curve_values = n_response_curve_values # number of values in response curve array
+
+	)
+
+	constants <- c(constants, constants_shared_occs, constants_shared_psi)
+
+	N_inits_calib <- data_occs$y_n_ag * 2
+	N_inits_all_counties <- 2 * (1 + data_occs$ag_vect_sq$n_andropogon_gerardi)
+
+	# # initial values for occ ~ f(env)
+	# formula_occs_terms <- attr(terms(formula_occs), 'term.labels')
+	# formula_occs_terms <- c('(Intercept)', formula_occs_terms)
+	# beta_occs_inits <- rep(0, length(formula_occs_terms))
+	# beta_occs_inits[grepl(formula_occs_terms, pattern = '\\^2')] <- -1
+
+	prelim_data <- cbind(data_occs$w_occs_bias, data_occs$counties_x_occs_sq[ , 2:ncol(data_occs$counties_x_occs_sq)])
+	prelim_model <- glm.fit(prelim_data, y = data_occs$y_n_ag, family = poisson(log))
+
+	alpha_occs_inits <- prelim_model$coefficients[c('(Intercept)', data_occs$terms_occs_bias)]
+	beta_occs_inits <- prelim_model$coefficients[c('(Intercept)', data_occs$terms_occs)]
+
+	prelim_data <- cbind(data_occs_psi$w_occs_bias, data_occs_psi$counties_x_occs_sq[ , 2:ncol(data_occs_psi$counties_x_occs_sq)])
+	y <- as.numeric(data_occs$y_n_ag > 0)
+	prelim_model <- glm.fit(prelim_data, y = y, family = binomial())
+	beta_occs_psi_inits <- prelim_model$coefficients[c('(Intercept)', data_occs$terms_occs)]
+
+	response_curves_occs_mu_inits <- matrix(2, nrow = n_response_curve_values, ncol = data_occs$n_covariates_occs)
+	response_curves_occs_z_inits <- matrix(1, nrow = n_response_curve_values, ncol = data_occs$n_covariates_occs)
+
+	inits <- list(
+
+		lambda_sigma = 1,
+		log_lambda_sigma = log(1),
+
+		y_n_ag_sim = data_occs$y_n_ag, # simulated values of observed number of AG (for DHARMa residuals)
+		z_county = as.numeric(N_inits_calib > 0), # AG present?
+		# log_lambda_mu_sq = rep(1, data_occs$n_counties_occs_calib), # expected value of number of AG
+		log_lambda_mu_sq = log(data_occs$y_n_ag + 1), # expected value of number of AG
+		alpha_occs = alpha_occs_inits, # intercept, area, # of Poaceae
+		beta_occs = beta_occs_inits, # occurrence ~ environment coefficients (including intercept)
+		beta_psi = beta_occs_psi_inits, # psi ~ environment coefficients (including intercept)
+
+		N = N_inits_calib, # number of latent AG in calibration counties
+
+		log_lambda_resp_curves_mu = response_curves_occs_mu_inits,
+		response_curves_occs_mu = response_curves_occs_mu_inits,
+		response_curves_occs_z = response_curves_occs_z_inits
+		
+	)
+
+	say('Data:')
+	print(str(data))
+
+	say('Constants:', pre = 1)
+	print(str(constants))
+
+	say('Initializations:', pre = 1)
+	print(str(inits))
+
+	### define model
+	say('nimbleCode():', level = 2)
+
+	model_code <- nimbleCode({
+	
+		# OCCURRENCE: weakly regularized or regularized priors for relationship to environment
+		# ddexp(): rate = 0.7675 sets |beta| < 3 90% of time and <5 97.8% of the time, and <10 99.95% of the time
+		# ddexp(): rate = 0.9986 sets |beta| < 3 95% of time
+		beta_occs[1] ~ dnorm(0, sd = beta_occs_prior_dnorm_sd_1)
+		for (i in 2:n_terms_occs) {
+			beta_occs[i] ~ ddexp(0, rate = beta_occs_prior_ddexp_rate)
+			# beta_occs[i] ~ dnorm(0, sd = beta_occs_prior_dnorm_sd)
+		}
+
+		beta_psi[1] ~ dnorm(0, sd = beta_psi_prior_dnorm_sd_1)
+		for (i in 2:n_terms_occs_psi) {
+			beta_psi[i] ~ ddexp(0, rate = beta_occs_prior_ddexp_rate)
+			# beta_psi[i] ~ dnorm(0, sd = beta_psi_prior_dnorm_sd)
+		}
+
+		# OCCURRENCE: priors for sampling bias
+		alpha_occs[1] ~ dnorm(0, sd = alpha_occs_prior_dnorm_sd_1)
+
+		# OCCURRENCE: prior for spread of normal distribution of lambda
+		log(lambda_sigma) ~ dnorm(0, sd = lambda_sigma_prior_sd) # half-Cauchy
+
+		# OCCURRENCE: likelihood
+		for (i in 1:n_counties_occs_calib) {
+			
+			### actual abundance (latent--unobserved)
+			N[i] ~ dTruncPseudoZIP(lambda = lambda_mu_sq[i], z = z_county[i])
+
+			### observed number of AG and sampling bias
+			# logit(p[i]) <- inprod(alpha_occs[1:n_terms_occs_bias], w_occs_bias[i, 1:n_terms_occs_bias])
+			y_n_ag[i] ~ dbinom(size = N[i], prob = p[i])
+
+			# simulate observations for DHARMa residuals
+			y_n_ag_sim[i] ~ dbinom(size = N[i], prob = p[i])
+
+			# relationship between expected (latent) abundance and environment assuming NORMAL distribution
+			log(lambda_mu_sq[i]) ~ dnorm(phi_mu_sq[i], sd = lambda_sigma)
+			phi_mu_sq[i] <- inprod(beta_occs[1:n_terms_occs], counties_x_occs_calib_sq[i, 1:n_terms_occs])
+
+			# (inflated) probability of zero abundance
+			logit(psi[i]) <- inprod(beta_psi[1:n_terms_occs_psi], counties_x_occs_psi_calib_sq[i, 1:n_terms_occs_psi])
+			z_county[i] ~ dbern(psi[i])
+
+			# likelihood
+			log_lik_y[i] <- dbinom(y_n_ag[i], prob = p[i], size = N[i], log = 1)
+
+		}
+
+		log_lik <- sum(log_lik_y[1:n_counties_occs_calib])
+
+		# OCCURRENCE: posterior predictive sampler for ENVIRONMENTAL response curves
+		# We're assuming occurrence responds to two or more environmental predictors, so the response curve "x" is an array with one "page" per predictor and output is a matrix with one column per predictor
+		for (i in 1:n_covariates_occs) {
+
+			for (j in 1:n_response_curve_values) {
+				
+				response_curves_occs_mu[j, i] ~ dTruncPseudoZIP(lambda_resp_curves_mu[j, i], z = response_curves_occs_z[j, i])
+				
+				log(lambda_resp_curves_mu[j, i]) ~ dnorm(phi_lambda_resp_curves_mu[j, i], sd = lambda_sigma)
+				
+				phi_lambda_resp_curves_mu[j, i] <-
+					inprod(beta_occs[1:n_terms_occs], resp_curves_x_occs[j, 1:n_terms_occs, i])
+				
+				logit(response_curves_psi[j, i]) <-
+					inprod(beta_psi[1:n_terms_occs_psi], resp_curves_x_occs_psi[j, 1:n_terms_occs_psi, i])
+
+				response_curves_occs_z[j, i] ~ dbern(response_curves_psi[j, i])
+
+			}
+
+		}
+
+	})
+
+	### NO bias covariate
+	if (data_occs$n_covariates_occs_bias == 0) {
+
+		bias_response_curve_code <- nimbleCode({
+
+			# OCCURRENCE: likelihood
+			for (i in 1:n_counties_occs_calib) {
+				logit(p[i]) <- alpha_occs[1]
+			}
+
+			# OCCURRENCE: posterior predictive sampler for BIAS response curves
+			logit(response_curves_occs_bias) <- alpha_occs[1]
+
+		})
+
+		model_code <- glueNimbleCode(model_code, bias_response_curve_code)
+
+	} else if (data_occs$n_covariates_occs_bias == 1) {
+	### ONE bias covariate
+
+		bias_response_curve_code <- nimbleCode({
+
+			for (i in 2:n_terms_occs_bias) {
+				alpha_occs[i] ~ dnorm(0, sd = alpha_occs_prior_dnorm_sd)
+			}
+
+			# OCCURRENCE: likelihood
+			for (i in 1:n_counties_occs_calib) {
+				logit(p[i]) <- inprod(alpha_occs[1:n_terms_occs_bias], w_occs_bias[i, 1:n_terms_occs_bias])
+			}
+
+			# OCCURRENCE: posterior predictive sampler for BIAS response curves
+			for (j in 1:n_response_curve_values) {
+				
+				logit(response_curves_occs_bias[j]) <-
+					inprod(alpha_occs[1:n_terms_occs_bias], resp_curves_w_occs[j, 1:n_terms_occs_bias])
+
+			}
+
+		})
+
+		model_code <- glueNimbleCode(model_code, bias_response_curve_code)
+
+	### MORE THAN ONE bias covariate
+	} else if (data_occs$n_covariates_occs_bias > 1) {
+
+		bias_response_curve_code <- nimbleCode({
+
+			for (i in 2:n_terms_occs_bias) {
+				alpha_occs[i] ~ dnorm(0, sd = alpha_occs_prior_dnorm_sd)
+			}
+
+			# OCCURRENCE: likelihood
+			for (i in 1:n_counties_occs_calib) {
+				logit(p[i]) <- inprod(alpha_occs[1:n_terms_occs_bias], w_occs_bias[i, 1:n_terms_occs_bias])
+			}
+
+			# OCCURRENCE: posterior predictive sampler for BIAS response curves
+			for (i in 1:n_covariates_occs_bias) {
+				
+				for (j in 1:n_response_curve_values) {
+					
+					logit(response_curves_occs_bias[j, i]) <-
+						inprod(alpha_occs[1:n_terms_occs_bias], resp_curves_w_occs[j, 1:n_terms_occs_bias, i])
+
+				}
+
+			}
+
+		})
+
+		model_code <- glueNimbleCode(model_code, bias_response_curve_code)
+
+	}
+
+	print(model_code)
+
+	# say('nimbleModel():', level = 2)
+	# model <- nimbleModel(
+	# 	code = model_code, # our model
+	# 	constants = constants, # constants
+	# 	data = data, # data
+	# 	inits = inits, # initialization values
+	# 	check = TRUE, # any errors?
+	# 	calculate = FALSE,
+	# 	# buildDerivs = TRUE # need for Hamiltonian Monte Carlo
+	# 	buildDerivs = FALSE # need for Hamiltonian Monte Carlo
+	# )
+
+	# say('initializeInfo() and $calculate():', level = 2)
+	# model$initializeInfo()
+	# calc <- model$calculate()
+	# say('model$calculate(): ', calc)
+	# if (is.na(calc) || is.infinite(calc)) stop('Impossible likelihood.')
+	
+	# say('configureMCMC():', level = 2)
+
+	monitors_coeffs_not_indexed <- 'lambda_sigma'
+	monitors_coeffs_single_index <- c('beta_occs', 'beta_psi', 'alpha_occs')
+	monitors_coeffs_double_index <- c()
+
+	monitors_derived_not_indexed <- c('log_lik')
+	monitors_derived_single_index <- c() # c('N', 'p', 'z_county', 'psi')
+	monitors_derived_double_index <- c()
+
+	monitors_dharma <- c(
+		'y_n_ag_sim', 'lambda_mu_sq'
+	)
+
+	monitors_resp_curves <- c(
+		'response_curves_occs_mu', 'response_curves_psi'
+	)
+	if (data_occs$n_covariates_occs_bias > 0) monitors_resp_curves <- c(monitors_resp_curves, 'response_curves_occs_bias')
+
+	monitors <- c(monitors_coeffs_not_indexed, monitors_coeffs_single_index, monitors_coeffs_double_index, monitors_derived_not_indexed, monitors_derived_single_index, monitors_derived_double_index, monitors_dharma, monitors_resp_curves)
+
+	# conf <- configureMCMC(
+	# 	model,
+	# 	monitors = monitors,
+	# 	print = TRUE,
+	# 	enableWAIC = TRUE
+	# )
+
+	# # add no U-turn sampler (Hamiltonian Monte Carlo)
+	# vars <- c(monitors_coeffs_not_indexed, monitors_coeffs_single_index, monitors_coeffs_double_index)
+	# conf$addSampler(target = vars, type = 'NUTS')
+	# say('NUTS sampler added to ', paste(vars, collapse = ' & '), '.')
+
+	# # RW block samplers for correlated parameters
+	# conf$removeSamplers('beta_occs[1]')
+	# conf$removeSamplers('beta_occs_vs_biomass')
+	# conf$addSampler(target = c('beta_occs[1]', 'beta_occs_vs_biomass[1]', 'beta_occs_vs_biomass[2]'), type = 'RW_block')
+	# say('RW_block sampler added to beta_occs[1] and beta_occs_vs_biomass[1:2].')
+
+	# # AF slice sampler
+	# vars <- c('alpha_occs', 'beta_occs')
+	# if (!homoscedastic) vars <- c(vars, 'beta_occs_sigma')
+	# if (zero_inflated) vars <- c(vars, 'beta_psi')
+	# for (var in vars) {
+	# 	conf$removeSamplers(var)
+	# }
+	# conf$addSampler(target = vars, type = 'AF_slice')
+	# say('AF_slice sampler added to ', paste(vars, collapse = ' & '), '.')
+
+	# ### compile/build/run model/save MCMC
+	# build <- buildMCMC(conf)
+
+	# say('Compiling ', date())
+	# compiled <- compileNimble(model, build, showCompilerOutput = FALSE)
+
+	# say('Sampling ', date())
+	# chains <- runMCMC(
+	# 	compiled$build,
+	# 	niter = niter,
+	# 	nburnin = nburnin,
+	# 	thin = thin,
+	# 	nchains = nchains,
+	# 	inits = inits,
+	# 	progressBar = TRUE,
+	# 	samplesAsCodaMCMC = TRUE,
+	# 	summary = TRUE,
+	# 	WAIC = TRUE,
+	# 	perChainWAIC = FALSE
+	# )
+
+	# saveRDS(chains, paste0(out_dir, '/chains.rds'))
 	chains <- readRDS(paste0(out_dir, '/chains.rds'))
 
-	pred_vect_nam <- burn_biomass_into_vector(demesne = 'nam', chains = chains, formula_biomass_mu = formula_biomass_mu, formula_biomass_sigma = formula_biomass_sigma, formula_pzero = formula_pzero)
-	pred_vect_1930s <- burn_biomass_into_vector(demesne = '1930s', chains = chains, formula_biomass_mu = formula_biomass_mu, formula_biomass_sigma = formula_biomass_sigma, formula_pzero = formula_pzero)
+	descrip <- 'occurrence ~ ZIP ~ exp(normal(env)))'
+	workflow_postmodeling_generic(facet = 'occurrence', formulae = formulae, descrip = descrip, out_dir = out_dir)
 
-	### BIOMASS: current map
-	########################
-	say('BIOMASS: current map', level = 2)
+	workflow_postmodeling_occurrence(formula_occs = formula_occs, formula_psi = formula_psi, formula_occs_bias = formula_occs_bias, out_dir = out_dir)
+	
+	# if (do_crossvalidation) workflow_postmodeling_occurrence_crossvalidation(formula_occs = formula_occs, formula_occs_bias = formula_occs_bias, formula_psi = formula_psi, constants = constants, out_dir = out_dir)
 
-		mean_form <- paste(as.character(formula_biomass_mu), collapse = ' ')
-		mean_form <- gsub(mean_form, pattern = 'I\\(', replacement = '')
-		mean_form <- gsub(mean_form, pattern = '\\^2\\)', replacement = '²')
-		mean_form <- gsub(mean_form, pattern = '*)', replacement = '×')
-
-		if (homoscedastic) {
-			subtitle <- paste0('Biomass μ ', mean_form, ' | 1991-2020')
-		} else {
-			sd_form <- paste(as.character(formula_biomass_sigma), collapse = ' ')
-			subtitle <- paste0('Biomass μ ', mean_form, ' & biomass σ ', sd_form, ' | 1991-2020')
-		}
-
-		map <- map_biomass(
-			out_dir = out_dir,
-			filename_append = 'present',
-			pred_vect_nam = pred_vect_nam,
-			response_var = 'mu_biomass_county_mean_sq',
-			response_var_type = 'mu',
-			data_occs = data_occs,
-			data_biomass = data_biomass_mu,
-			title = bquote('Present-day distribution of mean ' * italic('Andropogon gerardi') * ' biomass '),
-			subtitle = subtitle,
-			legend_title = 'Biomass (g)',
-			plot_range_core = TRUE,
-			# plot_range_core = FALSE,
-			ag_core_quant = 0.95
-		)
-print(NON)
-		if (!is.null(formula_pzero)) {
-			
-			facet <- 'biomass'
-			map <- map_pzero(
-				out_dir = out_dir,
-				filename_append = 'present',
-				pred_vect_nam = pred_vect_nam,
-				facet = facet,
-				response_var = paste0('pzero_', facet, '_county_sq'),
-				data_traits = data_biomass_mu,
-				title = bquote('Present-day probability of zero biomass '),
-				subtitle = subtitle,
-				plot_range_core = TRUE,
-				ag_core_quant = 0.95
-			)
-
-		}
-
-	### BIOMASS: future maps
-	########################
-	say('BIOMASS: future maps', level = 2)
-
-		for (fut in futs) {
-
-			say(fut)
-
-			response_var <- paste0('mu_biomass_county_mean_', fut)
-
-			mean_form <- paste(as.character(formula_biomass_mu), collapse = ' ')
-			if (homoscedastic) {
-				subtitle <- paste0('Biomass μ ', mean_form, '  | SSP ', substr(fut, 4, 6), ' ', substr(fut, 8, 11), '-', substr(fut, 13, 16))
-			} else {
-
-				sd_form <- paste(as.character(formula_biomass_sigma), collapse = ' ')
-				subtitle <- paste0('Biomass μ ', mean_form, ' & biomass σ ', sd_form, ' | SSP ', substr(fut, 4, 6), ' ', substr(fut, 8, 11), '-', substr(fut, 13, 16))
-			}
-
-			map_biomass_fut <- map_biomass(
-				out_dir = out_dir,
-				filename_append = fut,
-				pred_vect_nam = pred_vect_nam,
-				response_var = response_var,
-				response_var_type = 'mu',
-				data_occs = data_occs,
-				data_biomass = data_biomass_mu,
-				title = bquote('Future distribution of mean ' * italic('Andropogon gerardi') * ' biomass '),
-				subtitle = subtitle,
-				legend_title = 'Biomass (g)',
-				plot_range_core = TRUE,
-				ag_core_quant = 0.95
-			)
-
-			if (!is.null(formula_pzero)) {
-
-				face <- 'biomass'				
-				map_fut_pzero <- map_pzero(
-					out_dir = out_dir,
-					filename_append = fut,
-					pred_vect_nam = pred_vect_nam,
-					facet = facet,
-					response_var = paste0('pzero_', facet, '_county_', fut),
-					data_traits = data_biomass_mu,
-					title = bquote('Future probability of zero biomass '),
-					subtitle = subtitle,
-					plot_range_core = TRUE,
-					ag_core_quant = 0.95
-				)
-
-			}
-
-		}
-
-	# ### BIOMASS: future change maps
-	# ###############################
-	# say('BIOMASS: future change maps', level = 2)
-
-	# 	maps_biomass_change <- list()
-	# 	for (fut in futs) {
-
-	# 		say(fut)
-
-	# 		response_var <- paste0('mu_biomass_county_mean_', fut)
-	# 		title <- bquote('Change in ' * italic('Andropogon gerardi') * ' biomass ')
-
-	# 		mean_form <- paste(as.character(formula_biomass_mu), collapse = ' ')
-	# 		if (homoscedastic) {
-	# 			subtitle <- paste0('Biomass μ ', mean_form, '  | SSP ', substr(fut, 4, 6), ' ', substr(fut, 8, 11), '-', substr(fut, 13, 16))
-	# 		} else {
-
-	# 			sd_form <- paste(as.character(formula_biomass_sigma), collapse = ' ')
-	# 			subtitle <- paste0('Biomass μ ', mean_form, ' & biomass σ ', sd_form, ' | SSP ', substr(fut, 4, 6), ' ', substr(fut, 8, 11), '-', substr(fut, 13, 16))
-	# 		}
-
-	# 		maps_biomass_change[[length(maps_biomass_change) + 1]] <- map_biomass_change(
-	# 			out_dir = out_dir,
-	# 			filename_append = fut,
-	# 			fut = fut,
-	# 			pred_vect_nam = pred_vect_nam,
-	# 			response_var = response_var,
-	# 			data_occs = data_occs,
-	# 			data_biomass = data_biomass_mu,
-	# 			title = title,
-	# 			subtitle = subtitle,
-	# 			plot_range_core = TRUE,
-	# 			ag_core_quant = ag_core_quant
-	# 		)
-
-	# 		if (!is.null(formula_pzero)) {
-
-	# 			title <- bquote('Change in probability of zero biomass ')
-
-	# 			facet <- 'biomass'				
-	# 			map_pzero_change <- map_pzero_change(
-	# 				out_dir = out_dir,
-	# 				filename_append = fut,
-	# 				fut = fut,
-	# 				pred_vect_nam = pred_vect_nam,
-	# 				facet = facet,
-	# 				response_var = paste0('pzero_', facet, '_county_', fut),
-	# 				response_var_sq = paste0('pzero_', facet, '_county_sq'),
-	# 				data_traits = data_biomass_mu,
-	# 				title = title,
-	# 				subtitle = subtitle,
-	# 				plot_range_core = TRUE,
-	# 				ag_core_quant = 0.95
-	# 			)
-
-	# 		}
-
-	# 	}
-
-	### OCCURRENCE: 1930s change maps
-	#################################
-	say('BIOMASS: 1930s change maps', level = 2)
-
-	map_thirties <- map_biomass_traits_change_1930s(facet = 'biomass', data_biomass_traits = data_biomass_mu, pred_vect_nam = pred_vect_nam, pred_vect_1930s = pred_vect_1930s)
-
-
+say('DONE!', level = 1)

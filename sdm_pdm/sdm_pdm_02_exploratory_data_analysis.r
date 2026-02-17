@@ -1032,30 +1032,29 @@
 # 	# values along which to plot
 # 	poisson <- 0:20
 # 	gamma <- seq(0, 50, by = 5)
-# 	pzero <- c(0, 0.25, 0.5)
+# 	psi <- c(0, 0.25, 0.5)
 
 # 	# likelihood
-# 	log_likes <- expand.grid(poisson = poisson, gamma = gamma, pzero = pzero)
+# 	log_likes <- expand.grid(poisson = poisson, gamma = gamma, psi = psi)
 # 	log_likes$ll <- NA_real_
 # 	for (i in 1:nrow(log_likes)) {
 	
 # 		x <- c(log_likes$poisson[i], log_likes$gamma[i])
-# 		pzero <- log_likes$pzero[i]
-# 		log_likes$ll[i] <- dzipoisgamma1(x, lambda = lambda, shape = shape, rate = rate, pzero = pzero, log = 1)
+# 		psi <- log_likes$psi[i]
+# 		log_likes$ll[i] <- dzipoisgamma1(x, lambda = lambda, shape = shape, rate = rate, psi = psi, log = 1)
 	
 # 	}
 
 # 	log_likes <- log_likes[!is.infinite(log_likes$ll), ]
 
-# 	pzeros <- ggplot(log_likes, aes(x = poisson, y = gamma, color = ll)) + 
+# 	psis <- ggplot(log_likes, aes(x = poisson, y = gamma, color = ll)) + 
 # 		geom_point(pch = 16, size = 4) +
 # 		scale_color_viridis_c(option = 'magma') +
 # 		xlab('x1 (Poisson)') + ylab('x1 (Gamma)') +
 # 		labs(color = 'log\nlikelihood') +
-# 		facet_wrap(~ pzero) +
+# 		facet_wrap(~ psi) +
 # 		theme_minimal()
 
-# 	ggsave(pzeros, filename = './outputs_loretta/integrated_sdm_pdm/likelihood_of_joint_zero_inflated_poisson_and_1_gamma.png', width = 15, height = 5, bg = 'white')
-
+# 	ggsave(psis, filename = './outputs_loretta/integrated_sdm_pdm/likelihood_of_joint_zero_inflated_poisson_and_1_gamma.png', width = 15, height = 5, bg = 'white')
 
 say('FINIS!', level = 1)

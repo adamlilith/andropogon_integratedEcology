@@ -1,9 +1,9 @@
 #' Graph of response curves for occurrence vs environment
 #' 
 #' @param out_dir Folder in which to save graphs.
-#' @param resp_type "mu" or "sigma" or "pzero"
+#' @param resp_type "mu" or "sigma" or "psi"
 #' @param chains MCMC chains
-#' @param data From prepare_occurrences().
+#' @param data From prepare_occurrence_data().
 #' @param log_precip If `TRUE`, bios 12-14 and 16-19 were logged
 graph_response_curves_occurrence_vs_environment <- function(out_dir, resp_type, chains, data, log_precip) {
 
@@ -16,18 +16,18 @@ graph_response_curves_occurrence_vs_environment <- function(out_dir, resp_type, 
 	
 	if (resp_type == 'mu') {
 		param <-'response_curves_occs_mu'
-		y_lab <- bquote('Expected abundance')
+		y_lab <- bquote('Expected Abundance')
 	} else if (resp_type == 'sigma') {
 		param <-'response_curves_occs_sigma'
-		y_lab <- bquote('Standard deviation of log abundance')
-	} else if (resp_type == 'pzero') {
-		param <-'response_curves_occs_pzero'
-		y_lab <- bquote('Probability of zero')
+		y_lab <- bquote('Standard Deviation of Log Abundance')
+	} else if (resp_type == 'psi') {
+		param <-'response_curves_psi'
+		y_lab <- bquote('Probability of Presence')
 	}
 
 	# make a plot for how biomass mu and sigma respond to each predictor
 	responses <- list()
-	# max_val <- if (resp_type == 'pzero') { 1 } else { -Inf }
+	# max_val <- if (resp_type == 'psi') { 1 } else { -Inf }
 	max_val <- -Inf
 	for (i in 1:n_covariates) {
 
@@ -40,8 +40,8 @@ graph_response_curves_occurrence_vs_environment <- function(out_dir, resp_type, 
 			nice_title <- bquote('Abundance' * ' versus ' * .(nice_title))
 		} else if (resp_type == 'sigma') {
 			nice_title <- bquote('Standard Deviation in Abundance' * ' versus ' * .(nice_title))
-		} else if (resp_type == 'pzero') {
-			nice_title <- bquote('Probability of Zero' * ' versus ' * .(nice_title))
+		} else if (resp_type == 'psi') {
+			nice_title <- bquote('Probability of Presence' * ' versus ' * .(nice_title))
 		}
 
 		# unscaled predictor value
@@ -49,9 +49,9 @@ graph_response_curves_occurrence_vs_environment <- function(out_dir, resp_type, 
 
 		if (log_precip & pred %in% paste0('bio', c(12:14, 16:19))) x <- 10^x - 1
 		
-		response_mean <- hammer_extract(chains, param = param, j = 1:n_response_curve_values, k = i, stat = 'mean')
-		response_lower <- hammer_extract(chains, param = param, j = 1:n_response_curve_values, k = i, stat = 'lower')
-		response_upper <- hammer_extract(chains, param = param, j = 1:n_response_curve_values, k = i, stat = 'upper')
+		response_mean <- mc_extract(chains, param = param, j = 1:n_response_curve_values, k = i, stat = 'mean')
+		response_lower <- mc_extract(chains, param = param, j = 1:n_response_curve_values, k = i, stat = 'lower')
+		response_upper <- mc_extract(chains, param = param, j = 1:n_response_curve_values, k = i, stat = 'upper')
 
 		# data frames to hold predictions in long format
 		df_mean <- data.frame(
@@ -93,7 +93,7 @@ graph_response_curves_occurrence_vs_environment <- function(out_dir, resp_type, 
 				plot.title = element_text(size = 9)
 			)
 
-			# if (resp_type != 'pzero') {
+			# if (resp_type != 'psi') {
 
 				# mmax <- max(df_mean$response, na.rm = TRUE)
 				# if (df_mean$response[1] == mmax | df_mean$response[nrow(df_mean)] %==na% mmax) {
@@ -101,7 +101,7 @@ graph_response_curves_occurrence_vs_environment <- function(out_dir, resp_type, 
 				# } else {
 					mmax <- if (resp_type == 'mu') {
 						quantile(df_upper$response, 0.9, na.rm = TRUE)
-					} else if (resp_type == 'pzero') {
+					} else if (resp_type == 'psi') {
 						min(1, 1.05 * max(df_upper$response, na.rm = TRUE))
 					} else if (resp_type == 'sigma') {
 						1.05 * max(df_upper$response, na.rm = TRUE)

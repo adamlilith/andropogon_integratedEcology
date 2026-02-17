@@ -1,17 +1,19 @@
 #' Creates an array of model matrices for a response curve. If there is >1 covariate, then the output is a 3D array, with one "page" per covariate. If there is just one covariate, then the output is a single model matrix. Within each model matrix, the focal covariate increases from low to high across the rows with their range given by the range across present-day and future environments, while the other covariates are held constant at their median value across counties with at least one observed AG.
 #'
-#' @param formula: RHS formula with intercept
-#' @param log_precip If `TRUE`, take log of precipitation variables (BIOs 12-14, 16-19)
-#' @param centers: named numeric vector of medians
-#' @param scales: named numeric vector of standard deviations
-#' @param ag_vect_sq SpatVector of AG presences with covariates
-#' @param vects: a `list` of other `SpatVector`s with the same names as the covariates in the formula. These are the covariates that will be used to create the range of the response curve (along with `ag_vect_sq`). Ignored if `NULL`.
+#' formula 				RHS formula with intercept
+#' log_precip 			If `TRUE`, take log of precipitation variables (BIOs 12-14, 16-19)
+#' centers				named numeric vector of medians
+#' scales				named numeric vector of standard deviations
+#' site_data_raw		Data frame with raw site-level data.
+#' ag_vect_sq 			SpatVector of AG presences with covariates
+#' vects				a `list` of other `SpatVector`s with the same names as the covariates in the formula. These are the covariates that will be used to create the range of the response curve (along with `ag_vect_sq`). Ignored if `NULL`.
 #' @param n_response_curve_values Number of rows (values along the focal variable) in the response curve matrix. Default is 200.
 create_response_curve_array <- function(
 	formula,
 	log_precip,
 	centers,
 	scales,
+	site_data_raw,
 	ag_vect_sq,
 	vects = NULL,
 	n_response_curve_values = 200
@@ -44,11 +46,19 @@ create_response_curve_array <- function(
 
 		for (linear_term in linear_terms) {
 
-			# mins[linear_term] <- min(ag_vect_sq_just_occs[[linear_term]], na.rm = TRUE)
-			# maxs[linear_term] <- max(ag_vect_sq_just_occs[[linear_term]], na.rm = TRUE)
+			if (linear_term == 'ph') {
+				mins[linear_term] <- min(site_data_raw[['site_ph']])
+				maxs[linear_term] <- max(site_data_raw[['site_ph']])
+			} else if (linear_term == 'site_nitrogen') {
+				mins[linear_term] <- min(site_data_raw[['site_nitrogen']])
+				maxs[linear_term] <- max(site_data_raw[['site_nitrogen']])
+			} else {
+				mins[linear_term] <- min(site_data_raw[[linear_term]])
+				maxs[linear_term] <- max(site_data_raw[[linear_term]])
+			}
 
-			mins[linear_term] <- quantile(ag_vect_sq_just_occs[[linear_term]], 0.05, na.rm = TRUE)
-			maxs[linear_term] <- quantile(ag_vect_sq_just_occs[[linear_term]], 0.95, na.rm = TRUE)
+			mins[linear_term] <- min(mins[linear_term], quantile(ag_vect_sq_just_occs[[linear_term]], 0.05, na.rm = TRUE))
+			maxs[linear_term] <- max(maxs[linear_term], quantile(ag_vect_sq_just_occs[[linear_term]], 0.95, na.rm = TRUE))
 
 		}
 

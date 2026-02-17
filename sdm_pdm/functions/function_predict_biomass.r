@@ -1,28 +1,33 @@
 #' Predict a biomass model from chains
 #'
-#' @param chains
-#' @param x Model matrix
-#' @param homoscedastic `TRUE` or `FALSE`
-#' @param type 'mu' or 'sigma' or 'pzero'
+#' chains			MCMC chains list
+#' x 				Model matrix
+#' resp_distrib 	Named vector of response distribution. This can be 'gamma', 'ZIG' (zero-inflated gamma), 'lognormal', or 'ZILN' (zero-inflated lognormal)
+#' transform		Named vector of transformations to translate MVN to mean occurrence intensity or biomass: 'identity', 'softplus' or 'exponential'.
 #'
-#' @returns A matrix of predictions. Rows are iterations and columns are sample IDs.
-predict_biomass <- function(chains, x, homoscedastic, type = 'mu') {
+#' @returns A matrix of predictions. Rows are MCMC iterations and columns are samples.
+predict_biomass <- function(chains, x, resp_distrib, transform = NULL) {
 
+	vars <- paste0('beta_biomass')
+	betas <- mc_subset(chains, vars, j = TRUE)
 
-	vars <- paste0('beta_biomass_', type)
-	betas <- hammer_subset(chains, vars, j = TRUE)
+	# vars <- 'gamma_biomass'
+	# gammas_biomass <- mc_subset(chains, vars)
 
-	if (homoscedastic) {
-		sigma_biomass_among_sites <- hammer_subset(chains, 'sigma_biomass_among_sites')
-	} else {
-		vars <- paste0('beta_biomass_sigma')
-		betas_sigma <- hammer_subset(chains, vars, j = TRUE)
-	}
-	sigma_biomass_within_sites <- hammer_subset(chains, 'sigma_biomass_within_sites')
+	sigmas_biomass_among_sites <- mc_subset(chains, 'sigma_biomass_among_sites')
+	sigmas_biomass_within_sites <- mc_subset(chains, 'sigma_biomass_within_sites')
+
+	zero_inflated <- resp_distrib %in% c('ZIG', 'ZILN')
+	if (zero_inflated) betas_psi <- mc_subset(chains, 'beta_psi', j = TRUE)
 
 	n_samples <- nrow(x)
-	nchains <- length(chains$samples)
-	iters_per_chain <- nrow(chains$samples[[1]])
+	if (is.list(chains$samples)) {
+		nchains <- mc_n_chains(chains)
+		iters_per_chain <- nrow(chains$samples[[1]])
+	} else {
+		nchains <- 1
+		iters_per_chain <- nrow(chains$samples)
+	}
 	total_iters <- nchains * iters_per_chain
 
 	preds <- matrix(NA, nrow = total_iters, ncol = n_samples)
@@ -38,37 +43,64 @@ predict_biomass <- function(chains, x, homoscedastic, type = 'mu') {
 			pred_untrans <- x %*% this_beta
 			pred_untrans <- pred_untrans[ , 1]
 
-			this_sigma_biomass_within_sites <- sigma_biomass_within_sites$samples[[chain]][iter, 'sigma_biomass_within_sites']
+			this_sigma_biomass_within_sites <- sigmas_biomass_within_sites$samples[[chain]][iter, 'sigma_biomass_within_sites']
 
-			if (type == 'mu' & homoscedastic) {
-				
-				this_sigma_biomass_among_sites <- sigma_biomass_among_sites$samples[[chain]][iter]
-				log_mu_biomass <- rnorm(n_samples, mean = pred_untrans, sd = this_sigma_biomass_among_sites)
+			# this_gamma_biomass <- gammas_biomass$samples[[chain]][iter, 'gamma_biomass']
+
+			this_sigma_biomass_among_sites <- sigmas_biomass_among_sites$samples[[chain]][iter, 'sigma_biomass_among_sites']
+			log_mu_biomass <- rnorm(n_samples, mean = pred_untrans, sd = this_sigma_biomass_among_sites)
+
+			# zero-inflation
+			if (zero_inflated) {
+
+				beta_psi <- betas_psi$samples[[chain]][iter, ]
+				beta_psi <- cbind(beta_psi)
+				psi <- x %*% beta_psi
+				psi <- psi[ , 1]
+				psi <- expit(psi)
+				z <- rbinom(nrow(x), size = 1, prob = psi)
+
+			}
+			
+			# transform mean response
+			if (transform == 'identity') {
+				mu_biomass <- log_mu_biomass
+			} else if (transform == 'exponential') {
 				mu_biomass <- exp(log_mu_biomass)
+			} else if (transform == 'softplus') {
+				mu_biomass <- log(1 + exp(log_mu_biomass))
+			} else {
+				stop('Incorrect transform.')
+			}
+
+			# prediction
+			pred <- rep(NA_real_, nrow(x))
+			if (resp_distrib == 'gamma') {
 
 				shape_biomass <- mu_biomass^2 / this_sigma_biomass_within_sites^2
 				rate_biomass <- mu_biomass / this_sigma_biomass_within_sites^2
 
-				pred <- rep(NA_real_, length(mu_biomass))
 				for (count in seq_along(pred)) pred[count] <- rgamma(1, shape = shape_biomass[count], rate = rate_biomass[count])
 
-			} else if (type == 'mu' & !homoscedastic) {
-				
-				# this_beta_sigma <- betas_sigma$samples[[chain]][iter, ]
-				# this_beta_sigma <- cbind(this_beta_sigma)
+			} else if (resp_distrib == 'ZIG') {
 
-				# pred_untrans_sigma <- x %*% this_beta_sigma
-				# pred_untrans_sigma <- pred_untrans_sigma[ , 1]
+				shape_biomass <- mu_biomass^2 / this_sigma_biomass_within_sites^2
+				rate_biomass <- mu_biomass / this_sigma_biomass_within_sites^2
 
-				# this_sigma_biomass_among_sites <- exp(pred_untrans_sigma)
-				# pred <- rnorm(n_samples, mean = pred_untrans_sigma, sd = this_sigma_biomass_among_sites)
-				# pred <- exp(pred)
+				for (count in seq_along(pred)) pred[count] <- rZIG(1, shape = shape_biomass[count], rate = rate_biomass[count], z = z[count])
+
+			} else if (resp_distrib == 'lognormal') {
 			
-			} else if (type == 'pzero') {
-				pred <- expit(pred_untrans)
-			} else if (type == 'sigma') {
-				pred <- exp(pred_untrans)			
+				for (count in seq_along(pred)) pred[count] <- rlnorm(1, meanlog = log_mu_biomass[count], sdlog = this_sigma_biomass_within_sites)
+
+			} else if (resp_distrib == 'ZILN') {
+			
+				for (count in seq_along(pred)) pred[count] <- rZILN(1, meanlog = log_mu_biomass[count], sdlog = this_sigma_biomass_within_sites, z = z[count])
+
+			} else {
+				stop('Bad `resp_distrib`.')
 			}
+
 			preds[k, ] <- pred
 
 			k <- k + 1

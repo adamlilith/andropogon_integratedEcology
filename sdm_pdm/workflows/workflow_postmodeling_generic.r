@@ -1,11 +1,11 @@
 #' Post-modeling workflow for any model.
 #' source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/workflows/workflow_postmodeling_generic.r')
 #'
-#' @param facet Name of the facet being modeled (e.g., occurrence, biomass, plant height, etc.)
-#' @param formulae `List` of model formula.
-#' @param descrip Textual description of the model
-#' @param homoscedastic `TRUE` if model is homoscedastic.
-#' @param out_dir Folder in which to save results.
+#' facet		Name of the facet being modeled (e.g., occurrence, biomass, plant height, etc.)
+#' formulae		`List` of model formula.
+#' descrip		Textual description of the model
+#' homoscedastic `TRUE` if model is homoscedastic.
+#' out_dir		Folder in which to save results.
 workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedastic, out_dir) {
 
 	### model convergence
@@ -17,24 +17,15 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 		if (length(vars) > 0) {
 			for (var in vars) {
 
-				if (var == 'correlation[1, 2]') {
-				
-					var <- 'correlation'
-					mcmc <- ggs(chains$samples)
-
-				} else {
-
-					mcmc <- hammer_subset(chains, var)
-					mcmc <- mcmc$samples
-					mcmc <- ggs(mcmc)
-
-				}
+				mcmc <- mc_subset(chains, var)
+				mcmc <- mcmc$samples
+				mcmc <- ggs(mcmc)
 
 				trace <- ggs_traceplot(mcmc, family = var)
 				density <- ggs_density(mcmc, family = var, hpd = TRUE)
 				combo <- trace + density
-				filename <- paste0(out_dir, '/', var, '_density_trace.png')
-				ggsave(combo, file = filename, width = 18, height = 12)
+				filename <- paste0(out_dir, '/density_trace_', var, '.png')
+				ggsave(combo, file = filename, width = 18, height = 9)
 			
 			}
 		}
@@ -43,14 +34,14 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 		if (length(vars) > 0) {
 			for (var in vars) {
 
-				mcmc <- hammer_subset(chains, var, j = TRUE)
+				mcmc <- mc_subset(chains, var, j = TRUE)
 				mcmc <- mcmc$samples
 				mcmc <- ggs(mcmc)
 
 				trace <- ggs_traceplot(mcmc, family = var)
 				density <- ggs_density(mcmc, family = var, hpd = TRUE)
 				combo <- trace + density
-				filename <- paste0(out_dir, '/', var, '_density_trace.png')
+				filename <- paste0(out_dir, '/density_trace_', var, '.png')
 				ggsave(combo, file = filename, width = 18, height = 12)
 			
 			}
@@ -60,14 +51,28 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 		if (length(vars) > 0) {
 			for (var in vars) {
 
-				mcmc <- hammer_subset(chains, var, j = TRUE, k = TRUE)
+				if (var == 'correlation') {
+
+					rows <- matrix(1:n_facets, byrow = FALSE, nrow = n_facets, ncol = n_facets)
+					cols <- matrix(1:n_facets, byrow = TRUE, nrow = n_facets, ncol = n_facets)
+
+					upper_rows <- rows[upper.tri(rows, diag = FALSE)]
+					upper_cols <- cols[upper.tri(cols, diag = FALSE)]
+
+					params <- paste0('correlation[', upper_rows, ', ', upper_cols, ']')
+					mcmc <- mc_subset(chains, params)
+
+				} else {
+					mcmc <- mc_subset(chains, var, j = TRUE, k = TRUE)
+				}
+
 				mcmc <- mcmc$samples
 				mcmc <- ggs(mcmc)
 
 				trace <- ggs_traceplot(mcmc, family = var)
 				density <- ggs_density(mcmc, family = var, hpd = TRUE)
 				combo <- trace + density
-				filename <- paste0(out_dir, '/', var, '_density_trace.png')
+				filename <- paste0(out_dir, '/density_trace_', var, '.png')
 				ggsave(combo, file = filename, width = 18, height = 12)
 			
 			}
@@ -77,14 +82,14 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 		if (length(vars) > 0) {
 			for (var in vars) {
 
-				mcmc <- hammer_subset(chains, var)
+				mcmc <- mc_subset(chains, var)
 				mcmc <- mcmc$samples
 				mcmc <- ggs(mcmc)
 
 				trace <- ggs_traceplot(mcmc, family = var)
 				density <- ggs_density(mcmc, family = var, hpd = TRUE)
 				combo <- trace + density
-				filename <- paste0(out_dir, '/', var, '_density_trace.png')
+				filename <- paste0(out_dir, '/density_trace_', var, '.png')
 				ggsave(combo, file = filename, width = 18, height = 12)
 			
 			}
@@ -122,14 +127,36 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 		if (length(vars) > 0) {
 			for (var in vars) {
 
-				params <- c(params, var)
-				indices[[length(indices) + 1]] <- list(j = TRUE, k = TRUE)
+				if (var == 'correlation') {
+
+					extract <- mc_extract(chains, 'correlation', j = TRUE, k = TRUE)
+					n <- round(sqrt(length(extract)))
+
+					rows <- matrix(rep(1:n, n), n, n)
+					cols <- matrix(rep(1:n, each = n), n, n)
+					rows[lower.tri(rows, diag = TRUE)] <- NA
+					cols[lower.tri(cols, diag = TRUE)] <- NA
+
+					expand <- matrix(c(rows, cols), ncol = 2)
+					expand <- expand[complete.cases(expand), , drop = FALSE]
+
+					this <- character()
+					for (i in 1:nrow(expand)) {
+						this[i] <- paste0('correlation[', expand[i, 1], ', ', expand[i, 2], ']')
+						indices[[length(indices) + 1]] <- list()
+					}
+					params <- c(params, this)
+
+				} else {
+					params <- c(params, var)
+					indices[[length(indices) + 1]] <- list(j = TRUE, k = TRUE)
+				}
 
 			}
 		}
 
 
-		mcmc <- hammer_subset(chains, param = params, indices = indices)
+		mcmc <- mc_subset(chains, param = params, indices = indices)
 		rhats <- tryCatch(
 			gelman.diag(mcmc$samples, autoburnin = FALSE, multivariate = TRUE),
 			error = function(cond) FALSE
@@ -138,9 +165,9 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 		ess <- effectiveSize(mcmc$samples)
 
 		### coefficients
-		coeffs_means <- hammer_extract(chains, param = params, indices = indices)
-		coeffs_lowers <- hammer_extract(chains, param = params, indices = indices, stat = 'lower')
-		coeffs_uppers <- hammer_extract(chains, param = params, indices = indices, stat = 'upper')
+		coeffs_means <- mc_extract(chains, param = params, indices = indices)
+		coeffs_lowers <- mc_extract(chains, param = params, indices = indices, stat = 'lower')
+		coeffs_uppers <- mc_extract(chains, param = params, indices = indices, stat = 'upper')
 
 		### sampling autocorrelation
 		############################
@@ -158,17 +185,17 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 
 				} else {
 
-					mcmc <- hammer_subset(chains, var)
+					mcmc <- mc_subset(chains, var)
 					mcmc <- mcmc$samples
 					mcmc <- ggs(mcmc)
-					mcmc <- hammer_subset(chains, var)
+					mcmc <- mc_subset(chains, var)
 					mcmc <- mcmc$samples
 					ggs_mcmc <- ggs(mcmc)
 
 				}
 
 				ac <- ggs_autocorrelation(ggs_mcmc, family = var)
-				ggsave(ac, file = paste0(out_dir, '/', var, '_autocorrelation.png'), width = 19.2, height = 10.8, dpi = 300)
+				ggsave(ac, file = paste0(out_dir, '/autocorrelation_', var, '.png'), width = 19.2, height = 10.8, dpi = 300)
 
 			}
 
@@ -179,12 +206,12 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 
 			for (var in vars) {
 
-				mcmc <- hammer_subset(chains, var, j = TRUE)
+				mcmc <- mc_subset(chains, var, j = TRUE)
 				mcmc <- mcmc$samples
 				ggs_mcmc <- ggs(mcmc)
 
 				ac <- ggs_autocorrelation(ggs_mcmc, family = var)
-				ggsave(ac, file = paste0(out_dir, '/', var, '_autocorrelation.png'), width = 19.2, height = 10.8, dpi = 300)
+				ggsave(ac, file = paste0(out_dir, '/autocorrelation_', var, '.png'), width = 19.2, height = 10.8, dpi = 300)
 
 			}
 
@@ -195,12 +222,12 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 
 			for (var in vars) {
 
-				mcmc <- hammer_subset(chains, var, j = TRUE, k = TRUE)
+				mcmc <- mc_subset(chains, var, j = TRUE, k = TRUE)
 				mcmc <- mcmc$samples
 				ggs_mcmc <- ggs(mcmc)
 
 				ac <- ggs_autocorrelation(ggs_mcmc, family = var)
-				ggsave(ac, file = paste0(out_dir, '/', var, '_autocorrelation.png'), width = 19.2, height = 10.8, dpi = 300)
+				ggsave(ac, file = paste0(out_dir, '/autocorrelation_', var, '.png'), width = 19.2, height = 10.8, dpi = 300)
 
 			}
 
@@ -210,14 +237,14 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 		##################################
 		say('correlation between parameters', level = 2)
 
-			### density/trace plots
-			if (exists('param_stack')) rm(param_stack)
-			n_chains <- hammer_n_chains(chains)
+			if (exists('param_stack', inherits = FALSE)) rm(param_stack)
+			n_chains <- mc_n_chains(chains)
 			vars <- monitors_coeffs_not_indexed
 			if (length(vars) > 0) {
 				for (var in vars) {
 
-					this_param_stack <- hammer_stack(chains, var)
+					this_param_stack <- mc_subset(chains, var)
+					this_param_stack <- mc_stack(this_param_stack)
 					if (exists('param_stack')) {
 						param_stack <- cbind(param_stack, this_param_stack)
 					} else {
@@ -231,7 +258,8 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 			if (length(vars) > 0) {
 				for (var in vars) {
 
-					this_param_stack <- hammer_stack(chains, var, j = TRUE)
+					this_param_stack <- mc_subset(chains, var, j = TRUE)
+					this_param_stack <- mc_stack(this_param_stack)
 					if (exists('param_stack')) {
 						param_stack <- cbind(param_stack, this_param_stack)
 					} else {
@@ -245,7 +273,8 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 			if (length(vars) > 0) {
 				for (var in vars) {
 
-					this_param_stack <- hammer_stack(chains, var, j = TRUE, k = TRUE)
+					this_param_stack <- mc_subset(chains, var, j = TRUE, k = TRUE)
+					this_param_stack <- mc_stack(this_param_stack)
 					if (exists('param_stack')) {
 						param_stack <- cbind(param_stack, this_param_stack)
 					} else {
@@ -291,7 +320,7 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 
 				} else {
 
-					mcmc <- hammer_subset(chains, var)
+					mcmc <- mc_subset(chains, var)
 					mcmc <- mcmc$samples
 					ggs_mcmc <- ggs(mcmc)
 
@@ -313,7 +342,7 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 		if (length(vars) > 0) {
 			for (var in vars) {
 
-				mcmc <- hammer_subset(chains, var, j = TRUE)
+				mcmc <- mc_subset(chains, var, j = TRUE)
 				mcmc <- ggs(mcmc$samples)
 
 				graphs[[length(graphs) + 1]] <- 
@@ -332,7 +361,7 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 		if (length(vars) > 0) {
 			for (var in vars) {
 
-				mcmc <- hammer_subset(chains, var, j = TRUE, k = TRUE)
+				mcmc <- mc_subset(chains, var, j = TRUE, k = TRUE)
 				mcmc <- ggs(mcmc$samples)
 
 				graphs[[length(graphs) + 1]] <- 
@@ -351,7 +380,7 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 		if (length(vars) > 0) {
 			for (var in vars) {
 
-				mcmc <- hammer_subset(chains, var, j = TRUE)
+				mcmc <- mc_subset(chains, var, j = TRUE)
 				mcmc <- ggs(mcmc$samples)
 
 				graphs[[length(graphs) + 1]] <- 
@@ -370,7 +399,7 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 		if (length(vars) > 0) {
 			for (var in vars) {
 
-				mcmc <- hammer_subset(chains, var, j = TRUE, k = TRUE)
+				mcmc <- mc_subset(chains, var, j = TRUE, k = TRUE)
 				mcmc <- ggs(mcmc$samples)
 
 				graphs[[length(graphs) + 1]] <- 
@@ -386,7 +415,7 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 		}
 
 		combo <- plot_grid(plotlist = graphs, ncol = 3, align = 'v', axis = 'l')
-		ggsave(combo, file = paste0(out_dir, '/coefficients_parameters.png'), width = 19.2, height = 10.8, bg = 'white')
+		ggsave(combo, file = paste0(out_dir, '/coefficient_estimates.png'), width = 19.2, height = 10.8, bg = 'white')
 
 	### metadata
 	############
@@ -419,6 +448,11 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 		meta <- list(
 			facet = facet,
 			descrip = descrip,
+			niter = niter,
+			nburnin = nburnin,
+			thin = thin,
+			n_samples_per_chain = (niter - nburnin) / thin,
+			nchains = nchains,
 			date = date(),
 			formulae = formulae,
 			waic = chains$WAIC,
@@ -431,16 +465,21 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 				monitors_derived_double_index = monitors_derived_double_index,
 				# monitors_geog_nam = monitors_geog_nam,
 				# monitors_geog_conus = monitors_geog_conus,
-				monitors_dharma = monitors_dharma,
-				monitors_resp_curves = monitors_resp_curves
-			),
-			log_lik = c(
-				lower = unname(hammer_extract(chains, 'log_lik', stat = 'lower')),
-				ll_mean = unname(hammer_extract(chains, 'log_lik')),
-				upper = unname(hammer_extract(chains, 'log_lik', stat = 'upper'))
+				monitors_dharma = monitors_dharma
 			),
 			coeffs = coeffs
 		)
+
+		if (exists('monitors_resp_curves', inherits = TRUE)) meta$monitors$monitors_resp_curves <- monitors_resp_curves
+		if (any(monitors == 'log_lik')) {
+
+			meta$log_lik = c(
+				lower = unname(mc_extract(chains, 'log_lik', stat = 'lower')),
+				ll_mean = unname(mc_extract(chains, 'log_lik')),
+				upper = unname(mc_extract(chains, 'log_lik', stat = 'upper'))
+			)
+
+		}
 
 		saveRDS(meta, paste0(out_dir, '/!meta_generic.rds'))
 		sink(paste0(out_dir, '/!meta_generic.txt'), split = TRUE)

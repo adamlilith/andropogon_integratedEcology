@@ -3,17 +3,17 @@
 #' demesne					'nam' (North America) or '1930s' (Dust Bowl area) or '1950s' (post-Dust Bowl)
 #' chains					Chains from NIMBLE
 #' formula_occs_mu			Formula for occurrences
-#' formula_occs_sigma		Formula for occurrences s.d. or `NULL`
-#' formula_pzero		Formula for occurrence probability of inflated zero or `NULL`
-burn_occs_into_vector <- function(demesne, chains, formula_occs, formula_occs_sigma, formula_pzero) {
+#' formula_psi				Formula for occurrence probability of inflated zero or `NULL`
+#'
+#' Returns a SpatVector.
+burn_occs_into_vector <- function(demesne, chains, formula_occs, formula_psi = NULL) {
 
-	homoscedastic <- is.null(formula_occs_sigma)
-	zero_inflated <- !is.null(formula_pzero)
+	zero_inflated <- !is.null(formula_psi)
 
 	### occurrence data
-	data_occs <- prepare_occurrences(formula_occs = formula_occs, formula_occs_bias = ~ 1, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
+	data_occs <- prepare_occurrence_data(formula_occs = formula_occs, formula_occs_bias = ~ 1, log_precip = log_precip, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
 
-	if (zero_inflated) data_occs_pzero <- prepare_occurrences(formula_occs = formula_pzero, formula_occs_bias = ~ 1, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
+	if (zero_inflated) data_occs_psi <- prepare_occurrence_data(formula_occs = formula_psi, formula_occs_bias = ~ 1, log_precip = log_precip, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
 
 	pred_vect <- if (demesne == 'nam') {
 		pred_vect <- data_occs$ag_vect_sq
@@ -34,17 +34,18 @@ burn_occs_into_vector <- function(demesne, chains, formula_occs, formula_occs_si
 		data_occs$counties_x_occs_fifties
 	}
 
-	x_pzero <- if (!zero_inflated) {
+	x_psi <- if (!zero_inflated) {
 		NULL
 	} else if (demesne == 'nam') {
-		data_occs_pzero$counties_x_occs_sq
+		data_occs_psi$counties_x_occs_sq
 	} else if (demesne == '1930s') {
-		data_occs_pzero$counties_x_occs_thirties
+		data_occs_psi$counties_x_occs_thirties
 	} else if (demesne == '1950s') {
-		data_occs_pzero$counties_x_occs_fifties
+		data_occs_psi$counties_x_occs_fifties
 	}
 
-	preds <- predict_occs(chains = chains, x = x, homoscedastic = homoscedastic, zero_inflated = zero_inflated, type = 'mu', x_pzero = x_pzero)
+	say('   burning present lambda...')
+	preds <- predict_occs(chains = chains, x = x, zero_inflated = zero_inflated, x_psi = x_psi)
 
 	preds_mean <- colMeans(preds)
 	preds_sd <- apply(preds, 2, sd)
@@ -61,52 +62,31 @@ burn_occs_into_vector <- function(demesne, chains, formula_occs, formula_occs_si
 		names(pred_vect)[index] <- c('N_ag_county_mean_1950s', 'N_ag_county_sd_1950s')
 	}
 
-	# ### predict sigma
-	# #################
-
-	# if (!is.null(formula_occs_sigma)) {
-	
-	# 	preds <- predict_biomass(chains = chains, x = x, homoscedastic = homoscedastic, type = 'sigma')
-	# 	# preds_mean <- colMeans(preds)
-	# 	preds_median <- apply(preds, 2, median)
-	# 	# pred_vect$DUMMY1 <- preds_mean
-	# 	pred_vect$DUMMY1 <- preds_median
-
-	# 	index <- ncol(pred_vect)
-	# 	if (demesne == 'nam') {
-	# 		names(pred_vect)[index] <- c('sigma_occs_county_median_sq')
-	# 	} else if (demesne == '1930s') {
-	# 		names(pred_vect)[index] <- c('sigma_occs_county_median_1930s')
-	# 	} else if (demesne == '1950s') {
-	# 		names(pred_vect)[index] <- c('sigma_occs_county_median_1950s')
-	# 	}
-
-	# }
-
 	### predict probability of zero
 	###############################
 
-	if (!is.null(formula_pzero)) {
+	if (!is.null(formula_psi)) {
 		
 		x <- if (demesne == 'nam') {
-			data_occs_pzero$counties_x_occs_sq
+			data_occs_psi$counties_x_occs_sq
 		} else if (demesne == '1930s') {
-			data_occs_pzero$counties_x_occs_thirties
+			data_occs_psi$counties_x_occs_thirties
 		} else if (demesne == '1950s') {
-			data_occs_pzero$counties_x_occs_fifties
+			data_occs_psi$counties_x_occs_fifties
 		}
 
-		preds <- predict_occs(chains = chains, x = x, homoscedastic = homoscedastic, zero_inflated = zero_inflated, type = 'pzero')
+		say('   burning present psi...')
+		preds <- predict_psi(chains = chains, x = x)
 		preds_mean <- colMeans(preds)
 		pred_vect$DUMMY1 <- preds_mean
 
 		index <- ncol(pred_vect)
 		if (demesne == 'nam') {
-			names(pred_vect)[index] <- c('pzero_occs_county_sq')
+			names(pred_vect)[index] <- c('psi_county_sq')
 		} else if (demesne == '1930s') {
-			names(pred_vect)[index] <- c('pzero_occs_county_1930s')
+			names(pred_vect)[index] <- c('psi_county_1930s')
 		} else if (demesne == '1950s') {
-			names(pred_vect)[index] <- c('pzero_occs_county_1950s')
+			names(pred_vect)[index] <- c('psi_county_1950s')
 		}
 
 	}
@@ -123,13 +103,14 @@ burn_occs_into_vector <- function(demesne, chains, formula_occs, formula_occs_si
 			x <- x[[1]]
 		
 			 if (!zero_inflated) {
-				x_pzero <- NULL
+				x_psi <- NULL
 			} else {
-				x_pzero <- data_occs_pzero[paste0('counties_x_occs_', fut)]
-				x_pzero <- x_pzero[[1]]
+				x_psi <- data_occs_psi[paste0('counties_x_occs_', fut)]
+				x_psi <- x_psi[[1]]
 			}
 		
-			preds <- predict_occs(chains = chains, x = x, homoscedastic = homoscedastic, zero_inflated = zero_inflated, type = 'mu', x_pzero = x_pzero)
+			say('   burning ', fut, ' lambda...')
+			preds <- predict_occs(chains = chains, x = x, x_psi = x_psi, zero_inflated = zero_inflated)
 
 			preds_mean <- colMeans(preds)
 			preds_sd <- apply(preds, 2, sd)
@@ -142,51 +123,23 @@ burn_occs_into_vector <- function(demesne, chains, formula_occs, formula_occs_si
 
 		} # next future
 
-		# ### predict sd of site-level abundance to each future--only if heteroscedastic model
-		# ##################################################################################
-		# if (!is.null(formula_occs_sigma)) {
-		
-		# 	data_occs_sigma <- prepare_biomass(formula_biomass = formula_occs_sigma, calib = calib)
-
-		# 	# predict to each future
-		# 	for (fut in futs) {
-				
-		# 		x <- data_occs_sigma[[paste0('counties_x_occs_', fut)]]
-		# 		preds <- predict_biomass(chains = chains, x = x, homoscedastic = homoscedastic, type = 'sigma')
-
-		# 		# preds_mean <- colMeans(preds)
-		# 		preds_median <- apply(preds, 2, median)
-		# 		preds_sd <- apply(preds, 2, sd)
-
-		# 		# pred_vect$DUMMY1 <- preds_mean
-		# 		pred_vect$DUMMY1 <- preds_median
-		# 		# pred_vect$DUMMY2 <- preds_sd
-
-		# 		# index <- (ncol(pred_vect) - 1):ncol(pred_vect)
-		# 		index <- ncol(pred_vect)
-		# 		# names(pred_vect)[index] <- paste0(c('sigma_occs_county_median_', 'sigma_occs_county_sd_'), fut)
-		# 		names(pred_vect)[index] <- paste0('sigma_occs_county_median_', fut)
-
-		# 	} # next future
-
-		# } # if heteroscedastic
-
 		### predict probability of zero abundance to future
 		###################################################
 
-		if (!is.null(formula_pzero)) {
+		if (!is.null(formula_psi)) {
 		
 			for (fut in futs) {
 
-				x <- data_occs_pzero[paste0('counties_x_occs_', fut)]
+				x <- data_occs_psi[paste0('counties_x_occs_', fut)]
 				x <- x[[1]]
 
-				preds <- predict_occs(chains = chains, homoscedastic = homoscedastic, zero_inflated = zero_inflated, x = x, type = 'pzero')
+				say('   burning ', fut, ' psi...')
+				preds <- predict_psi(chains = chains, x = x)
 				preds_mean <- colMeans(preds)
 				pred_vect$DUMMY1 <- preds_mean
 
 				index <- ncol(pred_vect)
-				names(pred_vect)[index] <- paste0('pzero_occs_county_', fut)
+				names(pred_vect)[index] <- paste0('psi_county_', fut)
 
 			} # next future
 

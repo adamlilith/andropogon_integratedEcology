@@ -57,7 +57,7 @@ Across scripts, files share key variable naming conventions and names. Some of t
 `x_by_site_<var>[_mu | _sigma]`: Model matrix for response variable `<var>` possibly for site-level mean (`mu`) or s.d. (`sigma`).
 
 ## Biomass
-`beta_biomass_mu`: Vector of coefficients to be fit by model for site-level mean biomass.
+`beta_biomass`: Vector of coefficients to be fit by model for site-level mean biomass.
 `beta_biomass_sigma`: Vector of coefficients to be fit by model for site-level standard deviation of biomass. Used only when biomass is modeled as heteroscedastic response to environment.
 `biomass_county_mu_[ssp245_2041_2070 | ssp245_2071_2100 | ssp370_2041_2070 | ssp370_2071_2100]`: Estimated "site-level" mean biomass within counties at the given time period and emissions scenario.
 `mu_biomass_county_sq`: Estimated "site-level" mean biomass across counties in the present (climate: 1961-2020).

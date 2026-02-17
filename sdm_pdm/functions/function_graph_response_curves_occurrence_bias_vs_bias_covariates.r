@@ -2,7 +2,7 @@
 #' 
 #' @param out_dir Folder in which to save graphs.
 #' @param chains MCMC chains
-#' @param data_occs From prepare_occurrences().
+#' @param data_occs From prepare_occurrence_data().
 graph_response_curves_occurrence_bias_vs_bias_covariates <- function(out_dir, chains, data_occs) {
 
 	n_covariates <- data_occs$n_covariates_occs_bias
@@ -34,15 +34,15 @@ graph_response_curves_occurrence_bias_vs_bias_covariates <- function(out_dir, ch
 		param <-'response_curves_occs_bias'
 		if (n_covariates == 1) {
 			
-			response_mean <- hammer_extract(chains, param = param, j = TRUE, stat = 'mean')
-			response_lower <- hammer_extract(chains, param = param, j = TRUE, stat = 'lower')
-			response_upper <- hammer_extract(chains, param = param, j = TRUE, stat = 'upper')
+			response_mean <- mc_extract(chains, param = param, j = TRUE, stat = 'mean')
+			response_lower <- mc_extract(chains, param = param, j = TRUE, stat = 'lower')
+			response_upper <- mc_extract(chains, param = param, j = TRUE, stat = 'upper')
 
 		} else if (n_covariates > 1) {
 		
-			response_mean <- hammer_extract(chains, param = param, j = TRUE, k = i, stat = 'mean')
-			response_lower <- hammer_extract(chains, param = param, j = TRUE, k = i, stat = 'lower')
-			response_upper <- hammer_extract(chains, param = param, j = TRUE, k = i, stat = 'upper')
+			response_mean <- mc_extract(chains, param = param, j = TRUE, k = i, stat = 'mean')
+			response_lower <- mc_extract(chains, param = param, j = TRUE, k = i, stat = 'lower')
+			response_upper <- mc_extract(chains, param = param, j = TRUE, k = i, stat = 'upper')
 	
 		}
 

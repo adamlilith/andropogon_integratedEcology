@@ -10,7 +10,7 @@
 ### download BIEN Andropogon gerardi and Poaceae data ###
 ### port occurrence data from Smith et al. (2017 GCB) and add soil and present-day climate values for each county ###
 ### extract future climate data for each county ###
-### extract 1930s, 1950s, and 2010s climate data from PRISM for each county ###
+### extract 1930s climate data from PRISM for each county ###
 ### extract 1950s PRISM climate and SoilGrids variables to McMillan 1964 AG sites ###
 
 #############
@@ -176,15 +176,9 @@
 # 	say('extract solar GDD, BIOCLIMs, insolation, elevation', level = 2)
 
 # 	# insolation
-# 	target_dates <- c('1990-03-01', '1990-09-30')
-# 	target_dates <- as.Date(target_dates)
-# 	target_dates <- seq(target_dates[1], target_dates[2], by = '1 day')
-
-# 	insol <- rast('E:/Ecology/Potential Annual Insolation (SAGA)/Based on ClimateNA 7.03 from SAGA 9.3.0/Annual_Insolation_1990_kW_hr_per_m2.tif')
-# 	target_rast_names <- paste0('Annual Insolation.', target_dates)
-# 	insol <- insol[[target_rast_names]]
-# 	insol <- sum(insol)
-# 	names(insol) <- 'insolation_1990_growing_season_kWh_per_m2'
+# 	insol <- rast('C:/Kaji/Research Data/Solar Radiation - SAGA GIS/ClimateNA Feb 28 through Aug 30/pisr_2000_02_28_thru_2000_08_30_kWh_per_m2.tif')
+# 	insol <- insol['Total Insolation']
+# 	names(insol) <- 'insolation_2000_growing_season_kWh_per_m2'
 
 # 	# BIOCLIMs
 # 	bc <- rast(paste0(drive, '/Research Data/ClimateNA/v 7.3 AdaptWest/1961-2020/bioclim_variables_1961_2020.tif'))
@@ -255,6 +249,7 @@
 # 	# Rasters are too fine resolution to extract across a county then average without running into memory issues. To fix this, we'll crop the raster to the county extent (plus a buffer), then extract from there.
 
 # 	# Average values across counties, using weighted means.
+# 	nitrogen <- rast(paste0(drive, '/Research Data/SoilGrids/SoilGrids 2.0/nitrogen_0-5cm_mean_northAmerica.tif'))
 # 	ph <- rast(paste0(drive, '/Research Data/SoilGrids/SoilGrids 2.0/phh2o_0-5cm_mean_northAmerica.tif'))
 # 	cec <- rast(paste0(drive, '/Research Data/SoilGrids/SoilGrids 2.0/cec_0-5cm_mean_northAmerica.tif'))
 # 	clay <- rast(paste0(drive, '/Research Data/SoilGrids/SoilGrids 2.0/clay_0-5cm_mean_northAmerica.tif'))
@@ -262,6 +257,7 @@
 # 	sand <- rast(paste0(drive, '/Research Data/SoilGrids/SoilGrids 2.0/sand_0-5cm_mean_northAmerica.tif'))
 # 	soc <- rast(paste0(drive, '/Research Data/SoilGrids/SoilGrids 2.0/soc_0-5cm_mean_northAmerica.tif'))
 
+# 	names(nitrogen) <- 'nitrogen'
 # 	names(ph) <- 'ph'
 # 	names(cec) <- 'cec'
 # 	names(clay) <- 'clay'
@@ -269,6 +265,7 @@
 # 	names(sand) <- 'sand'
 # 	names(soc) <- 'soc'
 
+# 	nitrogen <- (nitrogen / 100) / 1000
 # 	ph <- ph / 10
 # 	cec <- cec / 1000
 # 	clay <- clay / 1000
@@ -276,14 +273,14 @@
 # 	sand <- sand / 1000
 # 	soc <- soc / 100
 
-# 	vars <- c('ph', 'cec', 'clay', 'silt', 'sand', 'soc')
-# 	soil <- c(ph, cec, clay, silt, sand, soc)
+# 	vars <- c('nitrogen', 'ph', 'cec', 'clay', 'silt', 'sand', 'soc')
+# 	soil <- c(nitrogen, ph, cec, clay, silt, sand, soc)
 # 	names(soil) <- vars
 # 	occs <- project(occs, soil)
 	
 # 	soil <- aggregate(soil, 4, mean, na.rm = TRUE) # doing this to speed up extraction (raw cells are 250 m resolution)
 
-# 	occs$soc <- occs$sand <- occs$silt <- occs$clay <- occs$cec <- occs$ph <- NA_real_
+# 	occs$soc <- occs$sand <- occs$silt <- occs$clay <- occs$cec <- occs$ph <- occs$nitrogen <- NA_real_
 
 # 	for (i in 1:nrow(occs)) {
 
@@ -310,6 +307,7 @@
 # 		occs$clay[i] <- county_soils[['clay']]
 # 		occs$cec[i] <- county_soils[['cec']]
 # 		occs$ph[i] <- county_soils[['ph']]
+# 		occs$nitrogen[i] <- county_soils[['nitrogen']]
 
 # 	}
 
@@ -347,6 +345,7 @@
 		
 # 		say('SOIL DATA from SoilGrids Version 2.0 (https://www.isric.org/explore/soilgrids/soilgrids-access)', pre = 1)
 # 		say('All values are for depth 0 to 5 cm.')
+# 		say('nitrogen ................. soil N content (proportion)')
 # 		say('ph ....................... pH, measured in water')
 # 		say('cec ...................... cation exchange capacity, meq/100 g of soil')
 # 		say('sand, silt, clay ......... unit-less (proportion: [0, 1])')
@@ -363,14 +362,13 @@
 
 # 	ag_sq <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020_climatena.gpkg')
 # 	ag_sq <- project(ag_sq, cna)
-
 # 	# This chunk extracts future climate data to the spatial vector used to store AG occurrence data. Future climates are from ClimateNA 7.3 (AdaptWest versions: https://adaptwest.databasin.org/pages/adaptwest-climatena/)
 
 # 	faster(grassDir = 'C:/Program Files/GRASS GIS 8.4/', verbose = TRUE, useDataTable = TRUE)
 
 # 	futs <- c('ensemble_8GCMs_ssp245_2041_2070', 'ensemble_8GCMs_ssp245_2071_2100', 'ensemble_8GCMs_ssp370_2041_2070', 'ensemble_8GCMs_ssp370_2071_2100')
 
-# 	keep_cols <- c('country', 'state_province', 'county', 'elevation_m', 'insolation_1990_growing_season_kWh_per_m2', 'ph', 'cec', 'clay', 'silt', 'sand', 'soc')
+# 	keep_cols <- c('country', 'state_province', 'county', 'elevation_m', 'insolation_2000_growing_season_kWh_per_m2', 'nitrogen', 'ph', 'cec', 'clay', 'silt', 'sand', 'soc')
 
 # 	for (fut in futs) {
 	
@@ -517,69 +515,62 @@
 # 	ggsave(bio1, filename = './outputs_loretta/climate_21_to_0_Kybp_at_centroids_of_counties_with_AG_bio01.png', width = 12, height = 8)
 # 	ggsave(bio12, filename = './outputs_loretta/climate_21_to_0_Kybp_at_centroids_of_counties_with_AG_bio12.png', width = 12, height = 8)
 
-say('###############################################################################')
-say('### extract 1930s, 1950s, and 2010s climate data from PRISM for each county ###')
-say('###############################################################################')
+say('#############################################################')
+say('### extract 1930s climate data from PRISM for each county ###')
+say('#############################################################')
 
 	### present-day vector
 	occs <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020_climatena.gpkg')
-	occs <- occs[ , c('country', 'state_province', 'county', 'ph', 'sand', 'silt', 'clay')]
-	occs <- occs[occs$country == 'United States']
+	occs <- occs[ , c('country', 'state_province', 'county', 'insolation_2000_growing_season_kWh_per_m2', 'nitrogen', 'ph', 'sand', 'silt', 'clay')]
+	occs <- occs[occs$state_province %in% c('Colorado', 'Nebraska', 'Kansas', 'Oklahoma', 'Texas', 'New Mexico')]
 
-	# periods <- c('1931_1940', '1952_1961', '2013_2022')
-	periods <- c('2013_2022')
+	period <- '1931_1940'
 
-	for (period in periods) {
+	# BIOCLIMs
+	bcs <- rast(paste0('C:/Kaji/Research Data/PRISM/lt81m/bioclims_', period, '.tif'))
 
-		say(period)
+	# extract
+	this_occs <- project(occs, bcs)
+	bcs <- crop(bcs, this_occs)
+	env_at_occs_by_cell <- extract(bcs, this_occs, exact = TRUE)
 
-		# BIOCLIMs
-		bcs <- rast(paste0('C:/Kaji/Research Data/PRISM/lt81m/bioclims_', period, '.tif'))
+	# aridity
+	env_at_occs_by_cell$aridity <- (env_at_occs_by_cell$bio1 + 10) / ((env_at_occs_by_cell$bio12 + 1) / 1000)
 
-		# extract
-		this_occs <- project(occs, bcs)
-		this_occs <- crop(this_occs, bcs)
-		env_at_occs_by_cell <- extract(bcs, this_occs, exact = TRUE)
+	# calculate weighted average values
+	# weights are proportion of each cell covered by the polygon
+	env_at_occs <- data.frame()
 
-		# aridity
-		env_at_occs_by_cell$aridity <- (env_at_occs_by_cell$bio1 + 10) / ((env_at_occs_by_cell$bio12 + 1) / 1000)
+	vars <- names(env_at_occs_by_cell)
+	vars <- vars[!(vars %in% c('ID', 'fraction'))]
+	IDs <- unique(env_at_occs_by_cell$ID)
 
-		# calculate weighted average values
-		# weights are proportion of each cell covered by the polygon
-		env_at_occs <- data.frame()
+	for (ID in IDs) {
 
-		vars <- names(env_at_occs_by_cell)
-		vars <- vars[!(vars %in% c('ID', 'fraction'))]
-		IDs <- unique(env_at_occs_by_cell$ID)
+		vals <- rep(NA_real_, length(vars))
+		names(vals) <- vars
+		
+		fraction <- env_at_occs_by_cell$fraction[env_at_occs_by_cell$ID == ID]
+		fraction_sum <- sum(fraction, na.rm = TRUE)
+		
+		for (var in vars) {
+		
+			var_vals <- env_at_occs_by_cell[env_at_occs_by_cell$ID == ID, var]
+			val <- sum(var_vals * fraction, na.rm = TRUE) / fraction_sum
 
-		for (ID in IDs) {
-
-			vals <- rep(NA_real_, length(vars))
-			names(vals) <- vars
-			
-			fraction <- env_at_occs_by_cell$fraction[env_at_occs_by_cell$ID == ID]
-			fraction_sum <- sum(fraction, na.rm = TRUE)
-			
-			for (var in vars) {
-			
-				var_vals <- env_at_occs_by_cell[env_at_occs_by_cell$ID == ID, var]
-				val <- sum(var_vals * fraction, na.rm = TRUE) / fraction_sum
-
-				vals[[var]] <- val
-			
-			}
-			
-			vals <- round(vals, 2)
-			vals <- rbind(vals)
-			env_at_occs <- rbind(env_at_occs, vals, make.row.names = FALSE)
-
+			vals[[var]] <- val
+		
 		}
+		
+		vals <- round(vals, 2)
+		vals <- rbind(vals)
+		env_at_occs <- rbind(env_at_occs, vals, make.row.names = FALSE)
 
-		this_occs <- cbind(this_occs, env_at_occs)
+	}
 
-		writeVector(this_occs, paste0('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_', period, '_prism.gpkg')	, overwrite = TRUE)
+	this_occs <- cbind(this_occs, env_at_occs)
 
-	} # next period
+	writeVector(this_occs, paste0('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_', period, '_prism.gpkg')	, overwrite = TRUE)
 
 # say('#####################################################################################')
 # say('### extract 1950s PRISM climate and SoilGrids variables to McMillan 1964 AG sites ###')

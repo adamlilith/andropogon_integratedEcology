@@ -16,11 +16,11 @@ futs <- c(
 	'ssp370_2041_2070',
 	'ssp370_2071_2100'
 )
-biomass_data <- prepare_biomass(formula = ~ 1 + ph)
+biomass_data <- prepare_biomass_data(formula = ~ 1 + ph)
 
 biomass_data_raw <- biomass_data$raw_data_biomass
 
-graph <- ggplot(biomass_data_raw, aes(x = site_soil_pH, y = Biomass)) +
+graph <- ggplot(biomass_data_raw, aes(x = site_ph, y = Biomass)) +
 	geom_point() +
 	geom_smooth(method = 'lm', formula = y ~ x, se = TRUE) +
 	xlab('Field sampled pH') +
@@ -29,10 +29,10 @@ graph <- ggplot(biomass_data_raw, aes(x = site_soil_pH, y = Biomass)) +
 	theme_minimal()
 
 library(nlme)
-lme <- lme(Biomass ~ site_soil_pH, random = ~ 1|SITE, data = biomass_data_raw)
+lme <- lme(Biomass ~ site_ph, random = ~ 1|SITE, data = biomass_data_raw)
 summary(lme)
 
 library(lme4)
-lmer <- lmer(Biomass ~ site_soil_pH + (1|SITE), data = biomass_data_raw)
+lmer <- lmer(Biomass ~ site_ph + (1|SITE), data = biomass_data_raw)
 summary(lmer)
 anova(lmer)

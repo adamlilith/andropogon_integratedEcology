@@ -88,7 +88,7 @@ workflow_postmodeling_occurrence_laplace <- function(laplace, homoscedastic, zer
 	n_sims <- 10000 # number of simulations
 
 	coeffs <- laplace$summary$params
-	coeffs <- coeffs[grepl(rownames(coeffs), pattern = 'beta_occs_mu'), 'estimate', drop = FALSE]
+	coeffs <- coeffs[grepl(rownames(coeffs), pattern = 'beta_occs'), 'estimate', drop = FALSE]
 	coeffs <- as.matrix(coeffs)
 
 	if (homoscedastic) {
@@ -234,7 +234,7 @@ workflow_postmodeling_occurrence_laplace <- function(laplace, homoscedastic, zer
 	# mm <- model.matrix(formula_occs, x)
 
 	# coeffs <- laplace$summary$params
-	# coeffs <- coeffs[grepl(rownames(coeffs), pattern = 'beta_occs_mu'), 'estimate', drop = FALSE]
+	# coeffs <- coeffs[grepl(rownames(coeffs), pattern = 'beta_occs'), 'estimate', drop = FALSE]
 	# coeffs <- as.matrix(coeffs)
 
 	# pred <- mm %*% coeffs
@@ -285,12 +285,12 @@ workflow_postmodeling_occurrence_laplace <- function(laplace, homoscedastic, zer
 	# ################################
 	# say('OCCURRENCE: DHARMa residuals', level = 2)
 
-	# 	sims <- hammer_subset(chains, param = 'y_n_ag_sim', j = TRUE)
-	# 	sims <- hammer_rbind(sims)
+	# 	sims <- mc_subset(chains, param = 'y_n_ag_sim', j = TRUE)
+	# 	sims <- mc_rbind(sims)
 	# 	sims <- sims[ , data_occs$ag_vect_sq$focal_region]
 	# 	sims <- t(sims)
 
-	# 	fits <- hammer_extract(chains, param = 'lambda_mu_sq', j = TRUE, stat = 'mean')
+	# 	fits <- mc_extract(chains, param = 'lambda_mu_sq', j = TRUE, stat = 'mean')
 	# 	fits <- fits[data_occs$ag_vect_sq$focal_region]
 
 	# 	observed_y <- data_occs$y_n_ag[data_occs$ag_vect_sq$focal_region]
@@ -346,12 +346,12 @@ workflow_postmodeling_occurrence_laplace <- function(laplace, homoscedastic, zer
 
 	# 	if (zero_inflated) {
 
-	# 		map_pzero <- map_pzero(
+	# 		map_psi <- map_psi(
 	# 			out_dir = out_dir,
 	# 			filename_append = 'present_day',
 	# 			pred_vect_nam = pred_vect_nam,
 	# 			facet = 'occs',
-	# 			response_var = 'pzero_county_sq',
+	# 			response_var = 'psi_county_sq',
 	# 			data_traits = data_traits,
 	# 			title = 'Present-day distribution of probability of zero abundance abundance',
 	# 			subtitle = paste0('1961-2020 | occ ', form, '(bias ', form_bias, ')'),

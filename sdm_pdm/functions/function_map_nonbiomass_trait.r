@@ -5,7 +5,7 @@
 #' @param pred_vect_nam SpatVector with predictions.
 #' @param trait "R-friendly" name of trait
 #' @param response_var Any of: '<trait>_mu_county_sq', '<trait>_mu_county_ssp245_2041_2070', '<trait>_mu_county_ssp245_2071_2100', '<trait>_mu_county_ssp370_2041_2070', or '<trait>_mu_county_ssp370_2071_2100'
-#' @param data_traits From prepare_biomass().
+#' @param data_traits From prepare_biomass_data().
 #' @param title Character for plot title.
 #' @param subtitle Character for plot subtitle.
 #' @param plot_range_core If `TRUE`, extract from `pred_vect_nam` the range core based on `N_ag_county_sq` and plot it.
@@ -52,7 +52,7 @@ map_nonbiomass_trait <- function(
 	for (i in seq_along(sites)) {
 	
 		site <- sites[i]
-		trait_column_name <- get_raw_trait_name(trait)
+		trait_column_name <- get_raw_trait_name_from_rfriendly(trait)
 		observed[i] <- mean(data_traits$raw_data_traits[[trait_column_name]][data_traits$raw_data_traits$SITE == site])
 
 	}
@@ -100,7 +100,7 @@ map_nonbiomass_trait <- function(
 
 	if (plot_range_core) map <- map + layer_spatial(range_core, color = 'cyan', fill = NA, size = 2)
 
-	ggsave(plot = map, filename = paste0(out_dir, '/map_', trait, '_mu_', filename_append, '.png'), width = 12, height = 10, dpi = 600)
+	ggsave(plot = map, filename = paste0(out_dir, '/map_', trait, '_mu_', filename_append, '.png'), width = 12, height = 10, dpi = 200)
 	invisible(map)
 
 }

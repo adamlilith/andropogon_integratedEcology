@@ -17,11 +17,10 @@ get_rfriendly_trait_name <- function(raw) {
 #'
 #' @param rfriendly Name of trait in R-friendly format.
 #' @returns The "raw" version of `rfriendly`.
-get_raw_trait_name <- function(rfriendly) {
+get_raw_trait_name_from_rfriendly <- function(rfriendly) {
 
-	# get traits
 	raws <- c('Biomass', 'Delta13C', 'N_conc', 'CN_ratio', 'Height', 'BladeWidth', 'LeafThick', 'SPAD', 'CanopyDiam', 'WatPot', 'PhotoRate', 'StomCond', 'IntCO2', 'TranspRate')
-	
+
 	rfriendlies <- c('biomass', 'delta13c', 'n_concentration', 'cn_ratio', 'height', 'blade_width', 'leaf_thickness', 'spad', 'canopy_diameter', 'water_potential', 'photosynthetic_rate', 'stomatal_conductance', 'internal_co2', 'transpiration_rate')
 
 	raws[match(rfriendly, rfriendlies)]

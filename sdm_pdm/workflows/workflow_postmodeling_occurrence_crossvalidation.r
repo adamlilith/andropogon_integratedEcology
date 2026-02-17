@@ -1,17 +1,17 @@
 #' Post-modeling crossvalidation for occurrence-only models and models with an occurrence component
 #'
-#' @param homoscedastic If `TRUE`, then do not analyze behavior of sigma
-#' @param zero_inflated Logical.
-#' @param formula_occs,formula_occs_bias Formulae for occurrences and for occurrence bias
-#' @param constants `constants` `list` from model preparation.
-#' @param out_dir Folder into which to save results.
+#' formula_occs, formula_psi, formula_occs_bias Formulae for occurrences, probability of presence, and for occurrence bias
+#' zero_inflated Logical.
+#' constants `constants` `list` from model preparation.
+#' out_dir Folder into which to save results.
 #'
-workflow_postmodeling_occurrence_crossvalidation <- function(formula_occs, formula_occs_sigma,formula_pzero, formula_occs_bias, constants, out_dir = out_dir) {
+workflow_postmodeling_occurrence_crossvalidation <- function(formula_occs, formula_psi = NULL, formula_occs_bias, constants, out_dir) {
 
 	say('OCCURRENCE: cross-validation', level = 2)
 
-	homoscedastic <- is.null(formula_occs_sigma)
-	zero_inflated <- !is.null(formula_pzero)
+	zero_inflated <- !is.null(formula_psi)
+
+	ag_vect <- vect('./outputs_loretta/integrated_sdm_pdm/andropogon_gerardi_occurrences_with_environment_1961_2020_for_integration.gpkg')
 
 	max_k_folds <- if (trial) { 1 } else { k_folds }
 	crossvalidation <- data.table()
@@ -23,7 +23,7 @@ workflow_postmodeling_occurrence_crossvalidation <- function(formula_occs, formu
 		fold_data <- data
 		fold_inits <- inits
 
-		indices <- get(paste0('fold_', k, '_occs'))
+		indices <- which(data_occs$ag_vect$geofold == k)
 
 		# data
 		fold_data$y_n_ag <- fold_data$y_n_ag[-indices]
@@ -32,15 +32,20 @@ workflow_postmodeling_occurrence_crossvalidation <- function(formula_occs, formu
 		n_counties_test <- length(indices)
 		fold_constants$n_counties_occs_calib <- fold_constants$n_counties_occs_calib - n_counties_test
 		fold_constants$counties_x_occs_calib_sq <- fold_constants$counties_x_occs_calib_sq[-indices, ]
-		if (zero_inflated) fold_constants$counties_x_occs_pzero_calib_sq <- fold_constants$counties_x_occs_pzero_calib_sq[-indices, ]
+		if (zero_inflated) fold_constants$counties_x_occs_psi_calib_sq <- fold_constants$counties_x_occs_psi_calib_sq[-indices, ]
 		fold_constants$w_occs_bias <- fold_constants$w_occs_bias[-indices, ]
 	
 		test_x <- constants$counties_x_occs_calib_sq[indices, ]
-		if (zero_inflated) test_x_pzero <- constants$counties_x_occs_pzero_calib_sq[indices, ]
+		if (zero_inflated) test_x_psi <- constants$counties_x_occs_psi_calib_sq[indices, ]
 
 		# inits
 		fold_inits$y_n_ag_sim <- fold_inits$y_n_ag_sim[-indices]
 		fold_inits$N <- fold_inits$N[-indices]
+		fold_inits$beta_occs <- mc_extract(chains, 'beta_occs', j = TRUE)
+		if (zero_inflated) {
+			fold_inits$beta_psi <- mc_extract(chains, 'beta_psi', j = TRUE)
+			fold_inits$z_county <- fold_inits$z_county[-indices]
+		}
 
 		fold_model <- nimbleModel(
 			code = model_code,
@@ -52,12 +57,8 @@ workflow_postmodeling_occurrence_crossvalidation <- function(formula_occs, formu
 			buildDerivs = TRUE
 		)
 
-		fold_monitors <- if (homoscedastic) {
-			c('beta_occs_mu', 'lambda_sigma')
-		} else {
-
-		}
-		if (zero_inflated) fold_monitors <- c(fold_monitors, 'beta_pzero')
+		fold_monitors <- c('beta_occs', 'lambda_sigma')
+		if (zero_inflated) fold_monitors <- c(fold_monitors, 'beta_psi')
 
 		fold_conf <- configureMCMC(
 			fold_model,
@@ -65,18 +66,6 @@ workflow_postmodeling_occurrence_crossvalidation <- function(formula_occs, formu
 			print = FALSE,
 			enableWAIC = FALSE
 		)
-
-		# vars <- c('alpha_occs', 'beta_occs_mu')
-		# if (!homoscedastic) vars <- c(vars, 'beta_occs_sigma')
-		# if (zero_inflated) vars <- c(vars, 'beta_pzero')
-		# fold_conf$addSampler(target = vars, type = 'NUTS')
-
-		# # AF_slice samplers for spearmanated parameters
-		# vars <- c(monitors_coeffs_not_indexed, monitors_coeffs_single_index, monitors_coeffs_double_index)
-		# for (var in vars) {
-		# 	conf$removeSamplers(var)
-		# }
-		# conf$addSampler(target = vars, type = 'AF_slice')
 
 		fold_build <- buildMCMC(fold_conf)
 		fold_compiled <- compileNimble(fold_model, fold_build, showCompilerOutput = FALSE)
@@ -96,8 +85,8 @@ workflow_postmodeling_occurrence_crossvalidation <- function(formula_occs, formu
 		)
 
 		# evaluate predictions
-		preds <- predict_occs(chains = fold_chains, x = test_x, homoscedastic = homoscedastic, zero_inflated = zero_inflated, type = 'mu', x_pzero = test_x_pzero)
-		if (zero_inflated) preds_pzero <- predict_occs(chains = fold_chains, x = test_x_pzero, homoscedastic = homoscedastic, zero_inflated = zero_inflated, type = 'pzero', x_pzero = NULL)
+		preds <- predict_occs(chains = fold_chains, x = test_x, zero_inflated = zero_inflated, x_psi = test_x_psi)
+		if (zero_inflated) preds_psi <- predict_psi(chains = fold_chains, x = test_x_psi)
 		
 		test_n <- data$y_n_ag[indices]
 		test_binary <- as.numeric(test_n > 0)
@@ -109,18 +98,18 @@ workflow_postmodeling_occurrence_crossvalidation <- function(formula_occs, formu
 		preds_bg <- preds[ , bg_indices]
 
 		# calculate accuracy statistics
-		cbi <- mae <- auc <- biserial <- spearman <- pzero_acc <- rep(NA_real_, nrow(preds))
+		cbi <- mae <- auc <- biserial <- spearman <- psi_acc <- rep(NA_real_, nrow(preds))
 		for (iter in 1:nrow(preds)) {
 
 			this_preds <- preds[iter, , drop = TRUE]
-			if (zero_inflated) this_preds_pzero <- preds_pzero[iter, , drop = TRUE]
+			if (zero_inflated) this_preds_psi <- preds_psi[iter, , drop = TRUE]
 
 			biserial[iter] <- cor(this_preds, test_binary)
 			auc[iter] <- enmSdmX::evalAUC(preds_pres[iter, , drop = TRUE], preds_bg[iter, , drop = TRUE])
 			cbi[iter] <- enmSdmX::evalContBoyce(this_preds, preds_bg[iter, , drop = TRUE])
 			mae[iter] <- mae_fx(this_preds, test_n)
 			spearman[iter] <- cor(this_preds, test_n, method = 'spearman')
-			if (zero_inflated) pzero_acc[iter] <- cor(-1 * test_binary, this_preds_pzero)
+			if (zero_inflated) psi_acc[iter] <- cor(test_binary, this_preds_psi)
 		
 		}
 
@@ -154,9 +143,9 @@ workflow_postmodeling_occurrence_crossvalidation <- function(formula_occs, formu
 				mae_mean = mean(mae, na.rm = TRUE),
 				mae_upper = quantile(mae, 0.975, na.rm = TRUE),
 
-				pzero_acc_lower = quantile(pzero_acc, 0.025, na.rm = TRUE),
-				pzero_acc_mean = mean(pzero_acc, na.rm = TRUE),
-				pzero_acc_upper = quantile(pzero_acc, 0.975, na.rm = TRUE)
+				psi_acc_lower = quantile(psi_acc, 0.025, na.rm = TRUE),
+				psi_acc_mean = mean(psi_acc, na.rm = TRUE),
+				psi_acc_upper = quantile(psi_acc, 0.975, na.rm = TRUE)
 
 
 			)
@@ -194,9 +183,9 @@ workflow_postmodeling_occurrence_crossvalidation <- function(formula_occs, formu
 				mae_mean = mean(crossvalidation$mae_mean),
 				mae_upper = mean(crossvalidation$mae_upper),
 
-				pzero_acc_lower = mean(crossvalidation$pzero_acc_lower),
-				pzero_acc_mean = mean(crossvalidation$pzero_acc_mean),
-				pzero_acc_upper = mean(crossvalidation$pzero_acc_upper)
+				psi_acc_lower = mean(crossvalidation$psi_acc_lower),
+				psi_acc_mean = mean(crossvalidation$psi_acc_mean),
+				psi_acc_upper = mean(crossvalidation$psi_acc_upper)
 		)
 	)
 
@@ -259,11 +248,9 @@ workflow_postmodeling_occurrence_crossvalidation <- function(formula_occs, formu
 
 	# }
 
-
 	meta_crossvalidation <- list(
 		facet = 'occurrence',
 		date = date(),
-		homoscedastic = homoscedastic,
 		zero_inflated = zero_inflated,
 		formulae = list(
 			formula_occs = formula_occs,

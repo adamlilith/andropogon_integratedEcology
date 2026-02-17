@@ -1,7 +1,7 @@
 #' This function creates a response curve array for the relationship between the number of occurrences and biomass.
 #'
 #' @param formula The formula for the response of abundance to biomass. May or may not include an intercept. If not explicilitly included, the intercept will be added.
-#' @param data_biomass Output for `prepare_biomass()` function.
+#' @param data_biomass Output for `prepare_biomass_data()` function.
 #' @param n_response_curve_values A numeric value specifying the number of values to use for the response curve. Default is 200.
 #' @return A list with an unscaled version of biomass and a model matrix with scaled biomass.
 create_response_curve_array_occ_vs_biomass <- function(formula, data_biomass, n_response_curve_values = 200) {

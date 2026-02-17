@@ -97,7 +97,7 @@ map_nonbiomass_traits_change <- function(
 
 	if (plot_range_core) map <- map + layer_spatial(range_core, color = 'cyan', fill = NA, size = 2)
 
-	ggsave(plot = map, filename = paste0(out_dir, '/map_change_', trait, '_mu_', filename_append, '.png'), width = 12, height = 10, dpi = 600)
+	ggsave(plot = map, filename = paste0(out_dir, '/map_change_', trait, '_mu_', filename_append, '.png'), width = 12, height = 10, dpi = 300)
 	invisible(map)
 
 }
