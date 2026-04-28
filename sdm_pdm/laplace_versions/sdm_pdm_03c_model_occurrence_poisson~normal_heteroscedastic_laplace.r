@@ -33,25 +33,21 @@
 	homoscedastic <- FALSE # SPECIFIC TO THIS SCRIPT--SHOULD NOT BE CHANGED
 	zero_inflated <- FALSE # SPECIFIC TO THIS SCRIPT--SHOULD NOT BE CHANGED
 
-	# log BIOs 12-14 and 16-19?
-	# log_precip <- FALSE
-	log_precip <- TRUE
-
 	### formula for how aspects of species responds to environment
 	formula_occs <- ~ 1 + bio1 + bio12 + bio15 + I(bio1^2) + I(bio12^2) + I(bio15^2) # response of occurrence to climate and soil
 
 	### output folder and bias formula
 	# out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_poisson~normal_heteroscedastic_bio1^2_bio12^2_bio15^2_[bias~quad_ia]]', ifelse(trial, '_TRIAL', ''), '_laplace/')
-	# formula_occs_bias <- ~ 1 + area_km2_log10 + n_poaceae_log10p1 + I(area_km2_log10^2) + I(n_poaceae_log10p1^2) + area_km2_log10:n_poaceae_log10p1 # sampling bias for AG records
+	# formula_bias <- ~ 1 + area_km2_log10 + n_poaceae_log10p1 + I(area_km2_log10^2) + I(n_poaceae_log10p1^2) + area_km2_log10:n_poaceae_log10p1 # sampling bias for AG records
 
 	# out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_poisson~normal_heteroscedastic_bio1^2_bio12^2_bio15^2_[bias~quad]]', ifelse(trial, '_TRIAL', ''), '_laplace/')
-	# formula_occs_bias <- ~ 1 + area_km2_log10 + n_poaceae_log10p1 + I(area_km2_log10^2) + I(n_poaceae_log10p1^2) # sampling bias for AG records
+	# formula_bias <- ~ 1 + area_km2_log10 + n_poaceae_log10p1 + I(area_km2_log10^2) + I(n_poaceae_log10p1^2) # sampling bias for AG records
 
 	# out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_poisson~normal_heteroscedastic_bio1^2_bio12^2_bio15^2_[bias~ia]]', ifelse(trial, '_TRIAL', ''), _laplace'/')
-	# formula_occs_bias <- ~ 1 + area_km2_log10 + n_poaceae_log10p1 + area_km2_log10:n_poaceae_log10p1 # sampling bias for AG records
+	# formula_bias <- ~ 1 + area_km2_log10 + n_poaceae_log10p1 + area_km2_log10:n_poaceae_log10p1 # sampling bias for AG records
 
 	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_poisson~normal_heteroscedastic_bio1^2_bio12^2_bio15^2_[bias~linear]]', ifelse(trial, '_TRIAL', ''), '_laplace/')
-	formula_occs_bias <- ~ 1 + area_km2_log10 + n_poaceae_log10p1 # sampling bias for AG records
+	formula_bias <- ~ 1 + area_km2_log10 + n_poaceae_log10p1 # sampling bias for AG records
 
 #############
 ### model ###
@@ -73,7 +69,7 @@
 	say('MCMC settings:', level = 2)
 	say('trial ........................ ', trial)
 	say('formula_occs ................. ', paste(as.character(formula_occs), collapse = ' '))
-	say('formula_occs_bias ............ ', paste(as.character(formula_occs_bias), collapse = ' '))
+	say('formula_bias ............ ', paste(as.character(formula_bias), collapse = ' '))
 	say('homoscedastic ................ ', homoscedastic)
 	say('zero_inflated ................ ', zero_inflated, post = 2)
 
@@ -82,7 +78,7 @@
 
 	formulae <- list(
 		formula_occs = formula_occs,
-		formula_occs_bias = formula_occs_bias
+		formula_bias = formula_bias
 	)
 	saveRDS(formula, paste0(out_dir, '/formulae.rds'))
 
@@ -90,10 +86,10 @@
 	### data preparation ###
 	########################
 
-	data_occs <- prepare_occurrence_data(formula_occs = formula_occs, formula_occs_bias = formula_occs_bias, log_precip = log_precip, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
+	data_occs <- prepare_occurrence_data(formula_occs = formula_occs, formula_bias = formula_bias, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
 
 	# needed for plots
-	data_biomass <- prepare_biomass_data(formula = ~ 1, log_precip = log_precip, n_response_curve_values = n_response_curve_values, calib = calib)
+	data_biomass <- prepare_biomass_data(formula = ~ 1, n_response_curve_values = n_response_curve_values, calib = calib)
 	data_traits <- prepare_nonbiomass_facets(trait = 'height', formula = ~ 1, n_response_curve_values = n_response_curve_values, calib = calib)
 
 	#########################
@@ -111,11 +107,11 @@
 
 		### occurrences
 		n_counties_occs_calib = data_occs$n_counties_occs_calib, # number of counties in calibration region
-		n_terms_occs = data_occs$n_terms_occs, # number of terms in formula for occurrence model (including intercept)
-		w_occs_bias = data_occs$w_occs_bias, # model matrix of sampling bias of AG observed occurrences
-		n_terms_occs_bias = data_occs$n_terms_occs_bias, # number of terms in sampling bias model
+		n_terms_occs = data_occs$n_terms, # number of terms in formula for occurrence model (including intercept)
+		w_occs_bias = data_occs$w_bias, # model matrix of sampling bias of AG observed occurrences
+		n_terms_occs_bias = data_occs$n_terms_bias, # number of terms in sampling bias model
 
-		counties_x_occs_calib_sq = data_occs$counties_x_occs_sq
+		counties_x_occs_calib_sq = data_occs$counties_x_sq
 
 	)
 
@@ -123,11 +119,11 @@
 
 	N_inits_calib <- data_occs$y_n_ag + 1
 
-	prelim_data <- cbind(data_occs$w_occs_bias, data_occs$counties_x_occs_sq[ , 2:ncol(data_occs$counties_x_occs_sq)])
+	prelim_data <- cbind(data_occs$w_bias, data_occs$counties_x_sq[ , 2:ncol(data_occs$counties_x_sq)])
 	prelim_model <- glm.fit(prelim_data, y = data_occs$y_n_ag, family = poisson(log))
 
-	alpha_occs_inits <- prelim_model$coefficients[c('(Intercept)', data_occs$terms_occs_bias)]
-	beta_occs_inits <- prelim_model$coefficients[c('(Intercept)', data_occs$terms_occs)]
+	alpha_occs_inits <- prelim_model$coefficients[c('(Intercept)', data_occs$terms_bias)]
+	beta_occs_inits <- prelim_model$coefficients[c('(Intercept)', data_occs$terms)]
 
 	inits <- list(
 
@@ -247,7 +243,7 @@
 		homoscedastic = homoscedastic,
 		zero_inflated = zero_inflated,
 		formula_occs = formula_occs,
-		formula_occs_bias = formula_occs_bias,
+		formula_bias = formula_bias,
 		data_occs = data_occs,
 		out_dir = out_dir
 	)

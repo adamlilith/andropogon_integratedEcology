@@ -38,15 +38,11 @@
 	formula_biomass <- ~ 1 + bio12 # response of biomass to environment
 	biomass_filename <- 'bio12'
 
-	formula_occs_bias <- ~ 1 # sampling bias for AG records
+	formula_bias <- ~ 1 # sampling bias for AG records
 	bias_filename <- '1'
 
-	# log precipitation?
-	# log_precip <- TRUE
-	log_precip <- FALSE
-
 	### output folder and bias formula
-	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occs_biomass/', ifelse(trial, 'TRIAL_', ''), '[occs~poisson[', occs_filename, '_bias~', bias_filename, ']_[biomass~', biomass_filename, ']', ifelse(log_precip, '_log_precip', ''), '/')
+	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occs_biomass/', ifelse(trial, 'TRIAL_', ''), '[occs~poisson[', occs_filename, '_bias~', bias_filename, ']_[biomass~', biomass_filename, ']/')
 
 	if (!trial) {
 
@@ -95,7 +91,7 @@
 	say('thin ......................... ', thin)
 	say('nchains ...................... ', nchains)
 	say('formula_occs ................. ', paste(as.character(formula_occs), collapse = ' '))
-	say('formula_occs_bias ............ ', paste(as.character(formula_occs_bias), collapse = ' '))
+	say('formula_bias ............ ', paste(as.character(formula_bias), collapse = ' '))
 	say('formula_biomass ........... ', paste(as.character(formula_biomass), collapse = ' '))
 	say('formula_psi .................. ', paste(as.character(formula_psi), collapse = ' '))
 
@@ -104,7 +100,7 @@
 
 	formulae <- list(
 		formula_occs = formula_occs,
-		formula_occs_bias = formula_occs_bias,
+		formula_bias = formula_bias,
 		formula_biomass = formula_biomass,
 		formula_psi = formula_psi
 	)
@@ -115,16 +111,16 @@
 	########################
 
 	# data for occurrences at counties
-	data_occs <- prepare_occurrence_data(formula_occs = formula_occs, formula_occs_bias = formula_occs_bias, log_precip = log_precip, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
+	data_occs <- prepare_occurrence_data(formula_occs = formula_occs, formula_bias = formula_bias, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
 
 	# data for biomass at sites
-	data_biomass <- prepare_biomass_data(formula_biomass = formula_biomass, log_precip = log_precip, n_response_curve_values = n_response_curve_values, calib = calib)
+	data_biomass <- prepare_biomass_data(formula_biomass = formula_biomass, n_response_curve_values = n_response_curve_values, calib = calib)
 
 	# data for occurrences using site-level environment
-	data_occs_as_sites <- prepare_biomass_data(formula_biomass = formula_occs, n_response_curve_values = n_response_curve_values, log_precip = log_precip, calib = calib)
+	data_occs_as_sites <- prepare_biomass_data(formula_biomass = formula_occs, n_response_curve_values = n_response_curve_values, calib = calib)
 
 	# data for biomass using county-level environment
-	data_biomass_as_counties <- prepare_occurrence_data(formula_occs = formula_biomass, formula_occs_bias = ~ 1, log_precip = log_precip, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
+	data_biomass_as_counties <- prepare_occurrence_data(formula_occs = formula_biomass, formula_bias = ~ 1, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
 
 	#########################
 	### inputs for nimble ###
@@ -143,29 +139,29 @@
 
 		### occurrences
 		n_counties_occs_calib = data_occs$n_counties_occs_calib, # number of counties in calibration region
-		n_terms_occs = data_occs$n_terms_occs, # number of terms in formula for occurrence model (including intercept)
-		w_occs_bias = data_occs$w_occs_bias, # model matrix of sampling bias of AG observed occurrences
-		n_terms_occs_bias = data_occs$n_terms_occs_bias, # number of terms in sampling bias model
+		n_terms_occs = data_occs$n_terms, # number of terms in formula for occurrence model (including intercept)
+		w_occs_bias = data_occs$w_bias, # model matrix of sampling bias of AG observed occurrences
+		n_terms_occs_bias = data_occs$n_terms_bias, # number of terms in sampling bias model
 
 		n_covariates_occs = data_occs$n_covariates_occs, # number of covariates in formula for occurrence model
-		n_covariates_occs_bias = data_occs$n_covariates_occs_bias, # number of covariates in formula for occurrence model
-		resp_curves_x_occs = data_occs$resp_curves_x_occs, # response curve array for occurrences vs environment
-		resp_curves_w_occs = data_occs$resp_curves_w_occs, # response curve array for occurrences vs environment
+		n_covariates_occs_bias = data_occs$n_covariates_bias, # number of covariates in formula for occurrence model
+		resp_curves_x_occs = data_occs$resp_curves_x, # response curve array for occurrences vs environment
+		resp_curves_w_occs = data_occs$resp_curves_w, # response curve array for occurrences vs environment
 
-		x_by_county_occs = data_occs$counties_x_occs_sq,
-		x_by_site_occs = data_occs_as_sites$x_by_site_biomass, # MM with covariates for biomass (scaled)
+		x_by_county_occs = data_occs$counties_x_sq,
+		x_by_site_occs = data_occs_as_sites$x_by_site, # MM with covariates for biomass (scaled)
 
 		### biomass
 		n_pheno_sites = data_biomass$n_pheno_sites, # number of phenotype sample sites
-		x_by_county_biomass = data_biomass_as_counties$counties_x_occs_sq,
+		x_by_county_biomass = data_biomass_as_counties$counties_x_sq,
 
-		x_by_site_biomass = data_biomass$x_by_site_biomass, # MM with covariates for biomass (scaled)
+		x_by_site_biomass = data_biomass$x_by_site, # MM with covariates for biomass (scaled)
 		n_biomass = data_biomass$n_biomass, # number of biomass observations
 		site_index_biomass = data_biomass$site_index_biomass, # index of sampled site for each row in biomass data
-		n_terms_biomass = data_biomass$n_terms_biomass, # number of terms in formula for biomass model (including intercept)
+		n_terms_biomass = data_biomass$n_terms, # number of terms in formula for biomass model (including intercept)
 
-		n_covariates_biomass = data_biomass$n_covariates_biomass,
-		resp_curves_x_biomass = data_biomass$resp_curves_x_biomass, # response curve array for biomass
+		n_covariates_biomass = data_biomass$n_covariates,
+		resp_curves_x_biomass = data_biomass$resp_curves_x, # response curve array for biomass
 
 		# response curves (general)
 		n_response_curve_values = n_response_curve_values # number of values in response curve array
@@ -193,7 +189,7 @@
 	# biomass initializations
 	chains_biomass <- readRDS('./outputs_loretta/integrated_sdm_pdm/models_biomass/[biomass_gamma~normal_bio12]/chains.rds')
 	beta_biomass_inits <- mc_extract(chains_biomass, 'beta_biomass', j = TRUE)
-	mu_biomass_site_inits <- mc_extract(chains_biomass, 'mu_biomass_site', j = TRUE)
+	biomass_site_inits <- mc_extract(chains_biomass, 'biomass_site', j = TRUE)
 	sigma_biomass_within_sites_inits <- mc_extract(chains_biomass, 'sigma_biomass_within_sites')
 
 	rm(chains_biomass)
@@ -211,7 +207,7 @@
 		response_curves_occs_mu = response_curves_occs_mu_inits,
 
 		### biomass
-		mu_biomass_site = mu_biomass_site_inits,
+		biomass_site = biomass_site_inits,
 		sigma_biomass_within_sites_log = log(sigma_biomass_within_sites_inits),
 		y_biomass_sim = data_biomass$y_biomass, # simulated values for biomass (for DHARMa residuals)
 		beta_biomass = beta_biomass_inits,
@@ -278,15 +274,6 @@
 
 		}
 
-		# OCCURRENCE: priors for relationship to environment
-		beta_occs[1] ~ dnorm(0, sd = beta_occs_prior_dnorm_sd_1)
-		for (i in 2:n_terms_occs) {
-			beta_occs[i] ~ ddexp(0, rate = beta_occs_prior_ddexp_rate)
-		}
-
-		# OCCURRENCE: priors for sampling bias
-		alpha_occs[1] ~ dnorm(0, sd = alpha_occs_prior_dnorm_sd_1)
-
 		# OCCURRENCE: likelihood
 		for (i in 1:n_counties_occs_calib) {
 			
@@ -324,11 +311,6 @@
 
 		}
 
-		# BIOMASS: priors for relationship of site-level mean biomass to environment
-		for (i in 1:n_terms_biomass) {
-			beta_biomass[i] ~ dnorm(0, sd = beta_biomass_prior_dnorm_sd) # broad prior
-		}
-
 		# prior for sd of individual plant biomass on lognormal (~ half-Cauchy), ==> vague
 		sigma_biomass_within_sites_log ~ dnorm(0, sd = sigma_biomass_within_sites_log_prior_sd)
 		sigma_biomass_within_sites <- exp(sigma_biomass_within_sites_log)
@@ -338,11 +320,11 @@
 		for (i in 1:n_pheno_sites) {
 
 			# site-level mean biomass
-			mu_biomass_site[i] <- exp(Phi_site[i, 2])
+			biomass_site[i] <- exp(Phi_site[i, 2])
 
 			# moment matching to get dgamma() parameters
-			shape_biomass[i] <- mu_biomass_site[i]^2 / sigma_biomass_within_sites^2
-			rate_biomass[i] <- mu_biomass_site[i] / sigma_biomass_within_sites^2
+			shape_biomass[i] <- biomass_site[i]^2 / sigma_biomass_within_sites^2
+			rate_biomass[i] <- biomass_site[i] / sigma_biomass_within_sites^2
 
 		}
 
@@ -366,7 +348,7 @@
 
 	### OCCURRENCE: response curves
 	# OCCURRENCE RESPONSE CURVES: NO bias covariate
-	if (data_occs$n_covariates_occs_bias == 0) {
+	if (data_occs$n_covariates_bias == 0) {
 
 		bias_response_curve_code <- nimbleCode({
 
@@ -382,7 +364,7 @@
 
 		model_code <- glueNimbleCode(model_code, bias_response_curve_code)
 
-	} else if (data_occs$n_covariates_occs_bias == 1) {
+	} else if (data_occs$n_covariates_bias == 1) {
 	# OCCURRENCE RESPONSE CURVES: ONE bias covariate
 
 		bias_response_curve_code <- nimbleCode({
@@ -409,7 +391,7 @@
 		model_code <- glueNimbleCode(model_code, bias_response_curve_code)
 
 	# OCCURRENCE RESPONSE CURVES: MORE THAN ONE bias covariate
-	} else if (data_occs$n_covariates_occs_bias > 1) {
+	} else if (data_occs$n_covariates_bias > 1) {
 
 		bias_response_curve_code <- nimbleCode({
 
@@ -441,7 +423,7 @@
 	}
 
 	### BIOMASS: response curves
-	if (data_biomass$n_covariates_biomass == 1) {
+	if (data_biomass$n_covariates == 1) {
 
 		### univariate
 		response_curve_code <- nimbleCode({
@@ -484,6 +466,11 @@
 	
 	}
 
+	model_code <- glueNimbleCode(
+		model_code,
+		model_code_beta_occs_alpha_occs_1_priors,
+		model_code_beta_biomass_priors
+	)
 
 	print(model_code)
 
@@ -512,7 +499,7 @@
 	monitors_coeffs_double_index <- c()
 
 	monitors_derived_not_indexed <- c('log_lik')
-	monitors_derived_single_index <- c('mu_biomass_site')
+	monitors_derived_single_index <- c('biomass_site')
 	monitors_derived_double_index <- c('U')
 
 	monitors_dharma <- c(
@@ -522,7 +509,7 @@
 	monitors_resp_curves <- c(
 		'response_curves_occs_mu', 'response_curves_biomass_mu'
 	)
-	if (data_occs$n_covariates_occs_bias > 0) monitors_resp_curves <- c(monitors_resp_curves, 'response_curves_occs_bias')
+	if (data_occs$n_covariates_bias > 0) monitors_resp_curves <- c(monitors_resp_curves, 'response_curves_occs_bias')
 
 	monitors <- c(monitors_coeffs_not_indexed, monitors_coeffs_single_index, monitors_coeffs_double_index, monitors_derived_not_indexed, monitors_derived_single_index, monitors_derived_double_index, monitors_dharma, monitors_resp_curves)
 
@@ -611,12 +598,11 @@ say('#################################################')
 
 	workflow_postmodeling_occurrence_biomass(
 		formula_occs = formula_occs,
-		formula_occs_bias = formula_occs_bias,
+		formula_bias = formula_bias,
 		formula_biomass = formula_biomass,
 		formula_psi = formula_psi,
 		resp_distrib = resp_distrib,
 		transform = transform,
-		log_precip = log_precip,
 		out_dir = out_dir
 	)
 	
@@ -627,7 +613,7 @@ say('#################################################')
 			constants = constants,
 			inits = inits,
 			formula_occs = formula_occs,
-			formula_occs_bias = formula_occs_bias,
+			formula_bias = formula_bias,
 			formula_biomass = formula_biomass,
 			formula_psi = formula_psi,
 			out_dir = out_dir

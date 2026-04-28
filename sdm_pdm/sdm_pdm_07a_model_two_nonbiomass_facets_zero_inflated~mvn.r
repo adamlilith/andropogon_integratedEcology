@@ -30,22 +30,18 @@
 	crossvalidate <- TRUE
 	# crossvalidate <- FALSE
 
-	# log BIOs 12-14 and 16-19 if they are included in the model?
-	# log_precip <- FALSE
-	log_precip <- TRUE
-
 	formula_facet_1 <- ~ 1 + bio12
 	formula_facet_2 <- ~ 1 + bio12
 	formula_psi <- ~ 1 + bio12
 
-	preds_filename_facet_1 <- 'bio12'
-	preds_filename_facet_2 <- 'bio12'
+	filename_occs_facet_1 <- 'bio12'
+	filename_occs_facet_2 <- 'bio12'
 
 	# distribution of response variable
 	# ZIG = zero-inflated gamma
-	# ZILN = zero-inflated lognormal
-	resp_distrib_facet_1 <- 'ZILN'
-	resp_distrib_facet_2 <- 'ZILN'
+	# 'hurdleLN' = zero-inflated lognormal
+	resp_distrib_facet_1 <- 'hurdleLN'
+	resp_distrib_facet_2 <- 'hurdleLN'
 
 	### MCMC settings
 	if (!trial) {
@@ -72,10 +68,10 @@
 
 	# cycle across all facets, response (zero-inflated gamma or lognormal), and formulae
 
-	transform_facet_1 <- if (resp_distrib_facet_1 == 'ZIG') { 'exponential' } else if (resp_distrib_facet_1 == 'ZILN') { 'identity' }
-	transform_facet_2 <- if (resp_distrib_facet_2 == 'ZIG') { 'exponential' } else if (resp_distrib_facet_2 == 'ZILN') { 'identity' }
+	transform_facet_1 <- if (resp_distrib_facet_1 == 'hGamma') { 'exponential' } else if (resp_distrib_facet_1 == 'hurdleLN') { 'identity' }
+	transform_facet_2 <- if (resp_distrib_facet_2 == 'hGamma') { 'exponential' } else if (resp_distrib_facet_2 == 'hurdleLN') { 'identity' }
 
-	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_', facet_1, '_', facet_2, '/', ifelse(trial, 'TRIAL_', ''), '[', facet_1, '~', tolower(resp_distrib_facet_1), '~', preds_filename_facet_1, ']_', '[', facet_2, '~', tolower(resp_distrib_facet_2), '~', preds_filename_facet_2, ']', ifelse(log_precip, '_log_precip', ''), '/')
+	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_', facet_1, '_', facet_2, '/', ifelse(trial, 'TRIAL_', ''), '[', facet_1, '~', tolower(resp_distrib_facet_1), '~', filename_occs_facet_1, ']_', '[', facet_2, '~', tolower(resp_distrib_facet_2), '~', filename_occs_facet_2, ']')
 
 	if (!trial & file.exists(out_dir)) stop('Output folder already exists.')
 
@@ -119,12 +115,12 @@
 	### data preparation ###
 	########################
 
-		data_facet_1 <- prepare_nonbiomass_data(facet = facet_1, formula_facet = formula_facet_1, log_precip = log_precip, n_response_curve_values = n_response_curve_values, calib = calib)
+		data_facet_1 <- prepare_nonbiomass_data(facet = facet_1, formula_facet = formula_facet_1, n_response_curve_values = n_response_curve_values, calib = calib)
 
-		data_facet_2 <- prepare_nonbiomass_data(facet = facet_2, formula_facet = formula_facet_2, log_precip = log_precip, n_response_curve_values = n_response_curve_values, calib = calib)
+		data_facet_2 <- prepare_nonbiomass_data(facet = facet_2, formula_facet = formula_facet_2, n_response_curve_values = n_response_curve_values, calib = calib)
 
 		# using "height" bc the function needs a valid facet name
-		data_psi <- prepare_nonbiomass_data(facet = 'height', formula_facet = formula_psi, log_precip = log_precip, n_response_curve_values = n_response_curve_values, calib = calib)
+		data_psi <- prepare_nonbiomass_data(facet = 'height', formula_facet = formula_psi, n_response_curve_values = n_response_curve_values, calib = calib)
 
 	#########################
 	### inputs for nimble ###
@@ -144,21 +140,21 @@
 		n_pheno_sites = data_facet_1$n_pheno_sites, # number of phenotype sample sites
 
 		# facet #1
-		x_by_site_facet_1 = data_facet_1$x_by_site_facet, # MM with covariates for facet (scaled)
-		n_terms_facet_1 = data_facet_1$n_terms_facet, # number of terms in formula for facet model (including intercept)
-		n_covariates_facet_1 = data_facet_1$n_covariates_facet,
-		resp_curves_x_facet_1 = data_facet_1$resp_curves_x_facet, # response curve array for facet
+		x_by_site_facet_1 = data_facet_1$x_by_site, # MM with covariates for facet (scaled)
+		n_terms_facet_1 = data_facet_1$covariates, # number of terms in formula for facet model (including intercept)
+		n_covariates_facet_1 = data_facet_1$n_covariates,
+		resp_curves_x_facet_1 = data_facet_1$resp_curves_x, # response curve array for facet
 
 		# facet #2
-		x_by_site_facet_2 = data_facet_2$x_by_site_facet, # MM with covariates for facet (scaled)
-		n_terms_facet_2 = data_facet_2$n_terms_facet, # number of terms in formula for facet model (including intercept)
-		n_covariates_facet_2 = data_facet_2$n_covariates_facet,
-		resp_curves_x_facet_2 = data_facet_2$resp_curves_x_facet, # response curve array for facet
+		x_by_site_facet_2 = data_facet_2$x_by_site, # MM with covariates for facet (scaled)
+		n_terms_facet_2 = data_facet_2$covariates, # number of terms in formula for facet model (including intercept)
+		n_covariates_facet_2 = data_facet_2$n_covariates,
+		resp_curves_x_facet_2 = data_facet_2$resp_curves_x, # response curve array for facet
 
 		# zero-inflation
-		x_by_site_psi = data_psi$x_by_site_facet,
-		n_covariates_psi = data_psi$n_covariates_facet,
-		n_terms_psi = data_psi$n_terms_facet,
+		x_by_site_psi = data_psi$x_by_site,
+		n_covariates_psi = data_psi$n_covariates,
+		n_terms_psi = data_psi$covariates,
 
 		n_plants = data_facet_1$n_plants, # number of facet observations
 		site_index_facet = data_facet_1$site_index_facet # index of sampled site for each row in facet data
@@ -169,12 +165,12 @@
 	if (!is.null(formula_psi)) constants <- c(constants, constants_shared_psi)
 
 	# get initial values from standalone models
-	chains_facet_1 <- readRDS(paste0('./outputs_loretta/integrated_sdm_pdm/models_', facet_1, '/[', facet_1, '_', tolower(resp_distrib_facet_1), '~normal~', preds_filename_facet_1, ']', ifelse(log_precip, '_log_precip', ''), '/chains.rds'))
+	chains_facet_1 <- readRDS(paste0('./outputs_loretta/integrated_sdm_pdm/models_', facet_1, '/[', facet_1, '_', tolower(resp_distrib_facet_1), '~normal~', filename_occs_facet_1, ']/chains.rds'))
 	beta_facet_1_inits <- mc_extract(chains_facet_1, 'beta_facet', j = TRUE)
 	sigma_facet_1_within_sites_init <- exp(mc_extract(chains_facet_1, 'sigma_facet_within_sites'))
 	sigma_facet_1_among_sites_init <- mc_extract(chains_facet_1, 'sigma_facet_among_sites')
 
-	chains_facet_2 <- readRDS(paste0('./outputs_loretta/integrated_sdm_pdm/models_', facet_2, '/[', facet_2, '_', tolower(resp_distrib_facet_2), '~normal~', preds_filename_facet_2, ']', ifelse(log_precip, '_log_precip', ''), '/chains.rds'))
+	chains_facet_2 <- readRDS(paste0('./outputs_loretta/integrated_sdm_pdm/models_', facet_2, '/[', facet_2, '_', tolower(resp_distrib_facet_2), '~normal~', filename_occs_facet_2, ']/chains.rds'))
 	beta_facet_2_inits <- mc_extract(chains_facet_2, 'beta_facet', j = TRUE)
 	sigma_facet_2_within_sites_init <- mc_extract(chains_facet_2, 'sigma_facet_within_sites')
 	sigma_facet_2_among_sites_init <- mc_extract(chains_facet_2, 'sigma_facet_among_sites')
@@ -212,8 +208,8 @@
 		beta_facet_2 = beta_facet_2_inits,
 
 		# zero-fixation
-		beta_psi = beta_psi_inits,
-		z_site = rep(1, data_facet_1$n_pheno_sites)
+		beta_psi = beta_psi_inits#,
+		# z_site = rep(1, data_facet_1$n_pheno_sites)
 
 	)
 
@@ -250,18 +246,14 @@
 		correlation[1:n_facets, 1:n_facets] <- t(U_star[1:n_facets, 1:n_facets]) %*% U_star[1:n_facets, 1:n_facets]
 
 		# FACETS: priors for relationship of site-level mean facet to environment
-		for (i in 1:n_terms_facet_1) {
+		beta_facet_1[1] ~ dnorm(0, sd = beta_facet_prior_dnorm_sd_1)
+		for (i in 2:n_terms_facet_1) {
 			beta_facet_1[i] ~ dnorm(0, sd = beta_facet_prior_dnorm_sd) # broad prior
 		}
 
-		for (i in 1:n_terms_facet_2) {
+		beta_facet_2[1] ~ dnorm(0, sd = beta_facet_prior_dnorm_sd_1)
+		for (i in 2:n_terms_facet_2) {
 			beta_facet_2[i] ~ dnorm(0, sd = beta_facet_prior_dnorm_sd) # broad prior
-		}
-
-		# ZERO-INFLATION: priors for probability of presence
-		beta_psi[1] ~ dnorm(0, sd = beta_psi_prior_dnorm_sd_1)
-		for (i in 2:n_terms_psi) {
-			beta_psi[i] ~ ddexp(0, rate = beta_psi_prior_dnorm_sd)
 		}
 
 		# prior for sd of values WITHIN a site on lognormal (~ half-Cauchy), ==> vague
@@ -282,7 +274,7 @@
 			
 			# zero-inflation
 			logit(psi[i]) <- inprod(beta_psi[1:n_terms_psi], x_by_site_psi[i, 1:n_terms_psi])
-			z_site[i] ~ dbern(psi[i])
+			# z_site[i] ~ dbern(psi[i])
 
 			# site-level mean facet value
 			mu_facet_1_site[i] <- exp(Phi_site[i, 1])
@@ -299,7 +291,7 @@
 	### response code for FACET 1
 	#############################
 	# Switch out zero-inflated gamma or lognormal, depending on which one we're doing.
-	if (resp_distrib_facet_1 == 'ZIG') {
+	if (resp_distrib_facet_1 == 'hGamma') {
 	
 		response_distrib_code_facet_1 <- nimbleCode({
 
@@ -308,8 +300,8 @@
 			for (i in 1:n_pheno_sites) {
 
 				# moment matching to get gamma() parameters
-				shape_facet_1[i] <- Phi_site[i, 1]^2 / sigma_facet_1_within_sites^2
-				rate_facet_1[i] <- Phi_site[i, 1] / sigma_facet_1_within_sites^2
+				shape_facet_1[i] <- mu_facet_1_site[i]^2 / sigma_facet_1_within_sites^2
+				rate_facet_1[i] <- mu_facet_1_site[i] / sigma_facet_1_within_sites^2
 
 			}
 
@@ -317,18 +309,21 @@
 			for (i in 1:n_plants) {
 
 				# likelihood
-				y_facet_1[i] ~ dZIG(shape = shape_facet_1[site_index_facet[i]], rate = rate_facet_1[site_index_facet[i]], z = z_site[site_index_facet[i]])
+				# y_facet_1[i] ~ dZIG(shape = shape_facet_1[site_index_facet[i]], rate = rate_facet_1[site_index_facet[i]], z = z_site[site_index_facet[i]])
+				y_facet_1[i] ~ dZIG(shape = shape_facet_1[site_index_facet[i]], rate = rate_facet_1[site_index_facet[i]], psi = psi_site[site_index_facet[i]])
 
 				# simulated values for unconditional DHARMa residuals
-				y_facet_1_sim[i] ~ dZIG(shape = shape_facet_1[site_index_facet[i]], rate = rate_facet_1[site_index_facet[i]], z = z_site[site_index_facet[i]])
+				# y_facet_1_sim[i] ~ dZIG(shape = shape_facet_1[site_index_facet[i]], rate = rate_facet_1[site_index_facet[i]], z = z_site[site_index_facet[i]])
+				y_facet_1_sim[i] ~ dZIG(shape = shape_facet_1[site_index_facet[i]], rate = rate_facet_1[site_index_facet[i]], psi = psi_site[site_index_facet[i]])
 
-				log_lik_facet_1_y[i] <- dZIG(y_facet_1[i], shape = shape_facet_1[site_index_facet[i]], rate = rate_facet_1[site_index_facet[i]], z = z_site[site_index_facet[i]])
+				# log_lik_facet_1_y[i] <- dZIG(y_facet_1[i], shape = shape_facet_1[site_index_facet[i]], rate = rate_facet_1[site_index_facet[i]], z = z_site[site_index_facet[i]])
+				log_lik_facet_1_y[i] <- dZIG(y_facet_1[i], shape = shape_facet_1[site_index_facet[i]], rate = rate_facet_1[site_index_facet[i]], psi = psi_site[site_index_facet[i]])
 		
 			}
 
 		})
 	
-	} else if (resp_distrib_facet_1 == 'ZILN') {
+	} else if (resp_distrib_facet_1 == 'hurdleLN') {
 	
 		response_distrib_code_facet_1 <- nimbleCode({
 
@@ -336,12 +331,15 @@
 			for (i in 1:n_plants) {
 
 				# likelihood
-				y_facet_1[i] ~ dZILN(meanlog = Phi_site[site_index_facet[i], 1], sdlog = sigma_facet_1_within_sites, z = z_site[site_index_facet[i]])
+				# y_facet_1[i] ~ dZILN(meanlog = Phi_site[site_index_facet[i], 1], sdlog = sigma_facet_1_within_sites, z = z_site[site_index_facet[i]])
+				y_facet_1[i] ~ dZILN(meanlog = Phi_site[site_index_facet[i], 1], sdlog = sigma_facet_1_within_sites, psi = psi_site[site_index_facet[i]])
 
 				# simulated values for unconditional DHARMa residuals
-				y_facet_1_sim[i] ~ dZILN(meanlog = Phi_site[site_index_facet[i], 1], sdlog = sigma_facet_1_within_sites, z = z_site[site_index_facet[i]])
+				# y_facet_1_sim[i] ~ dZILN(meanlog = Phi_site[site_index_facet[i], 1], sdlog = sigma_facet_1_within_sites, z = z_site[site_index_facet[i]])
+				y_facet_1_sim[i] ~ dZILN(meanlog = Phi_site[site_index_facet[i], 1], sdlog = sigma_facet_1_within_sites, psi = psi_site[site_index_facet[i]])
 
-				log_lik_facet_1_y[i] <- dZILN(y_facet_1[i], meanlog = Phi_site[site_index_facet[i], 1], sdlog = sigma_facet_1_within_sites, z = z_site[site_index_facet[i]])
+				# log_lik_facet_1_y[i] <- dZILN(y_facet_1[i], meanlog = Phi_site[site_index_facet[i], 1], sdlog = sigma_facet_1_within_sites, z = z_site[site_index_facet[i]])
+				log_lik_facet_1_y[i] <- dZILN(y_facet_1[i], meanlog = Phi_site[site_index_facet[i], 1], sdlog = sigma_facet_1_within_sites, psi = psi_site[site_index_facet[i]])
 
 			}
 
@@ -353,7 +351,7 @@
 	### response code for FACET #2
 	##############################
 	# Switch out zero-inflated gamma or lognormal, depending on which one we're doing.
-	if (resp_distrib_facet_2 == 'ZIG') {
+	if (resp_distrib_facet_2 == 'hGamma') {
 	
 		response_distrib_code_facet_2 <- nimbleCode({
 
@@ -362,8 +360,8 @@
 			for (i in 1:n_pheno_sites) {
 
 				# moment matching to get gamma() parameters
-				shape_facet_2[i] <- Phi_site[i, 2]^2 / sigma_facet_2_within_sites^2
-				rate_facet_2[i] <- Phi_site[i, 2] / sigma_facet_2_within_sites^2
+				shape_facet_2[i] <- mu_facet_2_site[i]^2 / sigma_facet_2_within_sites^2
+				rate_facet_2[i] <- mu_facet_2_site[i] / sigma_facet_2_within_sites^2
 
 			}
 
@@ -371,18 +369,21 @@
 			for (i in 1:n_plants) {
 
 				# likelihood
-				y_facet_2[i] ~ dZIG(shape = shape_facet_2[site_index_facet[i]], rate = rate_facet_2[site_index_facet[i]], z = z_site[site_index_facet[i]])
+				# y_facet_2[i] ~ dZIG(shape = shape_facet_2[site_index_facet[i]], rate = rate_facet_2[site_index_facet[i]], z = z_site[site_index_facet[i]])
+				y_facet_2[i] ~ dZIG(shape = shape_facet_2[site_index_facet[i]], rate = rate_facet_2[site_index_facet[i]], psi = psi_site[site_index_facet[i]])
 
 				# simulated values for unconditional DHARMa residuals
-				y_facet_2_sim[i] ~ dZIG(shape = shape_facet_2[site_index_facet[i]], rate = rate_facet_2[site_index_facet[i]], z = z_site[site_index_facet[i]])
+				# y_facet_2_sim[i] ~ dZIG(shape = shape_facet_2[site_index_facet[i]], rate = rate_facet_2[site_index_facet[i]], z = z_site[site_index_facet[i]])
+				y_facet_2_sim[i] ~ dZIG(shape = shape_facet_2[site_index_facet[i]], rate = rate_facet_2[site_index_facet[i]], psi = psi_site[site_index_facet[i]])
 
-				log_lik_facet_2_y[i] <- dZIG(y_facet_2[i], shape = shape_facet_2[site_index_facet[i]], rate = rate_facet_2[site_index_facet[i]], z = z_site[site_index_facet[i]])
+				# log_lik_facet_2_y[i] <- dZIG(y_facet_2[i], shape = shape_facet_2[site_index_facet[i]], rate = rate_facet_2[site_index_facet[i]], z = z_site[site_index_facet[i]])
+				log_lik_facet_2_y[i] <- dZIG(y_facet_2[i], shape = shape_facet_2[site_index_facet[i]], rate = rate_facet_2[site_index_facet[i]], psi = psi_site[site_index_facet[i]])
 		
 			}
 
 		})
 	
-	} else if (resp_distrib_facet_2 == 'ZILN') {
+	} else if (resp_distrib_facet_2 == 'hurdleLN') {
 	
 		response_distrib_code_facet_2 <- nimbleCode({
 
@@ -390,12 +391,15 @@
 			for (i in 1:n_plants) {
 
 				# likelihood
-				y_facet_2[i] ~ dZILN(meanlog = Phi_site[site_index_facet[i], 2], sdlog = sigma_facet_2_within_sites, z = z_site[site_index_facet[i]])
+				# y_facet_2[i] ~ dZILN(meanlog = Phi_site[site_index_facet[i], 2], sdlog = sigma_facet_2_within_sites, z = z_site[site_index_facet[i]])
+				y_facet_2[i] ~ dZILN(meanlog = Phi_site[site_index_facet[i], 2], sdlog = sigma_facet_2_within_sites, psi = psi_site[site_index_facet[i]])
 
 				# simulated values for unconditional DHARMa residuals
-				y_facet_2_sim[i] ~ dZILN(meanlog = Phi_site[site_index_facet[i], 2], sdlog = sigma_facet_2_within_sites, z = z_site[site_index_facet[i]])
+				# y_facet_2_sim[i] ~ dZILN(meanlog = Phi_site[site_index_facet[i], 2], sdlog = sigma_facet_2_within_sites, z = z_site[site_index_facet[i]])
+				y_facet_2_sim[i] ~ dZILN(meanlog = Phi_site[site_index_facet[i], 2], sdlog = sigma_facet_2_within_sites, psi = psi_site[site_index_facet[i]])
 
-				log_lik_facet_2_y[i] <- dZILN(y_facet_2[i], meanlog = Phi_site[site_index_facet[i], 2], sdlog = sigma_facet_2_within_sites, z = z_site[site_index_facet[i]])
+				# log_lik_facet_2_y[i] <- dZILN(y_facet_2[i], meanlog = Phi_site[site_index_facet[i], 2], sdlog = sigma_facet_2_within_sites, z = z_site[site_index_facet[i]])
+				log_lik_facet_2_y[i] <- dZILN(y_facet_2[i], meanlog = Phi_site[site_index_facet[i], 2], sdlog = sigma_facet_2_within_sites, psi = psi_site[site_index_facet[i]])
 
 			}
 
@@ -403,7 +407,13 @@
 		
 	}
 
-	model_code <- glueNimbleCode(model_code, response_distrib_code_facet_1, response_distrib_code_facet_2)
+	model_code <- glueNimbleCode(
+		model_code,
+		response_distrib_code_facet_1,
+		response_distrib_code_facet_2,
+		model_code_beta_psi_priors
+	)
+	
 	print(model_code)
 
 	say('nimbleModel():', level = 2)
@@ -507,7 +517,15 @@
 
 	saveRDS(chains, paste0(out_dir, '/chains.rds'))
 
-	say('session info', level = 2)
+	say('PRIORS', level = 1)
+
+	say('constants_shared_facet', level = 2)
+	print(constants_shared_facet)
+
+	say('constants_shared_psi', level = 2)
+	print(constants_shared_psi)
+
+	say('session info', level = 1)
 	print(sessionInfo())
 
 	say(date(), pre = 1)
@@ -518,13 +536,13 @@
 ######################################################
 
 	### post-modeling analysis of FACET
-	descrip1 <- paste0(facet_1, ' ~ ', resp_distrib_facet_1, '(', ifelse(resp_distrib_facet_1 == 'ZIG', 'exp(', ''), 'MVN(env))', ifelse(resp_distrib_facet_1 == 'ZIG', ')', ''))
-	descrip2 <- paste0(facet_2, ' ~ ', resp_distrib_facet_2, '(', ifelse(resp_distrib_facet_2 == 'ZIG', 'exp(', ''), 'MVN(env))', ifelse(resp_distrib_facet_2 == 'ZIG', ')', ''))
+	descrip1 <- paste0(facet_1, ' ~ ', resp_distrib_facet_1, '(', ifelse(resp_distrib_facet_1 == 'hGamma', 'exp(', ''), 'MVN(env))', ifelse(resp_distrib_facet_1 == 'hGamma', ')', ''))
+	descrip2 <- paste0(facet_2, ' ~ ', resp_distrib_facet_2, '(', ifelse(resp_distrib_facet_2 == 'hGamma', 'exp(', ''), 'MVN(env))', ifelse(resp_distrib_facet_2 == 'hGamma', ')', ''))
 	descrip <- paste0(descrip1, ' + ', descrip2)
 	facets <- paste0(facet_1, ' + ', facet_2)
 	workflow_postmodeling_generic(facet = facets, formulae = formulae, descrip = descrip, out_dir = out_dir)
 
-	# workflow_postmodeling_nonbiomass_single_facet(facet = facet, chains = chains, descrip = descrip, formula_facet = formula_facet, formula_psi = formula_psi, resp_distrib = resp_distrib, transform = transform, log_precip = log_precip, crossvalidate = crossvalidate, out_dir = out_dir)
+	# workflow_postmodeling_nonbiomass_single_facet(facet = facet, chains = chains, descrip = descrip, formula_facet = formula_facet, formula_psi = formula_psi, resp_distrib = resp_distrib, transform = transform, crossvalidate = crossvalidate, out_dir = out_dir)
 
 say(date())
 say('FINIS!', deco = '+', level = 1)

@@ -3,13 +3,12 @@
 #' source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/functions/function_prepare_occurrence_data.r') 
 #'
 #' formula_occs A formula object specifying the model to be fit for the response of AG abundance to the environment. Include an intercept and the RHS only.
-#' formula_occs_bias A formula object specifying the model to be fit for the sampling bias in the number of AG observed occurrences. Include an intercept and the RHS only.
-#' log_precip If `TRUE`, take log of precipitation variables (BIOs 12-14, 16-19)
+#' formula_bias A formula object specifying the model to be fit for the sampling bias in the number of AG observed occurrences. Include an intercept and the RHS only.
 #' n_response_curve_values A numeric value specifying the number of values to use for the response curve. Default is 200.
 #' psa_quant A numeric value between 0 and 1 specifying the quantile of Poaceae records to use for pseudo-absences. Default is 0.99.
 #' calib If `TRUE`, then the training data is subset only to counties with non-`NA` for Poaceae.
 #'
-prepare_occurrence_data <- function(formula_occs, formula_occs_bias, log_precip, n_response_curve_values = 200, psa_quant = 0.99, calib = FALSE) {
+prepare_occurrence_data <- function(formula_occs, formula_bias, n_response_curve_values = 200, psa_quant = 0.99, calib = FALSE) {
 
 	# formulae
 	terms_occs <- terms(formula_occs)
@@ -22,7 +21,7 @@ prepare_occurrence_data <- function(formula_occs, formula_occs_bias, log_precip,
 
 	n_covariates <- length(covariates)
 
-	terms_occs_bias <- terms(formula_occs_bias)
+	terms_occs_bias <- terms(formula_bias)
 	terms_occs_bias <- attr(terms_occs_bias, 'term.labels')
 
 	covariates_bias <- terms_occs_bias
@@ -34,12 +33,9 @@ prepare_occurrence_data <- function(formula_occs, formula_occs_bias, log_precip,
 
 	# load county-level environmental data
 	ag_vect_sq <- vect('./outputs_loretta/integrated_sdm_pdm/andropogon_gerardi_occurrences_with_environment_1961_2020_for_integration.gpkg')
+	ag_vect_sq <- simplifyGeom(ag_vect_sq, tolerance = 1000)
+	ag_vect_sq <- calculate_logged_vars(ag_vect_sq)
 	ag_vect_sq <- ag_vect_sq[ , c('focal_region', 'geofold', 'country', 'state_province', 'county', 'area_km2', 'elevation_m', 'n_andropogon_gerardi', 'n_poaceae', covariates)]
-
-	if (log_precip & any(covariates %in% paste0('bio', c(12:14, 16:19)))) {
-		these <- which(names(ag_vect_sq) %in% paste0('bio', c(12:14, 16:19)))
-		for (i in these) ag_vect_sq[[i]] <- log10(ag_vect_sq[[i]] + 1)
-	}
 
 	# remove occurrences in largest parts of Ontario and Manitoba on basis that they are just too big to indicate species-environment relationships
 	redacts <- c(
@@ -73,18 +69,14 @@ prepare_occurrence_data <- function(formula_occs, formula_occs_bias, log_precip,
 	bias_centers <- attributes(bias_frame)$`scaled:center`
 	bias_scales <- attributes(bias_frame)$`scaled:scale`
 	bias_frame <- as.data.frame(bias_frame)
-	w_occs_bias <- model.matrix(formula_occs_bias, bias_frame)
+	w_occs_bias <- model.matrix(formula_bias, bias_frame)
 
-	terms_occs_bias <- terms(formula_occs_bias)
+	terms_occs_bias <- terms(formula_bias)
 	terms_occs_bias <- attr(terms_occs_bias, 'term.labels')
 	n_terms_occs_bias <- ncol(w_occs_bias)
 
 	# scale covariates... only use calibration region for calculating centers and scales
 	covars <- ag_sq[ag_vect_sq$calib_region, c(covariates)]
-	# if (log_precip & any(covariates %in% paste0('bio', c(12:14, 16:19)))) {
-	# 	these <- which(covariates %in% paste0('bio', c(12:14, 16:19)))
-	# 	for (i in these) covars[ , i] <- log10(covars[ , i] + 1)
-	# }
 	covars_scaled <- scale(covars)
 
 	x_centers <- attributes(covars_scaled)$`scaled:center`
@@ -93,10 +85,6 @@ prepare_occurrence_data <- function(formula_occs, formula_occs_bias, log_precip,
 	names(x_scales) <- covariates
 
 	ag_sq <- ag_sq[ , covariates, drop = FALSE]
-	# if (log_precip & any(covariates %in% paste0('bio', c(12:14, 16:19)))) {
-	# 	these <- which(covariates %in% paste0('bio', c(12:14, 16:19)))
-	# 	for (i in these) ag_sq[ , i] <- log10(ag_sq[ , i] + 1)
-	# }
 	ag_sq <- scale(ag_sq, center = x_centers[covariates], scale = x_scales[covariates])
 	ag_sq <- as.data.frame(ag_sq)
 	counties_x_sq <- model.matrix(formula_occs, ag_sq)
@@ -106,16 +94,13 @@ prepare_occurrence_data <- function(formula_occs, formula_occs_bias, log_precip,
 	for (fut in futs) {
 	
 		this_fut <- vect(paste0('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_ensemble_8GCMs_', fut, '.gpkg'))
+		this_fut <- simplifyGeom(this_fut, tolerance = 1000)
+		this_fut <- calculate_logged_vars(this_fut)
 
 		if (n_covariates > 0) this_fut <- this_fut[ , covariates]
 		assign(paste0('counties_', fut), this_fut)
 
 		this_fut <- as.data.frame(this_fut)[ , covariates, drop = FALSE]
-
-		if (log_precip & any(covariates %in% paste0('bio', c(12:14, 16:19)))) {
-			these <- which(covariates %in% paste0('bio', c(12:14, 16:19)))
-			for (i in these) this_fut[[i]] <- log10(this_fut[[i]] + 1)
-		}
 
 		this_fut <- scale(this_fut, center = x_centers[covariates], scale = x_scales[covariates])
 		this_fut <- as.data.frame(this_fut)
@@ -127,7 +112,8 @@ prepare_occurrence_data <- function(formula_occs, formula_occs_bias, log_precip,
 
 	# 20th century climate
 	thirties <- vect(paste0('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1931_1940_prism.gpkg'))
-	# fifties <- vect(paste0('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1952_1961_prism.gpkg'))
+	thirties <- simplifyGeom(thirties, tolerance = 1000)
+	thirties <- calculate_logged_vars(thirties)
 	
 	# for (clim in c('thirties', 'fifties')) {
 	for (clim in c('thirties')) {
@@ -139,7 +125,6 @@ prepare_occurrence_data <- function(formula_occs, formula_occs_bias, log_precip,
 			
 			xx <- x[[covariate]]
 			xx <- unlist(xx)
-			if (log_precip & any(covariate %in% paste0('bio', c(12:14, 16:19)))) xx <- log10(xx + 1)
 			xx <- scale(xx, center = x_centers[covariate], scale = x_scales[covariate])
 			xx <- as.numeric(xx)
 			x[ , covariate] <- xx
@@ -178,9 +163,10 @@ prepare_occurrence_data <- function(formula_occs, formula_occs_bias, log_precip,
 	site_data_raw$silt <- site_data_raw$SILT / 100
 	site_data_raw$clay <- site_data_raw$CLAY / 100
 
+	site_data_raw <- calculate_logged_vars(site_data_raw)
+
 	resp_arrays <- create_response_curve_array(
 		formula = formula_occs,
-		log_precip = log_precip,
 		centers = x_centers,
 		scales = x_scales,
 		site_data_raw = site_data_raw,
@@ -200,8 +186,7 @@ prepare_occurrence_data <- function(formula_occs, formula_occs_bias, log_precip,
 	ag_vect_sq_bias$area_km2_log10 <- log10(ag_vect_sq_bias$area_km2)
 	ag_vect_sq_bias$n_poaceae_log10p1 <- log10(1 + ag_vect_sq_bias$n_poaceae)
 	resp_arrays_bias <- create_response_curve_array(
-		formula = formula_occs_bias,
-		log_precip = FALSE,
+		formula = formula_bias,
 		centers = bias_centers,
 		scales = bias_scales,
 		ag_vect_sq = ag_vect_sq_bias[ag_vect_sq_bias$focal_region],
@@ -213,53 +198,51 @@ prepare_occurrence_data <- function(formula_occs, formula_occs_bias, log_precip,
 	y_n_ag <- ag_vect_sq$n_andropogon_gerardi[ag_vect_sq$calib_region]
 
 	list(
-		terms_occs = terms_occs,				# terms_occs in formula_occs
-		covariates_occs = covariates,			# covariates in formula_occs (can appear in >1 term)
-		n_terms_occs = n_terms,					# number of terms_occs in formula_occs
-		n_covariates_occs = n_covariates,		# number of variables in formula_occs (which can appear in >1 term)
+		terms = terms_occs,				# terms_occs in formula_occs
+		covariates = covariates,			# covariates in formula_occs (can appear in >1 term)
+		n_terms = n_terms,					# number of terms_occs in formula_occs
+		n_covariates = n_covariates,		# number of variables in formula_occs (which can appear in >1 term)
 	
-		terms_occs_bias = terms_occs_bias,
-		covariates_occs_bias = covariates_bias,
-		n_terms_occs_bias = n_terms_occs_bias,
-		n_covariates_occs_bias = n_covariates_bias,		# number of variables in formula_occs (which can appear in >1 term)
-		w_occs_bias = w_occs_bias,
+		terms_bias = terms_occs_bias,
+		covariates_bias = covariates_bias,
+		n_terms_bias = n_terms_occs_bias,
+		n_covariates_bias = n_covariates_bias,		# number of variables in formula_occs (which can appear in >1 term)
+		w_bias = w_occs_bias,
 
 		y_n_ag = y_n_ag,						# number of AG records in each county
 		n_counties_occs_calib = sum(ag_vect_sq$calib_region),	# number of counties in calibration region
 		n_counties = nrow(ag_vect_sq),			# number of counties in dataset
 
-		x_centers_occs = x_centers,				# vector of means for each covariate
-		x_scales_occs = x_scales,				# vector of standard deviations for each covariate
+		x_centers = x_centers,				# vector of means for each covariate
+		x_scales = x_scales,				# vector of standard deviations for each covariate
 
-		w_centers_occs_bias = bias_centers,				# vector of means for each covariate
-		w_scales_occs_bias = bias_scales,				# vector of standard deviations for each covariate
+		w_centers_bias = bias_centers,				# vector of means for each covariate
+		w_scales_bias = bias_scales,				# vector of standard deviations for each covariate
 
 		ag_vect_sq = ag_vect_sq,				# SpatVector of counties for plotting
 
-		counties_x_occs_sq = counties_x_sq,		# model matrix of county-level environmental data for current conditions
+		counties_x_sq = counties_x_sq,		# model matrix of county-level environmental data for current conditions
 
-		counties_occs_ssp245_2041_2070 = counties_ssp245_2041_2070, # SpatVector of county-level environmental data for future conditions (SSP245, 2041-2070)
-		counties_occs_ssp245_2071_2100 = counties_ssp245_2071_2100, # SpatVector of county-level environmental data for future conditions (SSP245, 2071-2100)
-		counties_occs_ssp370_2041_2070 = counties_ssp370_2041_2070, # SpatVector of county-level environmental data for future conditions (SSP370, 2041-2070)
-		counties_occs_ssp370_2071_2100 = counties_ssp370_2071_2100, # SpatVector of county-level environmental data for future conditions (SSP370, 2071-2100)
+		counties_ssp245_2041_2070 = counties_ssp245_2041_2070, # SpatVector of county-level environmental data for future conditions (SSP245, 2041-2070)
+		counties_ssp245_2071_2100 = counties_ssp245_2071_2100, # SpatVector of county-level environmental data for future conditions (SSP245, 2071-2100)
+		counties_ssp370_2041_2070 = counties_ssp370_2041_2070, # SpatVector of county-level environmental data for future conditions (SSP370, 2041-2070)
+		counties_ssp370_2071_2100 = counties_ssp370_2071_2100, # SpatVector of county-level environmental data for future conditions (SSP370, 2071-2100)
 
-		counties_x_occs_ssp245_2041_2070 = counties_x_ssp245_2041_2070, # model matrix of county-level environmental data for future conditions (SSP245, 2041-2070)
-		counties_x_occs_ssp245_2071_2100 = counties_x_ssp245_2071_2100, # model matrix of county-level environmental data for future conditions (SSP245, 2071-2100)
-		counties_x_occs_ssp370_2041_2070 = counties_x_ssp370_2041_2070, # model matrix of county-level environmental data for future conditions (SSP370, 2041-2070)
-		counties_x_occs_ssp370_2071_2100 = counties_x_ssp370_2071_2100, # model matrix of county-level environmental data for future conditions (SSP370, 2071-2100),
+		counties_x_ssp245_2041_2070 = counties_x_ssp245_2041_2070, # model matrix of county-level environmental data for future conditions (SSP245, 2041-2070)
+		counties_x_ssp245_2071_2100 = counties_x_ssp245_2071_2100, # model matrix of county-level environmental data for future conditions (SSP245, 2071-2100)
+		counties_x_ssp370_2041_2070 = counties_x_ssp370_2041_2070, # model matrix of county-level environmental data for future conditions (SSP370, 2041-2070)
+		counties_x_ssp370_2071_2100 = counties_x_ssp370_2071_2100, # model matrix of county-level environmental data for future conditions (SSP370, 2071-2100),
 
 		n_counties_1930s = n_counties_1930s, # SpatVector of county-level environmental data for 20th century
 		counties_thirties = thirties, # SpatVector of county-level environmental data for 20th century
-		# counties_fifties = fifties, # SpatVector of county-level environmental data for 20th century
 
-		counties_x_occs_thirties = counties_x_occs_thirties, # model matrix of county-level environmental data for 20th century
-		# counties_x_occs_fifties = counties_x_occs_fifties, # model matrix of county-level environmental data for 20th century
+		counties_x_thirties = counties_x_occs_thirties, # model matrix of county-level environmental data for 20th century
 
-		resp_curves_x_occs = resp_arrays$response_curves_x_scaled, # response curve array
-		resp_curves_x_occs_unscaled = resp_arrays$resp_curves_x_unscaled, # response curve array (unscaled)
+		resp_curves_x = resp_arrays$response_curves_x_scaled, # response curve array
+		resp_curves_x_unscaled = resp_arrays$resp_curves_x_unscaled, # response curve array (unscaled)
 
-		resp_curves_w_occs = resp_arrays_bias$response_curves_x_scaled, # response curve array
-		resp_curves_w_occs_bias_unscaled = resp_arrays_bias$resp_curves_x_unscaled # response curve array (unscaled)
+		resp_curves_w = resp_arrays_bias$response_curves_x_scaled, # response curve array
+		resp_curves_w_bias_unscaled = resp_arrays_bias$resp_curves_x_unscaled # response curve array (unscaled)
 
 	)
 

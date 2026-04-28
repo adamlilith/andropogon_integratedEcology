@@ -27,52 +27,48 @@
 	# crossvalidate <- FALSE
 	crossvalidate <- TRUE
 
-	# log BIOs 12-14 and 16-19?
-	# log_precip <- FALSE
-	log_precip <- TRUE
-
 	### formula for how aspects of species responds to environment
 
 	# formula_biomass <- ~ 1 + bio12 # response of biomass to environment
-	# preds_filename <- 'bio12'
+	# filename_occs <- 'bio12'
 
 	# formula_biomass <- ~ 1 + bio12 + I(bio12^2) # response of biomass to environment
-	# preds_filename <- 'bio12^2'
+	# filename_occs <- 'bio12^2'
 
 	# formula_biomass <- ~ 1 + bio1 # response of biomass to environment
-	# preds_filename <- 'bio1'
+	# filename_occs <- 'bio1'
 
 	# formula_biomass <- ~ 1 + bio1 + I(bio1^2) # response of biomass to environment
-	# preds_filename <- 'bio1^2'
+	# filename_occs <- 'bio1^2'
 
 	# formula_biomass <- ~ 1 + bio1 + bio12 # response of biomass to environment
-	# preds_filename <- 'bio1_bio12'
+	# filename_occs <- 'bio1_bio12'
 
 	# formula_biomass <- ~ 1 + bio1 + bio12 + bio1:bio12 # response of biomass to environment
-	# preds_filename <- 'bio1_x_bio12'
+	# filename_occs <- 'bio1_x_bio12'
 
 	# formula_biomass <- ~ 1 + bio1 + bio12 + I(bio1^2) # response of biomass to environment
-	# preds_filename <- 'bio1^2_bio12'
+	# filename_occs <- 'bio1^2_bio12'
 
 	# formula_biomass <- ~ 1 + bio1 + bio12 + I(bio12^2) # response of biomass to environment
-	# preds_filename <- 'bio1_bio12^2'
+	# filename_occs <- 'bio1_bio12^2'
 
 	# formula_biomass <- ~ 1 + bio1 + bio12 + I(bio1^2) + I(bio12^2) # response of biomass to environment
-	# preds_filename <- 'bio1^2_bio12^2'
+	# filename_occs <- 'bio1^2_bio12^2'
 
 	# formula_biomass <- ~ 1 + bio1 + bio12 + I(bio1^2) + bio1:bio12 # response of biomass to environment
-	# preds_filename <- 'bio1^2_x_bio12'
+	# filename_occs <- 'bio1^2_x_bio12'
 
 	formula_biomass <- ~ 1 + site_nitrogen # response of biomass to environment
-	preds_filename <- 'nitrogen'
+	filename_occs <- 'nitrogen'
 
 	# formula_biomass <- ~ 1 + bio1 + site_nitrogen # response of biomass to environment
-	# preds_filename <- 'bio12_nitrogen'
+	# filename_occs <- 'bio12_nitrogen'
 
 	# formula_biomass <- ~ 1 + bio1 + site_nitrogen + bio1:site_nitrogen # response of biomass to environment
-	# preds_filename <- 'bio12_x_nitrogen'
+	# filename_occs <- 'bio12_x_nitrogen'
 
-	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_biomass/', ifelse(trial, 'TRIAL_', ''), '[biomass_gamma~normal~', preds_filename, ']', ifelse(log_precip, '_log_precip', ''), '/')
+	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_biomass/', ifelse(trial, 'TRIAL_', ''), '[biomass_gamma~normal~', filename_occs, ']')
 
 	# calib <- TRUE # use just counties with non-NA Poaceae for calibration region
 	calib <- FALSE # use all of North America for calibration region
@@ -129,8 +125,7 @@
 	say('formula_biomass ........... ', paste(as.character(formula_biomass), collapse = ' '))
 	say('homoscedastic ................ ', homoscedastic)
 	say('zero_inflated ................ ', zero_inflated)
-	say('calib ........................ ', calib)
-	say('log_precip ................... ', log_precip, post = 2)
+	say('calib ........................ ', calib, post = 2)
 
 	say('out_dir:')
 	say(out_dir)
@@ -143,7 +138,7 @@
 	### data preparation ###
 	########################
 
-	data_biomass <- prepare_biomass_data(formula_biomass = formula_biomass, log_precip = log_precip, n_response_curve_values = n_response_curve_values, calib = calib)
+	data_biomass <- prepare_biomass_data(formula_biomass = formula_biomass, n_response_curve_values = n_response_curve_values, calib = calib)
 
 	#########################
 	### inputs for nimble ###
@@ -160,13 +155,13 @@
 		n_pheno_sites = data_biomass$n_pheno_sites, # number of phenotype sample sites
 
 		### biomass
-		x_by_site_biomass = data_biomass$x_by_site_biomass, # MM with covariates for biomass (scaled)
+		x_by_site_biomass = data_biomass$x_by_site, # MM with covariates for biomass (scaled)
 		n_biomass = data_biomass$n_biomass, # number of biomass observations
 		site_index_biomass = data_biomass$site_index_biomass, # index of sampled site for each row in biomass data
-		n_terms_biomass = data_biomass$n_terms_biomass, # number of terms in formula for biomass model (including intercept)
+		n_terms_biomass = data_biomass$n_terms, # number of terms in formula for biomass model (including intercept)
 
-		n_covariates_biomass = data_biomass$n_covariates_biomass,
-		resp_curves_x_biomass = data_biomass$resp_curves_x_biomass, # response curve array for biomass
+		n_covariates_biomass = data_biomass$n_covariates,
+		resp_curves_x_biomass = data_biomass$resp_curves_x, # response curve array for biomass
 
 		# response curves (general)
 		n_response_curve_values = n_response_curve_values # number of values in response curve array
@@ -175,7 +170,7 @@
 
 	constants <- c(constants, constants_shared_biomass)
 
-	beta_biomass_inits <- rep(0, constants$n_terms_biomass)
+	beta_biomass_inits <- rep(0, constants$n_terms)
 	inits <- list(
 
 		log_site_biomass_mu = rep(2, data_biomass$n_pheno_sites),
@@ -202,11 +197,6 @@
 	#########
 	model_code <- nimbleCode({
 	
-		# BIOMASS: priors for relationship of site-level mean biomass to environment
-		for (i in 1:n_terms_biomass) {
-			beta_biomass[i] ~ dnorm(0, sd = beta_biomass_prior_dnorm_sd) # broad prior
-		}
-
 		# prior for sd of mean of biomass at a site on lognormal (~ half-Cauchy), ==> vague
 		log(sigma_biomass_among_sites) ~ dnorm(0, sd = sigma_biomass_among_sites_log_prior_sd)
 		# sigma_biomass_among_sites <- exp(sigma_biomass_among_sites_log)
@@ -218,16 +208,23 @@
 		# individual plant biomasses are samples from the site-level distribution defined by the site-level distribution (next chunk after this one)
 		for (i in 1:n_pheno_sites) {
 
+			# # relationship of biomass to the environment
+			# log_site_biomass_mu[i] ~ dnorm(site_biomass_mu_mean_log[i], sd = sigma_biomass_among_sites)
+			# site_biomass_mu_mean_log[i] <- inprod(beta_biomass[1:n_terms_biomass], x_by_site_biomass[i, 1:n_terms_biomass])
+			
+			# # relationship of biomass to the environment
+			# log_site_biomass_mu[i] ~ dnorm(phi_biomass[i], sd = sigma_biomass_among_sites)
+			# phi_biomass[i] <- inprod(beta_biomass[1:n_terms_biomass], x_by_site_biomass[i, 1:n_terms_biomass])
+			
 			# relationship of biomass to the environment
-			log_site_biomass_mu[i] ~ dnorm(site_biomass_mu_mean_log[i], sd = sigma_biomass_among_sites)
-			site_biomass_mu_mean_log[i] <- inprod(beta_biomass[1:n_terms_biomass], x_by_site_biomass[i, 1:n_terms_biomass])
+			log_site_biomass_mu[i] <- inprod(beta_biomass[1:n_terms_biomass], x_by_site_biomass[i, 1:n_terms_biomass])
 			
 			# site-level mean biomass
-			mu_biomass_site[i] <- exp(log_site_biomass_mu[i])
+			biomass_site[i] <- exp(log_site_biomass_mu[i])
 
 			# moment matching to get dgamma() parameters
-			shape_biomass[i] <- mu_biomass_site[i]^2 / sigma_biomass_within_sites^2
-			rate_biomass[i] <- mu_biomass_site[i] / sigma_biomass_within_sites^2
+			shape_biomass[i] <- biomass_site[i]^2 / sigma_biomass_within_sites^2
+			rate_biomass[i] <- biomass_site[i] / sigma_biomass_within_sites^2
 
 		}
 
@@ -248,7 +245,7 @@
 
 	})
 
-	if (data_biomass$n_covariates_biomass == 1) {
+	if (data_biomass$n_covariates == 1) {
 
 		### univariate
 		response_curve_code <- nimbleCode({
@@ -287,7 +284,7 @@
 	
 	}
 
-	model_code <- glueNimbleCode(model_code, response_curve_code)
+	model_code <- glueNimbleCode(model_code, response_curve_code, model_code_beta_biomass_priors)
 
 	print(model_code)
 
@@ -329,7 +326,7 @@
 	)
 
 	monitors_derived_single_index <- c(
-		'mu_biomass_site'
+		'biomass_site'
 	)
 	monitors_derived_double_index <- c(
 	)
@@ -387,8 +384,15 @@
 	run_time <- stop - start
 	say('Runtime: ', round(run_time / 60, 2), ' minutes')
 
+	say('PRIORS', level = 1)
 
-	say('session info', level = 2)
+	say('constants_shared_biomass', level = 2)
+	print(constants_shared_biomass)
+
+	say('constants_shared_psi', level = 2)
+	print(constants_shared_psi)
+
+	say('session info', level = 1)
 	print(sessionInfo())
 
 	say(date(), pre = 1)
@@ -406,7 +410,7 @@
 
 	resp_distrib <- 'gamma'
 
-	workflow_postmodeling_biomass(chains = chains, descrip = descrip, formula_biomass = formula_biomass, formula_biomass_sigma = formula_biomass_sigma, formula_psi = formula_psi, resp_distrib = resp_distrib, log_precip = log_precip, transform = transform, crossvalidate = crossvalidate, out_dir = out_dir)
+	workflow_postmodeling_biomass(chains = chains, descrip = descrip, formula_biomass = formula_biomass, formula_biomass_sigma = formula_biomass_sigma, formula_psi = formula_psi, resp_distrib = resp_distrib, transform = transform, crossvalidate = crossvalidate, out_dir = out_dir)
 
 say(date())
 say('FINIS!', deco = '+', level = 1)

@@ -1,78 +1,88 @@
 #' Graph of response curves for occurrence vs environment
 #' 
-#' @param out_dir Folder in which to save graphs.
+#' @param out_dir Folder in which to save graphs. Set to NULL to not save as file.
 #' @param chains MCMC chains
 #' @param data_occs From prepare_occurrence_data().
-graph_response_curves_occurrence_bias_vs_bias_covariates <- function(out_dir, chains, data_occs) {
+graph_response_curves_bias_vs_bias_covariates <- function(out_dir, chains) {
 
-	n_covariates <- data_occs$n_covariates_occs_bias
-	covariates <- data_occs$covariates_occs_bias
-	resp_curves_x <- data_occs$resp_curves_w_occs
-	resp_curves_unscaled <- data_occs$resp_curves_w_occs_bias_unscaled
-	centers <- data_occs$w_centers_occs_bias
-	scales <- data_occs$w_scales_occs_bias
-	y_lab <- bquote('Sampling Rate')
+	data_occs <- prepare_occurrence_data(formula_occs = formula_occs, formula_bias = formula_bias, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
+
+	n_covariates <- data_occs$n_covariates_bias
+	covariates <- data_occs$covariates_bias
+	centers <- data_occs$w_centers_bias
+	scales <- data_occs$w_scales_bias
+	y_lab <- 'Sampling Rate'
+	w_array <- data_occs$resp_curves_w
+	w_array_unscaled <- data_occs$resp_curves_w_bias_unscaled
 
 	# make a plot for how biomass mu and sigma respond to each predictor
 	responses <- list()
 	for (i in 1:n_covariates) {
 
-		pred <- covariates[i]
+		covariate <- covariates[i]
 
-		if (pred == 'area_km2_log10') {
-			nice_title <- 'County area'
-			nice_axis <- 'log₁₀(county area, km²)'
-		} else if (pred == 'n_poaceae_log10p1') {
+		if (covariate == 'area_km2_log10') {
+			nice_title <- 'County Area'
+			nice_axis <- 'log₁₀(County Area, km²)'
+		} else if (covariate == 'n_poaceae_log10p1') {
 			nice_title <- 'Number of Poaceae'
-			nice_axis <- 'log10(number of Poaceae + 1)'
+			nice_axis <- 'log10(Number of Poaceae + 1)'
 		}
-		nice_title <- bquote('Thinning rate' * ' versus ' * .(nice_title))
+		nice_title <- bquote('Thinning Rate' * ' versus ' * .(nice_title))
 
 		# unscaled predictor value
-		x <- resp_curves_unscaled[ , pred]
-		
-		param <-'response_curves_occs_bias'
 		if (n_covariates == 1) {
-			
-			response_mean <- mc_extract(chains, param = param, j = TRUE, stat = 'mean')
-			response_lower <- mc_extract(chains, param = param, j = TRUE, stat = 'lower')
-			response_upper <- mc_extract(chains, param = param, j = TRUE, stat = 'upper')
-
-		} else if (n_covariates > 1) {
-		
-			response_mean <- mc_extract(chains, param = param, j = TRUE, k = i, stat = 'mean')
-			response_lower <- mc_extract(chains, param = param, j = TRUE, k = i, stat = 'lower')
-			response_upper <- mc_extract(chains, param = param, j = TRUE, k = i, stat = 'upper')
-	
+			w <- w_array
+		} else {
+			w <- w_array[ , , i]
 		}
+		w_unscaled <- w_array_unscaled[ , covariate]
+
+		iters <- nrow(chains$samples[[1]])
+		n_chains <- mc_n_chains(chains)
+		preds <- matrix(NA_real_, nrow = iters * n_chains, ncol = nrow(w))
+		alphas_occs <- mc_subset(chains, param = 'alpha_occs', j = TRUE)
+		k <- 1
+		for (chain in 1:n_chains) {
+			for (iter in 1:iters) {
+
+				this_alpha <- alphas_occs$samples[[chain]][iter, ]
+				this_alpha <- cbind(this_alpha)
+
+				preds_untrans <- w %*% this_alpha
+				preds_untrans <- preds_untrans[ , 1]
+				pred <- expit(preds_untrans)
+
+				preds[k, ] <- pred
+
+				k <- k + 1
+
+			}
+		}
+
+		centers <- apply(preds, 2, median)
+		hdi <- apply(preds, 2, function(x) hdi(x, credMass = 0.90))
+		lowers <- hdi[1, ]
+		uppers <- hdi[2, ]
 
 		# data frames to hold predictions in long format
 		df_mean <- data.frame(
-			x = x,
-			response = response_mean
+			x = w_unscaled,
+			response = centers
 		)
 
-		df_lower <- data.frame(
-			x = x,
-			response = response_lower
-		)
-
-		df_upper <- data.frame(
-			x = x,
-			response = response_upper
-		)
-
-		this_df_ci <- data.frame(
-			x = c(x, rev(x)),
-			response = c(df_upper$response, rev(df_lower$response))
+		df_ci <- data.frame(
+			x = c(w_unscaled, rev(w_unscaled)),
+			ci = c(lowers, rev(uppers))
 		)
 
 		response <- ggplot() +
 			geom_polygon(
-				data = this_df_ci,
-				mapping = aes(x = x, y = response),
+				data = df_ci,
+				mapping = aes(x = x, y = ci),
 				color = NA,
-				fill = alpha('blue', 0.1)
+				fill = 'lightblue',
+				alpha = 0.5
 			) +
 			geom_line(
 				data = df_mean,
@@ -110,7 +120,7 @@ graph_response_curves_occurrence_bias_vs_bias_covariates <- function(out_dir, ch
 	}
 
 	responses <- plot_grid(plotlist = responses, nrow = nrow)
-	ggsave(plot = responses, filename = paste0(out_dir, '/response_curves_abundance_bias.png'), width = width, height = height, dpi = 600)
+	if (!is.null(out_dir)) ggsave(plot = responses, filename = paste0(out_dir, '/response_curves_bias_median_hdpi.png'), width = width, height = height, dpi = 120)
 	invisible(responses)
 
 }

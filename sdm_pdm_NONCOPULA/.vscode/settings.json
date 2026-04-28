@@ -1,0 +1,32 @@
+{
+	"workbench.colorCustomizations": {
+		"activityBar.activeBackground": "#999999",
+		"activityBar.background": "#999999",
+		"activityBar.foreground": "#15202b",
+		"activityBar.inactiveForeground": "#15202b99",
+		"activityBarBadge.background": "#5858c7",
+		"activityBarBadge.foreground": "#e7e7e7",
+		"commandCenter.border": "#15202b99",
+		"sash.hoverBorder": "#999999",
+		"statusBar.background": "#808080",
+		"statusBar.foreground": "#15202b",
+		"statusBarItem.hoverBackground": "#666666",
+		"statusBarItem.remoteBackground": "#808080",
+		"statusBarItem.remoteForeground": "#15202b",
+		"titleBar.activeBackground": "#808080",
+		"titleBar.activeForeground": "#15202b",
+		"titleBar.inactiveBackground": "#80808099",
+		"titleBar.inactiveForeground": "#15202b99"
+	},
+	"r.rterm.windows": "C:\\Program Files\\R\\R-4.5.0\\bin\\R.exe",
+	"r.rpath.windows": "C:\\Program Files\\R\\R-4.5.0\\bin\\R.exe",
+	"r.rterm.option": [
+		"--no-restore",
+		"--no-save"
+	],
+	"r.lsp.enabled": true,
+	"r.lsp.debug": false,
+	"r.bracketedPaste": true,
+	"r.sessionWatcher": true,
+	"r.rtermSendDelay": 8
+}

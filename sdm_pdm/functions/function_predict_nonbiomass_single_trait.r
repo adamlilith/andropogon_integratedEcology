@@ -2,7 +2,7 @@
 #'
 #' chains			MCMC chains list
 #' x 				Model matrix
-#' resp_distrib 	Named vector of response distribution. This can be 'gamma', 'ZIG' (zero-inflated gamma), 'lognormal', or 'ZILN' (zero-inflated lognormal)
+#' resp_distrib 	Named vector of response distribution. This can be 'gamma', 'hGamma' (zero-inflated gamma), 'lognormal', or 'hurdleLN' (zero-inflated lognormal)
 #' transform		Named vector of transformations to translate MVN to mean occurrence intensity or biomass: 'identity', 'softplus' or 'exponential'.
 #'
 #' @returns A matrix of predictions. Rows are MCMC iterations and columns are samples.
@@ -11,10 +11,10 @@ predict_nonbiomass_single_trait <- function(chains, x, resp_distrib, transform) 
 	vars <- paste0('beta_facet')
 	betas <- mc_subset(chains, vars, j = TRUE)
 
-	sigmas_facet_among_sites <- mc_subset(chains, 'sigma_facet_among_sites')
+	# sigmas_facet_among_sites <- mc_subset(chains, 'sigma_facet_among_sites')
 	sigmas_facet_within_sites <- mc_subset(chains, 'sigma_facet_within_sites')
 
-	zero_inflated <- resp_distrib %in% c('ZIG', 'ZILN')
+	zero_inflated <- resp_distrib %in% c('hGamma', 'hurdleLN')
 	if (zero_inflated) betas_psi <- mc_subset(chains, 'beta_psi', j = TRUE)
 
 	n_samples <- nrow(x)
@@ -42,8 +42,8 @@ predict_nonbiomass_single_trait <- function(chains, x, resp_distrib, transform) 
 
 			this_sigma_facet_within_sites <- sigmas_facet_within_sites$samples[[chain]][iter, 'sigma_facet_within_sites']
 
-			this_sigma_facet_among_sites <- sigmas_facet_among_sites$samples[[chain]][iter, 'sigma_facet_among_sites']
-			log_mu_facet <- rnorm(n_samples, mean = pred_untrans, sd = this_sigma_facet_among_sites)
+			# this_sigma_facet_among_sites <- sigmas_facet_among_sites$samples[[chain]][iter, 'sigma_facet_among_sites']
+			# log_mu_facet <- rnorm(n_samples, mean = pred_untrans, sd = this_sigma_facet_among_sites)
 
 			# zero-inflation
 			if (zero_inflated) {
@@ -53,17 +53,19 @@ predict_nonbiomass_single_trait <- function(chains, x, resp_distrib, transform) 
 				psi <- x %*% beta_psi
 				psi <- psi[ , 1]
 				psi <- expit(psi)
-				z <- rbinom(nrow(x), size = 1, prob = psi)
 
 			}
 			
 			# transform mean response
 			if (transform == 'identity') {
-				mu_facet <- log_mu_facet
+				# mu_facet <- log_mu_facet
+				mu_facet <- pred_untrans
 			} else if (transform == 'exponential') {
-				mu_facet <- exp(log_mu_facet)
+				# mu_facet <- exp(log_mu_facet)
+				mu_facet <- exp(pred_untrans)
 			} else if (transform == 'softplus') {
-				mu_facet <- log(1 + exp(log_mu_facet))
+				# mu_facet <- log(1 + exp(log_mu_facet))
+				mu_facet <- log(1 + exp(pred_untrans))
 			} else {
 				stop('Incorrect transform.')
 			}
@@ -77,20 +79,20 @@ predict_nonbiomass_single_trait <- function(chains, x, resp_distrib, transform) 
 
 				for (count in seq_along(pred)) pred[count] <- rgamma(1, shape = shape_facet[count], rate = rate_facet[count])
 
-			} else if (resp_distrib == 'ZIG') {
+			} else if (resp_distrib == 'hGamma') {
 
 				shape_facet <- mu_facet^2 / this_sigma_facet_within_sites^2
 				rate_facet <- mu_facet / this_sigma_facet_within_sites^2
 
-				for (count in seq_along(pred)) pred[count] <- rZIG(1, shape = shape_facet[count], rate = rate_facet[count], z = z[count])
+				for (count in seq_along(pred)) pred[count] <- rHurdleGamma(1, shape = shape_facet[count], rate = rate_facet[count], psi = psi[count])
 
 			} else if (resp_distrib == 'lognormal') {
 			
-				for (count in seq_along(pred)) pred[count] <- rlnorm(1, meanlog = log_mu_facet[count], sdlog = this_sigma_facet_within_sites)
+				for (count in seq_along(pred)) pred[count] <- rlnorm(1, meanlog = mu_facet[count], sdlog = this_sigma_facet_within_sites)
 
-			} else if (resp_distrib == 'ZILN') {
+			} else if (resp_distrib == 'hurdleLN') {
 			
-				for (count in seq_along(pred)) pred[count] <- rZILN(1, meanlog = log_mu_facet[count], sdlog = this_sigma_facet_within_sites, z = z[count])
+				for (count in seq_along(pred)) pred[count] <- rHLN(1, meanlog = mu_facet[count], sdlog = this_sigma_facet_within_sites, psi = psi[count])
 
 			} else {
 				stop('Bad `resp_distrib`.')

@@ -1,88 +1,67 @@
 #' Graph of response curves for occurrence vs environment
 #' 
-#' @param out_dir Folder in which to save graphs.
-#' @param resp_type "mu" or "sigma" or "psi"
-#' @param chains MCMC chains
-#' @param data From prepare_occurrence_data().
-#' @param log_precip If `TRUE`, bios 12-14 and 16-19 were logged
-graph_response_curves_occurrence_vs_environment <- function(out_dir, resp_type, chains, data, log_precip) {
+#' out_dir			Folder in which to save graphs. If NULL, do not save file.
+#' chains			MCMC chains
+#' zero_inflated	If `TRUE`, model is zero-inflated
+graph_response_curves_occurrence_vs_environment <- function(out_dir, chains, zero_inflated) {
 
-	n_covariates <- data$n_covariates_occs
-	covariates <- data$covariates_occs
-	resp_curves_x <- data$resp_curves_x_occs
-	resp_curves_unscaled <- data$resp_curves_x_occs_unscaled
-	centers <- data$x_centers_occs
-	scales <- data$x_scales_occs
-	
-	if (resp_type == 'mu') {
-		param <-'response_curves_occs_mu'
-		y_lab <- bquote('Expected Abundance')
-	} else if (resp_type == 'sigma') {
-		param <-'response_curves_occs_sigma'
-		y_lab <- bquote('Standard Deviation of Log Abundance')
-	} else if (resp_type == 'psi') {
-		param <-'response_curves_psi'
-		y_lab <- bquote('Probability of Presence')
-	}
+	y_lab <- 'Relative Abundance'
 
-	# make a plot for how biomass mu and sigma respond to each predictor
+	data_occs <- prepare_occurrence_data(formula_occs = formula_occs, formula_bias = ~1, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
+
+	covariates <- data_occs$covariates
+	n_covariates <- length(covariates)
+	x_occs_array <- data_occs$resp_curves_x
+
+	y_max <- -Inf
 	responses <- list()
-	# max_val <- if (resp_type == 'psi') { 1 } else { -Inf }
-	max_val <- -Inf
-	for (i in 1:n_covariates) {
+	for (i in seq_along(covariates)) {
 
-		pred <- covariates[i]
-		nice <- get_nice_predictor(pred)
+		covariate <- covariates[i]
+		nice <- get_nice_predictor(covariate)
 		nice_title <- nice$short
 		nice_axis <- nice$long
+		nice_title <- bquote('Abundance' * ' versus ' * .(nice_title))
 
-		if (resp_type == 'mu') {
-			nice_title <- bquote('Abundance' * ' versus ' * .(nice_title))
-		} else if (resp_type == 'sigma') {
-			nice_title <- bquote('Standard Deviation in Abundance' * ' versus ' * .(nice_title))
-		} else if (resp_type == 'psi') {
-			nice_title <- bquote('Probability of Presence' * ' versus ' * .(nice_title))
+		if (n_covariates == 1) {
+			x <- x_occs_array
+		} else {
+			x <- x_occs_array[ , , i]
 		}
 
-		# unscaled predictor value
-		x <- resp_curves_unscaled[ , pred]
+		# predict multiple times to smooth over RNG
+		preds <- predict_occs(chains = chains, x = x, x_psi = x)
 
-		if (log_precip & pred %in% paste0('bio', c(12:14, 16:19))) x <- 10^x - 1
-		
-		response_mean <- mc_extract(chains, param = param, j = 1:n_response_curve_values, k = i, stat = 'mean')
-		response_lower <- mc_extract(chains, param = param, j = 1:n_response_curve_values, k = i, stat = 'lower')
-		response_upper <- mc_extract(chains, param = param, j = 1:n_response_curve_values, k = i, stat = 'upper')
+		medians <- apply(preds, 2, median)
+		hdi <- apply(preds, 2, function(x) hdi(x, credMass = 0.90))
+		lowers <- hdi[1, ]
+		uppers <- hdi[2, ]
+
+		# unscaled predictor value
+		x_unscaled <- data_occs$resp_curves_x_unscaled[ , covariate]
+		if (covariate %in% paste0('bio', c(12:14, 16:19), '_log10p1')) x_unscaled <- 10^x_unscaled + 1
 
 		# data frames to hold predictions in long format
-		df_mean <- data.frame(
-			x = x,
-			response = response_mean
+		df_center <- data.frame(
+			x = x_unscaled,
+			response = medians
 		)
 
-		df_lower <- data.frame(
-			x = x,
-			response = response_lower
+		df_ci <- data.frame(
+			x = c(x_unscaled, rev(x_unscaled)),
+			response = c(lowers, rev(uppers))
 		)
 
-		df_upper <- data.frame(
-			x = x,
-			response = response_upper
-		)
-
-		this_df_ci <- data.frame(
-			x = c(x, rev(x)),
-			response = c(df_upper$response, rev(df_lower$response))
-		)
-
-		response <- ggplot() +
+		responses[[i]] <- ggplot() +
 			geom_polygon(
-				data = this_df_ci,
+				data = df_ci,
 				mapping = aes(x = x, y = response),
 				color = NA,
-				fill = alpha('blue', 0.1)
+				fill = 'lightblue',
+				alpha = 0.5
 			) +
 			geom_line(
-				data = df_mean,
+				data = df_center,
 				mapping = aes(x = x, y = response)
 			) +
 			xlab(nice_axis) +
@@ -90,34 +69,15 @@ graph_response_curves_occurrence_vs_environment <- function(out_dir, resp_type, 
 			ggtitle(nice_title) +
 			theme(
 				legend.position = 'none',
-				plot.title = element_text(size = 9)
+				plot.title = element_text(size = 10)
 			)
 
-			# if (resp_type != 'psi') {
+		y_max <- max(y_max, df_ci$response)
 
-				# mmax <- max(df_mean$response, na.rm = TRUE)
-				# if (df_mean$response[1] == mmax | df_mean$response[nrow(df_mean)] %==na% mmax) {
-					# mmax <- 1 * mmax
-				# } else {
-					mmax <- if (resp_type == 'mu') {
-						quantile(df_upper$response, 0.9, na.rm = TRUE)
-					} else if (resp_type == 'psi') {
-						min(1, 1.05 * max(df_upper$response, na.rm = TRUE))
-					} else if (resp_type == 'sigma') {
-						1.05 * max(df_upper$response, na.rm = TRUE)
-					}
-				# }
-
-				max_val <- max(max_val, mmax)
-
-			# }
-
-		responses[[i]] <- response
-
-	} # next predictor
+	}
 
 	for (i in 1:n_covariates) {
-		responses[[i]] <- responses[[i]] + coord_cartesian(ylim = c(0, max_val)) 
+		responses[[i]] <- responses[[i]] + coord_cartesian(ylim = c(0, y_max)) 
 	}
 
 	if (n_covariates == 1) {
@@ -139,7 +99,7 @@ graph_response_curves_occurrence_vs_environment <- function(out_dir, resp_type, 
 	}
 
 	responses <- plot_grid(plotlist = responses, nrow = nrow)
-	ggsave(plot = responses, filename = paste0(out_dir, '/response_curves_abundance_', resp_type, '.png'), width = width, height = height, dpi = 600)
+	if (!is.null(out_dir)) ggsave(plot = responses, filename = paste0(out_dir, '/response_curves_abundance_median_hdpi.png'), width = width, height = height, dpi = 120)
 	invisible(responses)
 
 }

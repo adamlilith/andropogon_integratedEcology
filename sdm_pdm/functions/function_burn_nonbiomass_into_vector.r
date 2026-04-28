@@ -5,27 +5,27 @@
 #' chains					Chains from NIMBLE
 #' formula_facet			Formula for mean of site-level mean value of facet
 #' formula_psi				Formula for probability of presence. Ignored if `NULL`.
-#' resp_distrib 			Response distribution: 'ZIG' or 'ZILN'
+#' resp_distrib 			Response distribution: 'hGamma' or 'hurdleLN'
 #' transform 				Either 'exponential' or 'identity' (depending on value of resp_distrib).
-#' log_precip				If `TRUE`, use log of BIOs 12-14 and 16-19.
 #'
 #' Returns a SpatVector.
-burn_nonbiomass_into_vector <- function(facet, demesne, chains, formula_facet, formula_psi, resp_distrib, transform, log_precip) {
+burn_nonbiomass_into_vector <- function(facet, demesne, chains, formula_facet, formula_psi, resp_distrib, transform) {
 
 	zero_inflated <- !is.null(formula_psi)
 
 	### mean site-level biomass	
-	data_facet <- prepare_nonbiomass_data(facet = facet, formula_facet = formula_facet, log_precip = log_precip, calib = calib)
-	data_occs <- prepare_occurrence_data(formula_occs = ~ 1, formula_occs_bias = ~ 1, log_precip = log_precip, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
+	data_facet <- prepare_nonbiomass_data(facet = facet, formula_facet = formula_facet, calib = calib)
+	data_occs <- prepare_occurrence_data(formula_occs = ~ 1, formula_bias = ~ 1, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
 
 	pred_vect <- if (demesne == 'nam') {
 		pred_vect <- data_occs$ag_vect_sq
 	} else if (demesne == '1930s') {
 		pred_vect <- vect(paste0('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1931_1940_prism.gpkg'))
 	}
+	pred_vect <- simplifyGeom(pred_vect, tolerance = 1000)
 
 	x <- if (demesne == 'nam') {
-		data_facet$counties_x_facet_sq
+		data_facet$counties_x_sq
 	} else if (demesne == '1930s') {
 		data_facet$counties_x_thirties
 	}
@@ -42,9 +42,9 @@ burn_nonbiomass_into_vector <- function(facet, demesne, chains, formula_facet, f
 
 	index <- (ncol(pred_vect) - 2):ncol(pred_vect)
 	if (demesne == 'nam') {
-		names(pred_vect)[index] <- c(paste0('mu_', facet, '_county_mean_sq'), paste0('mu_', facet, '_county_median_sq'), paste0('mu_', facet, '_county_inner_quant_sq'))
+		names(pred_vect)[index] <- c(paste0(facet, '_mean_sq'), paste0(facet, '_median_sq'), paste0(facet, '_inner_quant_sq'))
 	} else if (demesne == '1930s') {
-		names(pred_vect)[index] <- c(paste0('mu_', facet, '_county_mean_1930s'), paste0('mu_', facet, '_county_median_1930s'), paste0('mu_', facet, '_county_inner_quant_1930s'))
+		names(pred_vect)[index] <- c(paste0(facet, '_mean_1930s'), paste0(facet, '_median_1930s'), paste0(facet, '_inner_quant_1930s'))
 	}
 
 	### predict probability of zero biomass
@@ -58,9 +58,9 @@ burn_nonbiomass_into_vector <- function(facet, demesne, chains, formula_facet, f
 
 		index <- ncol(pred_vect)
 		if (demesne == 'nam') {
-			names(pred_vect)[index] <- c('psi_county_sq')
+			names(pred_vect)[index] <- c('psi_sq')
 		} else if (demesne == '1930s') {
-			names(pred_vect)[index] <- c('psi_county_1930s')
+			names(pred_vect)[index] <- c('psi_1930s')
 		}
 
 	}
@@ -75,7 +75,7 @@ burn_nonbiomass_into_vector <- function(facet, demesne, chains, formula_facet, f
 
 			say('   burning ', fut, '...')
 
-			x <- data_facet[paste0('counties_x_facet_', fut)]
+			x <- data_facet[paste0('counties_x_', fut)]
 			x <- x[[1]]
 		
 			preds <- predict_nonbiomass_single_trait(chains = chains, x = x, resp_distrib = resp_distrib, transform = transform)
@@ -85,7 +85,7 @@ burn_nonbiomass_into_vector <- function(facet, demesne, chains, formula_facet, f
 			pred_vect$DUMMY3 <- apply(preds, 2, inner_quant)
 
 			index <- (ncol(pred_vect) - 2):ncol(pred_vect)
-			names(pred_vect)[index] <- paste0(c(paste0('mu_', facet, '_county_mean_'), paste0('mu_', facet, '_county_median_'), paste0('mu_', facet, '_county_inner_quant_')), fut)
+			names(pred_vect)[index] <- paste0(c(paste0(facet, '_mean_'), paste0(facet, '_median_'), paste0(facet, '_inner_quant_')), fut)
 
 		} # next future
 
@@ -96,7 +96,7 @@ burn_nonbiomass_into_vector <- function(facet, demesne, chains, formula_facet, f
 		
 			for (fut in futs) {
 
-				x <- data_facet[paste0('counties_x_facet_', fut)]
+				x <- data_facet[paste0('counties_x_', fut)]
 				x <- x[[1]]
 
 				preds <- predict_psi(chains = chains, x = x)
@@ -104,7 +104,7 @@ burn_nonbiomass_into_vector <- function(facet, demesne, chains, formula_facet, f
 				pred_vect$DUMMY1 <- preds_mean
 
 				index <- ncol(pred_vect)
-				names(pred_vect)[index] <- paste0('psi_county_', fut)
+				names(pred_vect)[index] <- paste0('psi_', fut)
 
 			} # next future
 

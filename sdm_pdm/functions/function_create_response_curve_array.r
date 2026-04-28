@@ -1,7 +1,6 @@
 #' Creates an array of model matrices for a response curve. If there is >1 covariate, then the output is a 3D array, with one "page" per covariate. If there is just one covariate, then the output is a single model matrix. Within each model matrix, the focal covariate increases from low to high across the rows with their range given by the range across present-day and future environments, while the other covariates are held constant at their median value across counties with at least one observed AG.
 #'
 #' formula 				RHS formula with intercept
-#' log_precip 			If `TRUE`, take log of precipitation variables (BIOs 12-14, 16-19)
 #' centers				named numeric vector of medians
 #' scales				named numeric vector of standard deviations
 #' site_data_raw		Data frame with raw site-level data.
@@ -10,7 +9,6 @@
 #' @param n_response_curve_values Number of rows (values along the focal variable) in the response curve matrix. Default is 200.
 create_response_curve_array <- function(
 	formula,
-	log_precip,
 	centers,
 	scales,
 	site_data_raw,
@@ -50,15 +48,15 @@ create_response_curve_array <- function(
 				mins[linear_term] <- min(site_data_raw[['site_ph']])
 				maxs[linear_term] <- max(site_data_raw[['site_ph']])
 			} else if (linear_term == 'site_nitrogen') {
-				mins[linear_term] <- min(site_data_raw[['site_nitrogen']])
+				mins[linear_term] <- 0 # force minimum nitrogen to 0
 				maxs[linear_term] <- max(site_data_raw[['site_nitrogen']])
-			} else {
+			} else if (linear_term %notin% c('area_km2_log10', 'n_poaceae_log10p1')){
 				mins[linear_term] <- min(site_data_raw[[linear_term]])
 				maxs[linear_term] <- max(site_data_raw[[linear_term]])
 			}
 
-			mins[linear_term] <- min(mins[linear_term], quantile(ag_vect_sq_just_occs[[linear_term]], 0.05, na.rm = TRUE))
-			maxs[linear_term] <- max(maxs[linear_term], quantile(ag_vect_sq_just_occs[[linear_term]], 0.95, na.rm = TRUE))
+			mins[linear_term] <- min(mins[linear_term], quantile(ag_vect_sq_just_occs[[linear_term]], 0.025, na.rm = TRUE))
+			maxs[linear_term] <- max(maxs[linear_term], quantile(ag_vect_sq_just_occs[[linear_term]], 0.975, na.rm = TRUE))
 
 		}
 
@@ -72,8 +70,8 @@ create_response_curve_array <- function(
 
 					# mins[linear_term] <- min(mins[linear_term], min(vals, na.rm = TRUE))
 					# maxs[linear_term] <- max(maxs[linear_term], max(vals, na.rm = TRUE))
-					mins[linear_term] <- min(mins[linear_term], quantile(vals, 0.05, na.rm = TRUE))
-					maxs[linear_term] <- max(maxs[linear_term], quantile(vals, 0.95, na.rm = TRUE))
+					mins[linear_term] <- min(mins[linear_term], quantile(vals, 0.025, na.rm = TRUE))
+					maxs[linear_term] <- max(maxs[linear_term], quantile(vals, 0.975, na.rm = TRUE))
 
 				}
 			}
@@ -81,10 +79,6 @@ create_response_curve_array <- function(
 
 		ppt_bios <- paste0('bio', c(12:14, 16:19))
 		mins[names(mins) %in% ppt_bios] <- 0 # force minimum precipitation to 0
-		if (log_precip & any(linear_terms %in% ppt_bios)) {
-			mins[names(mins) %in% ppt_bios] <- log10(mins[names(mins) %in% ppt_bios] + 1)
-			maxs[names(maxs) %in% ppt_bios] <- log10(maxs[names(maxs) %in% ppt_bios] + 1)
-		}
 
 		# create 3D array for cases where >1 predictor
 		if (n_linear_terms > 1) {
@@ -118,6 +112,7 @@ create_response_curve_array <- function(
 			for (i in seq_along(linear_terms)) {
 
 				linear_term <- linear_terms[i]
+				# if 	(linear_term %in% paste0('bio', c(12:14, 16:19))) env_array[ , linear_term, i] <- log10(env_array[ , linear_term, i] + 1)
 				env_array[ , , i] <- sweep(env_array[ , , i], 2, centers[linear_terms], '-')
 				env_array[ , , i] <- sweep(env_array[ , , i], 2, scales[linear_terms], '/')
 				

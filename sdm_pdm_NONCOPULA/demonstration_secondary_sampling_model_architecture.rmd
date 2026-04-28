@@ -1,0 +1,273 @@
+---
+title: "Norma-Normal Model Architecture"
+output: rmarkdown::html_vignette
+author: "Adam B. Smith"
+date: '`r format(Sys.Date())`'
+vignette: >
+  %\VignetteIndexEntry{Making fasterRaster faster}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+We use a "normal-normal" architecture to model the different facets of *Andropogon gerardi* (occurrence, biomass, height, etc.). Normally, a response could be modeled as a sample from a given distribution. For example, if `y` is a vector of response values assumed to follow a normal distribution with a mean a function of one covariate `x`, we could models its trend using
+```
+y[i] ~ dnorm(mu[i], sd = sigma)
+mu[i] <- beta0 + beta1 * x[i]
+```
+where `mu[i]` is the expected value of the given `y[i]`, the `beta`s are coefficients to be fit, and `sigma` a standard deviation.
+
+A normal-normal approach has a similar structure, but the regression component (i.e., the second line in the code above) is used as "data" to provides a mean value of a secondary normal distribution, from which the mean of `y[i]` is obtained:
+```
+y[i] ~ dnorm(mu_prime[i], sd = sigma)
+mu_prime[i] ~ dnorm(mu[i], sd = sigma_prime)
+mu[i] <- beta0 + beta1 * x[i]
+```
+What effect does this have on model estimates? We will demonstrate using a simulated dataset with known parameters.
+```
+library(nimble) # Bayesian modeling
+
+# simulate data
+set.seed(1)
+n <- 1000
+x <- scale(runif(n))[ , 1]
+beta0 <- -1
+beta1 <- 4.7
+sigma <- 1.3
+y <- beta0 + beta1 * x + rnorm(n, 0, sd = sigma)
+
+plot(x, y, main = 'Observations')
+```
+We now construct the traditional model using the first set of equations above. We will use "`_hat`" to denote parameters that are estimated.
+```
+code_trad <- nimbleCode({
+
+	# priors
+	# we use a half-Cauchy for the sigmas to increase mixing
+	log_sigma_hat ~ dnorm(0, sd = 2.5)
+	sigma_hat <- exp(log_sigma_hat)
+
+	beta0_hat ~ dnorm(0, sd = 100)
+	beta1_hat ~ dnorm(0, sd = 100)
+	
+	# likelihood
+	for (i in 1:n) {
+		
+		# likelihood
+		y[i] ~ dnorm(mu[i], sd = sigma_hat)
+		mu[i] <- beta0_hat + beta1_hat * x[i]
+
+		# simulate values
+		y_sim[i] ~ dnorm(mu[i], sd = sigma_hat)
+	}
+
+})
+```
+The normal-normal model uses the second set of equations above.
+```
+code_nn <- nimbleCode({
+
+	# priors
+	# we use a half-Cauchy for the sigmas to increase mixing
+	log_sigma_hat ~ dnorm(0, sd = 2.5)
+	sigma_hat <- exp(log_sigma_hat)
+
+	log_sigma_prime_hat ~ dnorm(0, sd = 2.5)
+	sigma_prime_hat <- exp(log_sigma_prime_hat)
+
+	sigma_combined_hat <- sqrt(sigma_hat^2 + sigma_prime_hat^2)
+
+	beta0_hat ~ dnorm(0, sd = 100)
+	beta1_hat ~ dnorm(0, sd = 100)
+
+	# likelihood
+	for (i in 1:n) {
+		
+		# likelihood
+		y[i] ~ dnorm(mu_prime[i], sd = sigma_hat)
+		# mu_prime[i] ~ dnorm(mu[i], sd = sigma_prime_hat)
+mu_prime_raw[i] ~ dnorm(0, 1)
+mu_prime[i] <- mu[i] + sigma_prime_hat * mu_prime_raw[i]		
+		mu[i] <- beta0_hat + beta1_hat * x[i]
+
+		# simulate values
+		y_sim[i] ~ dnorm(mu_prime_sim[i], sd = sigma_hat)
+		mu_prime_sim[i] ~ dnorm(mu[i], sd = sigma_prime_hat)
+
+	}
+
+})
+```
+Notice that in the normal-normal code we have a variable named `sigma_combined_hat`. What is this? In the traditional model, we have just one estimate of variation, `sigma_hat`, but in the norma-normal model we have two, `sigma_hat` and `sigma_prime_hat`. In the norma-normal model, both `sigma`s work together to represent variation in `y`. If we want an estimate of `sigma` (the true value, which is {r sigma}), we need to combine them, which is done by adding their variances, then taking the square root to get the standard deviation.
+
+Let's run the models.
+```
+# setup
+data <- list(y = y)
+constants <- list(n = n, x = x)
+
+# initialization values
+inits_trad <- list(
+	log_sigma_hat = 1, # translates to sigma_hat = exp(1)
+	beta0_hat = 0,
+	beta1_hat = 0,
+	y_sim = rep(0, n)
+)
+
+# initialization values
+inits_nn <- list(
+	log_sigma_hat = 0, # translates to sigma_hat = exp(1)
+	log_sigma_prime_hat = 0, # translates to sigma_prime_hat = exp(1)
+	beta0_hat = 0,
+	beta1_hat = 0,
+	y_sim = rep(0, n),
+	mu_prime = rep(0, n),
+	mu_prime_sim = rep(0, n)
+)
+
+# build and compile models
+model_trad <- nimbleModel(
+	code = code_trad,
+	constants = constants,
+	data = data,
+	inits = inits_trad,
+	check = TRUE,
+	calculate = FALSE
+)
+
+model_nn <- nimbleModel(
+	code = code_nn,
+	constants = constants,
+	data = data,
+	inits = inits_nn,
+	check = TRUE,
+	calculate = FALSE
+)
+
+# variables we want to remember from the MCMC sampling
+monitors_trad <- c(
+	'beta0_hat',
+	'beta1_hat',
+	'sigma_hat',
+	'y_sim'
+)
+
+monitors_nn <- c(
+	'beta0_hat',
+	'beta1_hat',
+	'sigma_hat',
+	'sigma_prime_hat',
+	'sigma_combined_hat',
+	'y_sim'
+)
+
+# configure samplers, build, and compile
+conf_trad <- configureMCMC(
+	model_trad,
+	monitors = monitors_trad
+)
+
+conf_nn <- configureMCMC(
+	model_nn,
+	monitors = monitors_nn
+)
+
+# add AF slice samplers
+# vars_trad <- c('beta0_hat', 'beta1_hat', 'log_sigma_hat')
+# conf_trad$removeSamplers(vars_trad)
+# conf_trad$addSampler(target = vars_trad, type = 'AF_slice')
+
+# params_nn <- c('beta0_hat', 'beta1_hat', 'log_sigma_hat', 'log_sigma_prime_hat')
+params_nn <- c('log_sigma_hat', 'log_sigma_prime_hat')
+conf_nn$removeSamplers(params_nn)
+conf_nn$addSampler(target = params_nn, type = 'AF_slice')
+# conf_nn$addSampler(target = params_nn, type = 'RW_block', control = list(adaptive = TRUE))
+
+# build models
+build_trad <- buildMCMC(conf_trad)
+build_nn <- buildMCMC(conf_nn)
+
+# compile models
+compiled_trad <- compileNimble(model_trad, build_trad)
+compiled_nn <- compileNimble(model_nn, build_nn)
+
+# sample!
+niter_trad <- 2000
+nburnin_trad <- 1000
+thin_trad <- 1
+
+mcmc_trad <- runMCMC(
+	compiled_trad$build_trad,
+	niter = niter_trad,
+	nburnin = nburnin_trad,
+	thin = thin_trad,
+	nchains = 2,
+	inits = inits_trad,
+	progressBar = TRUE,
+	samplesAsCodaMCMC = TRUE,
+	summary = TRUE
+)
+
+niter_nn <- 200000
+nburnin_nn <- 100000
+thin_nn <- 100
+
+mcmc_nn <- runMCMC(
+	compiled_nn$build_nn,
+	niter = niter_nn,
+	nburnin = nburnin_nn,
+	thin = thin_nn,
+	nchains = 2,
+	inits = inits_nn,
+	progressBar = TRUE,
+	samplesAsCodaMCMC = TRUE,
+	summary = TRUE
+)
+```
+
+The first thing to notice is that the normal-normal model takes much longer to run--and this isn't just because we increased the number of iterations. When developing this document, we first tried 2000 iterations with 1000 burn-in (like we used for the "traditional" model). However, when running the normal-normal model, we received the message "[Warning] There are 103 individual pWAIC values that are greater than 0.4. This may indicate that the WAIC estimate is unstable (Vehtari et al., 2017), at least in cases without grouping of data nodes or multivariate data nodes." We thus increased the number of iterations. We thus tried increasing the number of iterations to {r niter_nn}. This resulted in the same message... however, for the sake of efficiency, we will proceed but note that to get reliable estimates of WAIC, normal-normal models may need to be sampled much longer than just "normal" models.
+
+Did the models mix sufficiently?
+```
+library(ggmcmc)
+
+# examine traceplots for each estimated parameter
+coeffs_trad <- c('beta0_hat', 'beta1_hat', 'sigma_hat')
+coeffs_nn <- c(coeffs_trad, 'sigma_prime_hat', 'sigma_combined_hat')
+
+mcmc_trad_coeffs <- mc_subset(mcmc_trad, coeffs_trad)
+mcmc_nn_coeffs <- mc_subset(mcmc_nn, coeffs_nn)
+
+ggs_trad <- ggs(mcmc_trad_coeffs$samples)
+ggs_nn <- ggs(mcmc_nn_coeffs$samples)
+
+ggs_traceplot(ggs_trad)
+ggs_traceplot(ggs_nn)
+```
+
+Let's look at our estimates.
+```
+coeffs_trad <- c('beta0_hat', 'beta1_hat', 'sigma_hat')
+coeffs_nn <- c(coeffs_trad, 'sigma_prime_hat', 'sigma_combined_hat')
+
+estimates_trad <- mcmc_trad$summary$all.chains[coeffs_trad, ]
+estimates_nn <- mcmc_nn$summary$all.chains[coeffs_nn, ]
+
+
+# estimates
+estimates_trad
+estimates_nn
+
+# real values
+beta0
+beta1
+sigma
+```
+We can see that our estimates of the beta coefficients are accurate, and have very nearly the same precision (uncertainty) between the two models. Recall that in the normal-normal model, we `sigma_hat` should not be assumed to correctly estimate `sigma`. Rather, we need to combine `sigma_hat` and `sigma_prime_hat`, which is what is reflected by `sigma_combined_hat`, which in our example is a good estimator of `sigma`.
+
+

@@ -2,7 +2,7 @@
 #'
 #' chains			MCMC chains list
 #' x 				Model matrix
-#' resp_distrib 	Named vector of response distribution. This can be 'gamma', 'ZIG' (zero-inflated gamma), 'lognormal', or 'ZILN' (zero-inflated lognormal)
+#' resp_distrib 	Named vector of response distribution. This can be 'gamma', 'hGamma' (zero-inflated gamma), 'lognormal', or 'hurdleLN' (zero-inflated lognormal)
 #' transform		Named vector of transformations to translate MVN to mean occurrence intensity or biomass: 'identity', 'softplus' or 'exponential'.
 #'
 #' @returns A matrix of predictions. Rows are MCMC iterations and columns are samples.
@@ -14,10 +14,10 @@ predict_biomass <- function(chains, x, resp_distrib, transform = NULL) {
 	# vars <- 'gamma_biomass'
 	# gammas_biomass <- mc_subset(chains, vars)
 
-	sigmas_biomass_among_sites <- mc_subset(chains, 'sigma_biomass_among_sites')
+	# sigmas_biomass_among_sites <- mc_subset(chains, 'sigma_biomass_among_sites')
 	sigmas_biomass_within_sites <- mc_subset(chains, 'sigma_biomass_within_sites')
 
-	zero_inflated <- resp_distrib %in% c('ZIG', 'ZILN')
+	zero_inflated <- resp_distrib %in% c('hGamma', 'hurdleLN')
 	if (zero_inflated) betas_psi <- mc_subset(chains, 'beta_psi', j = TRUE)
 
 	n_samples <- nrow(x)
@@ -47,8 +47,8 @@ predict_biomass <- function(chains, x, resp_distrib, transform = NULL) {
 
 			# this_gamma_biomass <- gammas_biomass$samples[[chain]][iter, 'gamma_biomass']
 
-			this_sigma_biomass_among_sites <- sigmas_biomass_among_sites$samples[[chain]][iter, 'sigma_biomass_among_sites']
-			log_mu_biomass <- rnorm(n_samples, mean = pred_untrans, sd = this_sigma_biomass_among_sites)
+			# this_sigma_biomass_among_sites <- sigmas_biomass_among_sites$samples[[chain]][iter, 'sigma_biomass_among_sites']
+			# log_mu_biomass <- rnorm(n_samples, mean = pred_untrans, sd = this_sigma_biomass_among_sites)
 
 			# zero-inflation
 			if (zero_inflated) {
@@ -58,17 +58,17 @@ predict_biomass <- function(chains, x, resp_distrib, transform = NULL) {
 				psi <- x %*% beta_psi
 				psi <- psi[ , 1]
 				psi <- expit(psi)
-				z <- rbinom(nrow(x), size = 1, prob = psi)
+				# z <- rbinom(nrow(x), size = 1, prob = psi)
 
 			}
 			
 			# transform mean response
 			if (transform == 'identity') {
-				mu_biomass <- log_mu_biomass
+				mu_biomass <- pred_untrans
 			} else if (transform == 'exponential') {
-				mu_biomass <- exp(log_mu_biomass)
+				mu_biomass <- exp(pred_untrans)
 			} else if (transform == 'softplus') {
-				mu_biomass <- log(1 + exp(log_mu_biomass))
+				mu_biomass <- log(1 + exp(pred_untrans))
 			} else {
 				stop('Incorrect transform.')
 			}
@@ -82,20 +82,20 @@ predict_biomass <- function(chains, x, resp_distrib, transform = NULL) {
 
 				for (count in seq_along(pred)) pred[count] <- rgamma(1, shape = shape_biomass[count], rate = rate_biomass[count])
 
-			} else if (resp_distrib == 'ZIG') {
+			} else if (resp_distrib == 'hGamma') {
 
 				shape_biomass <- mu_biomass^2 / this_sigma_biomass_within_sites^2
 				rate_biomass <- mu_biomass / this_sigma_biomass_within_sites^2
 
-				for (count in seq_along(pred)) pred[count] <- rZIG(1, shape = shape_biomass[count], rate = rate_biomass[count], z = z[count])
+				for (count in seq_along(pred)) pred[count] <- rHurdleGamma(1, shape = shape_biomass[count], rate = rate_biomass[count], psi = psi[count])
 
 			} else if (resp_distrib == 'lognormal') {
 			
-				for (count in seq_along(pred)) pred[count] <- rlnorm(1, meanlog = log_mu_biomass[count], sdlog = this_sigma_biomass_within_sites)
+				for (count in seq_along(pred)) pred[count] <- rlnorm(1, meanlog = mu_biomass[count], sdlog = this_sigma_biomass_within_sites)
 
-			} else if (resp_distrib == 'ZILN') {
+			} else if (resp_distrib == 'hurdleLN') {
 			
-				for (count in seq_along(pred)) pred[count] <- rZILN(1, meanlog = log_mu_biomass[count], sdlog = this_sigma_biomass_within_sites, z = z[count])
+				for (count in seq_along(pred)) pred[count] <- rHLN(1, meanlog = mu_biomass[count], sdlog = this_sigma_biomass_within_sites, psi = psi[count])
 
 			} else {
 				stop('Bad `resp_distrib`.')

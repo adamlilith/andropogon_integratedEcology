@@ -2,15 +2,11 @@
 #'
 #' source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/workflows/workflow_postmodeling_occurrence.r')
 #'
-#' @param homoscedastic If `TRUE`, then do not analyze behavior of sigma
-#' @param zero_inflated Logical.
-#' @param formula_occs,formula_psi,formula_occs_bias Formulae for occurrences, sigma, probability of zero-inflation, and  occurrence bias
-#' @param out_dir Folder into which to save results.
-workflow_postmodeling_occurrence <- function(formula_occs, formula_psi, formula_occs_bias, out_dir) {
+#' formula_occs,formula_psi,formula_bias Formulae for occurrences, sigma, probability of zero-inflation, and  occurrence bias
+#' out_dir Folder into which to save results.
+workflow_postmodeling_occurrence <- function(formula_occs, formula_psi, formula_bias, out_dir) {
 
 	zero_inflated <- !is.null(formula_psi)
-
-	# if (zero_inflated) data_traits <- prepare_nonbiomass_data(facet = 'height', formula = ~ 1, n_response_curve_values = n_response_curve_values, calib = calib, log_precip = log_precip)
 
 	### burn predictions into vector
 	################################
@@ -26,32 +22,26 @@ workflow_postmodeling_occurrence <- function(formula_occs, formula_psi, formula_
 	##############################################
 	say('OCCURRENCE: response curves', level = 2)
 
-		responses_mu <- graph_response_curves_occurrence_vs_environment(
+		responses <- graph_response_curves_occurrence_vs_environment(
 			out_dir = out_dir,
-			resp_type = 'mu',
-			log_precip = log_precip,
 			chains = chains,
-			data = data_occs
+			zero_inflated = zero_inflated
 		)
 
 		if (zero_inflated) {
 
-			responses_psi <- graph_response_curves_occurrence_vs_environment(
+			responses_psi <- graph_response_curves_psi_vs_environment(
 				out_dir = out_dir,
-				resp_type = 'psi',
-				log_precip = log_precip,
-				chains = chains,
-				data = data_occs_psi
+				chains = chains
 			)
 
 		}
 
-		if (data_occs$n_covariates_occs_bias >= 1) {
+		if (data_occs$n_covariates_bias >= 1) {
 
-			responses_bias <- graph_response_curves_occurrence_bias_vs_bias_covariates(
+			responses_bias <- graph_response_curves_bias_vs_bias_covariates(
 				out_dir = out_dir,
-				chains = chains,
-				data_occs = data_occs
+				chains = chains
 			)
 
 		}
@@ -60,46 +50,20 @@ workflow_postmodeling_occurrence <- function(formula_occs, formula_psi, formula_
 	################################
 	say('OCCURRENCE: DHARMa residuals', level = 2)
 		
-		fits <- mc_extract(chains, param = 'lambda_mu_sq', j = TRUE, stat = 'mean')
-		fits <- fits[data_occs$ag_vect_sq$focal_region]
-
-		observed_y <- data_occs$y_n_ag[data_occs$ag_vect_sq$focal_region]
-
-		sims <- mc_subset(chains, param = 'y_n_ag_sim', j = TRUE, na.rm = TRUE)
+		sims <- mc_subset(chains, 'y_n_ag_sim', j = TRUE)
 		sims <- mc_rbind(sims)
 		sims <- sims[ , data_occs$ag_vect_sq$focal_region]
 
-		# assign mean value of a site to NAs
-		if (anyNA(sims)) {
+		observed_y <- data_occs$y_n_ag[data_occs$ag_vect_sq$focal_region]
 
-			col_means <- colMeans(sims, na.rm = TRUE)
-			col_means_nas <- colMeans(sims)
-			na_cols <- which(is.na(col_means_nas))
-			
-			for (col in na_cols) {
-				sims[is.na(sims[ , col]), col] <- col_means[col]
-			}
-
-		}
-
-		col_means_nas <- colMeans(sims)
-		nas_in_sims <- which(is.na(col_means_nas))
-		if (length(nas_in_sims) > 0) {
-		
-			fits <- fits[-nas_in_sims]
-			observed_y <- observed_y[-nas_in_sims]
-			sims <- sims[ , -nas_in_sims]
-
-			culled_nas <- TRUE
-		
-		} else {
-		
-			culled_nas <- FALSE
-
+		nas_occs <- which(is.na(colSums(sims)))
+		if (length(nas_occs) > 0) {
+			sims <- sims[ , -nas_occs]
+			observed_y <- observed_y[-nas_occs]
 		}
 
 		sims <- t(sims)
-		dharma <- createDHARMa(simulatedResponse = sims, observedResponse = observed_y, fittedPredictedResponse = fits, integerResponse = TRUE)
+		dharma <- createDHARMa(simulatedResponse = sims, observedResponse = observed_y, integerResponse = TRUE)
 
 		dharma_quant_test <- testQuantiles(dharma, plot = FALSE)
 		dharma_resid_test <- testResiduals(dharma, plot = FALSE) # uniformity, dispersion, outlier
@@ -119,7 +83,7 @@ workflow_postmodeling_occurrence <- function(formula_occs, formula_psi, formula_
 	#######################################
 
 		coords <- as.data.frame(crds(centroids(project(pred_vect_nam[pred_vect_nam$focal_region], enmSdmX::getCRS('WGS84')))))
-		if (culled_nas) coords <- coords[-nas_in_sims, ]
+		if (length(nas_occs) > 0) coords <- coords[-nas_occs, ]
 
 		# Compute Moran's I
 		moran <- moran.test(dharma$scaledResiduals, nb2listw(knn2nb(knearneigh(coords, longlat = TRUE, k = 4))))
@@ -127,7 +91,7 @@ workflow_postmodeling_occurrence <- function(formula_occs, formula_psi, formula_
 		moran_p <- paste0('Moran P = ', sprintf('%.3f', round(moran_p, 3)))
 
 		residuals_vect <- pred_vect_nam[pred_vect_nam$focal_region]
-		if (culled_nas) residuals_vect <- residuals_vect[-nas_in_sims]
+		if (length(nas_occs) > 0) residuals_vect <- residuals_vect[-nas_occs]
 		residuals_vect$residual <- dharma$scaledResiduals
 
 		extent <- ext(residuals_vect[residuals_vect$focal_region])
@@ -145,7 +109,7 @@ workflow_postmodeling_occurrence <- function(formula_occs, formula_psi, formula_
 				plot.subtitle = element_text(size = 14)
 			)
 
-		ggsave(plot = map, filename = paste0(out_dir, '/map_residuals_occurrences.png'), width = 12, height = 9, dpi = 600)
+		ggsave(plot = map, filename = paste0(out_dir, '/map_residuals_occurrences.png'), width = 12, height = 9, dpi = 120)
 
 	### OCCURRENCE: current map
 	###########################
@@ -156,30 +120,35 @@ workflow_postmodeling_occurrence <- function(formula_occs, formula_psi, formula_
 		form <- gsub(form, pattern = '\\^2\\)', replacement = '²')
 		form <- gsub(form, pattern = '*)', replacement = '×')
 
-		form_bias <- paste(as.character(formula_occs_bias), collapse = ' ')
-		form_bias <- gsub(form_bias, pattern = 'I\\(', replacement = '')
-		form_bias <- gsub(form_bias, pattern = '\\^2\\)', replacement = '²')
-		form_bias <- gsub(form_bias, pattern = '*)', replacement = '×')
+		# form_bias <- paste(as.character(formula_bias), collapse = ' ')
+		# form_bias <- gsub(form_bias, pattern = 'I\\(', replacement = '')
+		# form_bias <- gsub(form_bias, pattern = '\\^2\\)', replacement = '²')
+		# form_bias <- gsub(form_bias, pattern = '*)', replacement = '×')
 
 		map <- map_occurrence(
 			out_dir = out_dir,
 			filename_append = 'present_day',
 			pred_vect_nam = pred_vect_nam,
-			response_var = 'N_ag_county_mean_sq',
+			response_var = 'N_ag_mean_sq',
 			data_occs = data_occs,
-			title = bquote('Present-day distribution of ' * italic('Andropogon gerardi') * ' abundance'),
-			subtitle = paste0('1961-2020 | occ ', form, ' (bias ', form_bias, ')')
+			title = bquote('Present-day Relative Abundance'),
+			subtitle = paste0('1961-2020 | occ ', form, ' (bias ~ offset)')
 		)
 
 		if (zero_inflated) {
+
+			form_psi <- paste(as.character(formula_psi), collapse = ' ')
+			form_psi <- gsub(form_psi, pattern = 'I\\(', replacement = '')
+			form_psi <- gsub(form_psi, pattern = '\\^2\\)', replacement = '²')
+			form_psi <- gsub(form_psi, pattern = '*)', replacement = '×')
 
 			map <- map_psi(
 				out_dir = out_dir,
 				filename_append = 'present',
 				pred_vect_nam = pred_vect_nam,
-				response_var = 'psi_county_sq',
-				title = 'Present-day distribution of probability occurrence',
-				subtitle = paste0('1961-2020 | occ ', form, ' (bias ', form_bias, ')')
+				response_var = 'psi_sq',
+				title = 'Present-day Probability Occurrence',
+				subtitle = paste0('1961-2020 | occ ', form, ' (ψ ', form_psi, ')')
 			)
 
 		}
@@ -188,7 +157,6 @@ workflow_postmodeling_occurrence <- function(formula_occs, formula_psi, formula_
 	###########################
 	say('OCCURRENCE: future maps', level = 2)
 
-		maps_occs_fut <- list()
 		for (fut in futs) {
 
 			say(fut)
@@ -198,16 +166,11 @@ workflow_postmodeling_occurrence <- function(formula_occs, formula_psi, formula_
 			form <- gsub(form, pattern = '\\^2\\)', replacement = '²')
 			form <- gsub(form, pattern = '*)', replacement = '×')
 
-			form_bias <- paste(as.character(formula_occs_bias), collapse = ' ')
-			form_bias <- gsub(form_bias, pattern = 'I\\(', replacement = '')
-			form_bias <- gsub(form_bias, pattern = '\\^2\\)', replacement = '²')
-			form_bias <- gsub(form_bias, pattern = '*)', replacement = '×')
+			title <- bquote('Future Relative Abundance')
+			subtitle <- paste0('SSP ', substr(fut, 4, 6), ' ', substr(fut, 8, 11), '-', substr(fut, 13, 16))
+			response_var <- paste0('N_ag_mean_', fut)
 
-			title <- bquote('Future distribution of ' * italic('Andropogon gerardi') * ' abundance')
-			subtitle <- paste0('SSP ', substr(fut, 4, 6), ' ', substr(fut, 8, 11), '-', substr(fut, 13, 16), ' | occ ', form, ' (bias ', form_bias, ')')
-			response_var <- paste0('N_ag_county_mean_', fut)
-
-			maps_occs_fut[[length(maps_occs_fut) + 1]] <- map_occurrence(
+			map <- map_occurrence(
 				out_dir = out_dir,
 				filename_append = fut,
 				pred_vect_nam = pred_vect_nam,
@@ -219,13 +182,20 @@ workflow_postmodeling_occurrence <- function(formula_occs, formula_psi, formula_
 
 			if (zero_inflated) {
 
-				title <- bquote('Future distribution of ' * italic('Andropogon gerardi') * ' probability of occurrence')
+				title <- bquote('Future Probability of Occurrence')
+
+				form_psi <- paste(as.character(formula_psi), collapse = ' ')
+				form_psi <- gsub(form_psi, pattern = 'I\\(', replacement = '')
+				form_psi <- gsub(form_psi, pattern = '\\^2\\)', replacement = '²')
+				form_psi <- gsub(form_psi, pattern = '*)', replacement = '×')
+
+				subtitle <- paste0('SSP ', substr(fut, 4, 6), ' ', substr(fut, 8, 11), '-', substr(fut, 13, 16))
 
 				map <- map_psi(
 					out_dir = out_dir,
 					filename_append = fut,
 					pred_vect_nam = pred_vect_nam,
-					response_var = paste0('psi_county_', fut),
+					response_var = paste0('psi_', fut),
 					title = title,
 					subtitle = subtitle
 				)
@@ -242,7 +212,7 @@ workflow_postmodeling_occurrence <- function(formula_occs, formula_psi, formula_
 
 			say(fut)
 
-			response_var <- paste0('N_ag_county_mean_', fut)
+			response_var <- paste0('N_ag_mean_', fut)
 
 			map <- map_occurrence_change(
 				out_dir = out_dir,
@@ -250,23 +220,23 @@ workflow_postmodeling_occurrence <- function(formula_occs, formula_psi, formula_
 				pred_vect_nam = pred_vect_nam,
 				response_var = response_var,
 				data_occs = data_occs,
-				title = bquote('Change in ' * italic('Andropogon gerardi') * ' abundance'),
+				title = bquote('Change in Relative Abundance'),
 				subtitle = paste0('SSP ', substr(fut, 4, 6), ' ', substr(fut, 8, 11), '-', substr(fut, 13, 16))
 			)
 
 			if (zero_inflated) {
 
-				title <- bquote('Change in ' * italic('Andropogon gerardi') * ' probability of occurrence')
+				title <- bquote('Change in Probability of Occurrence')
 
 				map <- map_psi_change(
 					out_dir = out_dir,
 					filename_append = fut,
 					fut = fut,
 					pred_vect_nam = pred_vect_nam,
-					response_var = paste0('psi_county_', fut),
-					response_var_sq = 'psi_county_sq',
+					response_var = paste0('psi_', fut),
+					response_var_sq = 'psi_sq',
 					title = title,
-					subtitle = subtitle
+					subtitle = paste0('SSP ', substr(fut, 4, 6), ' ', substr(fut, 8, 11), '-', substr(fut, 13, 16))
 				)
 
 			}
@@ -285,6 +255,7 @@ workflow_postmodeling_occurrence <- function(formula_occs, formula_psi, formula_
 
 	### summary
 	###########
+	say('SUMMARY', level = 2)
 	
 	resid_p_values <- c(
 		moran$p.value,
@@ -323,7 +294,7 @@ workflow_postmodeling_occurrence <- function(formula_occs, formula_psi, formula_
 		zero_inflated = zero_inflated,
 		formulae = list(
 			formula_occs = formula_occs,
-			formula_occs_bias = formula_occs_bias,
+			formula_bias = NA,
 			formula_psi = formula_psi
 		),
 		dharma_resids = dharma_resids

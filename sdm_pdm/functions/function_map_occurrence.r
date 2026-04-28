@@ -9,7 +9,7 @@
 #' data_occs From prepare_occurrence_data().
 #' title Character for plot title.
 #' subtitle Character for plot subtitle.
-#' ag_core_quant Quantile used to delineate core from non-core.
+#' core_quant Quantile used to delineate core from non-core.
 map_occurrence <- function(
 	out_dir,
 	filename_append,
@@ -21,8 +21,10 @@ map_occurrence <- function(
 ) {
 
 	nam <- vect('./data_from_gadm/gadm_4pt1_level_1_north_america_sans_alaska_lambert.gpkg')
-	data_traits <- prepare_nonbiomass_data(facet = 'height', formula_facet = ~ 1, log_precip = FALSE)
-	site_vect <- data_traits$site_vect_facet
+	nam <- simplifyGeom(nam, tolerance = 1000)
+
+	data_traits <- prepare_nonbiomass_data(facet = 'height', formula_facet = ~ 1)
+	site_vect <- data_traits$site_vect
 	site_vect <- project(site_vect, pred_vect_nam)
 
 	# extent
@@ -35,10 +37,10 @@ map_occurrence <- function(
 	pred_vect_display <- crop(pred_vect_nam, extent)
 
 	# delineate current range "core"
-	range_core <- delineate_range_core(pred_vect_display, column = response_var, ag_core_quant = ag_core_quant)
+	range_core <- delineate_range_core(pred_vect_display, column = response_var, core_quant = core_quant)
 
 	# get range of values for plotting
-	vars <- c('N_ag_county_mean_sq', 'N_ag_county_mean_ssp245_2041_2070', 'N_ag_county_mean_ssp245_2071_2100', 'N_ag_county_mean_ssp370_2041_2070', 'N_ag_county_mean_ssp370_2071_2100')
+	vars <- c('N_ag_mean_sq', 'N_ag_mean_ssp245_2041_2070', 'N_ag_mean_ssp245_2071_2100', 'N_ag_mean_ssp370_2041_2070', 'N_ag_mean_ssp370_2071_2100')
 
 	max_val <- -Inf
 	for (var in vars) {
@@ -63,7 +65,7 @@ map_occurrence <- function(
 		layer_spatial(nam, color = 'gray40', fill = NA, linewidth = 0.3) +
 		layer_spatial(counties_with_ag, pch = 16, color = alpha('gray20', 0.5), size = 0.35) +
 		layer_spatial(range_core, color = 'orange2', fill = NA, linewidth = 1) +
-		layer_spatial(data_traits$site_vect_facet, pch = 3, size = 4) +
+		layer_spatial(data_traits$site_vect, pch = 3, size = 4) +
 		scale_fill_gradientn(
 			name = legend_title,
 			colors = c('#edf8e9', '#74c476', '#005a32'),
@@ -77,7 +79,7 @@ map_occurrence <- function(
 		)
 
 	filename <- paste0(out_dir, '/map_abundance_', filename_append, '.png')
-	ggsave(plot = map, filename = filename, width = 12, height = 10, dpi = 300)
+	ggsave(plot = map, filename = filename, width = 12, height = 10, dpi = 200)
 	invisible(map)
 
 }

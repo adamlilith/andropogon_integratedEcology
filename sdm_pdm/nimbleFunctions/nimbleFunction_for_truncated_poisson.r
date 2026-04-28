@@ -6,7 +6,7 @@
 #' @param y_min Minimum allows value from Poisson.
 #' @param log 1 (return log likelihood) or 0 (return arithmetic likelihood)
 #' @param n Number of values to simulate. Can only accept 1 for now.
-dpois_trunc <- nimbleFunction(
+dTruncPoisson <- nimbleFunction(
     # run = function(x = integer(0), lambda = double(0), y_min = integer(0), log = integer(0)) {
     run = function(x = integer(0), lambda = double(0), y_min = integer(0), log = 1) {
         returnType(double(0))
@@ -39,7 +39,7 @@ dpois_trunc <- nimbleFunction(
 )
 
 # # sampling function using rejection sampling... can be very slow
-# rpois_trunc <- nimbleFunction(
+# rTruncPoisson <- nimbleFunction(
 #   run = function(n = integer(0), lambda = double(0), y_min = integer(0)) {
 #     returnType(integer(0))
 #     value <- 0
@@ -52,7 +52,7 @@ dpois_trunc <- nimbleFunction(
 #   }
 # )
 
-rpois_trunc <- nimbleFunction(
+rTruncPoisson <- nimbleFunction(
     run = function(n = integer(0), lambda = double(0), y_min = integer(0)) {
       
         returnType(integer(0))
@@ -94,9 +94,9 @@ rpois_trunc <- nimbleFunction(
 )
 
 registerDistributions(list(
-  dpois_trunc = list(
-    BUGSdist = 'dpois_trunc(lambda, y_min)',
-    Rdist = 'dpois_trunc(lambda, y_min)',
+  dTruncPoisson = list(
+    BUGSdist = 'dTruncPoisson(lambda, y_min)',
+    Rdist = 'dTruncPoisson(lambda, y_min)',
     types = c('value = integer(0)', 'lambda = double(0)', 'y_min = integer(0)')
   )
 ))

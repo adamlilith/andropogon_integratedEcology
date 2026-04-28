@@ -37,6 +37,7 @@
 # 	sites <- project(sites, occs)
 
 # 	nam <- vect('./data_from_gadm/gadm_4pt1_level_1_north_america_sans_alaska_lambert.gpkg')
+#	nam <- simplifyGeom(nam, tolerance = 1000)
 
 # 	# extent
 # 	extent <- ext(sites)
@@ -107,7 +108,7 @@ say('##################################################################')
 		  	facet <- top_models$facet[i]
 		  	resp_distrib <- top_models$resp_distrib[i]
 		  	
-		  	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_', facet, '/[', facet, '_', tolower(resp_distrib), '~normal~', preds_filename, ']', ifelse(log_precip, '_log_precip', ''), '/')
+		  	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_', facet, '/[', facet, '_', tolower(resp_distrib), '~normal~', filename_occs, ']')
 		
 		}
 

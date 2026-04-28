@@ -5,32 +5,38 @@
 #' out_dir 			Folder in which to save graphs.
 #' chains 			MCMC chains
 #' resp_type 		"mu" or "psi"
-#' log_precip		If `TRUE`, log BIOs 12-14 and 16-29
 #' data_biomass_nonbiomass 		From prepare_biomass_data() or prepare_nonbiomass_data().
 #' quant_threshold 	Used to define upper limit of the y axis based on range of values of the upper CI limits.
-graph_response_curves_biomass_nonbiomass_vs_environment <- function(facet, out_dir, chains, resp_type, log_precip, data_biomass_nonbiomass, quant_threshold = 0.5) {
+graph_response_curves_biomass_nonbiomass_vs_environment <- function(
+	facet,
+	out_dir,
+	chains,
+	resp_type,
+	data_biomass_nonbiomass,
+	quant_threshold = 0.5
+) {
 
 	if (facet == 'biomass') {
 
 		facet_raw <- get_raw_trait_name_from_rfriendly(facet)
 
-		n_covariates <- data_biomass_nonbiomass$n_covariates_biomass
-		covariates <- data_biomass_nonbiomass$covariates_biomass
-		resp_curves_x <- data_biomass_nonbiomass$resp_curves_x_biomass
-		resp_curves_unscaled <- data_biomass_nonbiomass$resp_curve_x_biomass_unscaled
-		centers <- data_biomass_nonbiomass$x_centers_biomass
-		scales <- data_biomass_nonbiomass$x_scales_biomass
+		n_covariates <- data_biomass_nonbiomass$n_covariates
+		covariates <- data_biomass_nonbiomass$covariates
+		resp_curves_x <- data_biomass_nonbiomass$resp_curves_x
+		resp_curves_unscaled <- data_biomass_nonbiomass$resp_curves_x_unscaled
+		centers <- data_biomass_nonbiomass$x_centers
+		scales <- data_biomass_nonbiomass$x_scales
 
 	} else {
 	
 		facet_raw <- get_raw_trait_name_from_rfriendly(facet)
 
-		n_covariates <- data_biomass_nonbiomass$n_covariates_facet
-		covariates <- data_biomass_nonbiomass$covariates_facet
-		resp_curves_x <- data_biomass_nonbiomass$resp_curves_x_facet
-		resp_curves_unscaled <- data_biomass_nonbiomass$resp_curve_x_facet_unscaled
-		centers <- data_biomass_nonbiomass$x_centers_facet
-		scales <- data_biomass_nonbiomass$x_scales_facet
+		n_covariates <- data_biomass_nonbiomass$n_covariates
+		covariates <- data_biomass_nonbiomass$covariates
+		resp_curves_x <- data_biomass_nonbiomass$resp_curves_x
+		resp_curves_unscaled <- data_biomass_nonbiomass$resp_curves_x_unscaled
+		centers <- data_biomass_nonbiomass$x_centers
+		scales <- data_biomass_nonbiomass$x_scales
 
 	}
 
@@ -74,7 +80,6 @@ graph_response_curves_biomass_nonbiomass_vs_environment <- function(facet, out_d
 
 		# unscaled predictor value
 		x <- resp_curves_unscaled[ , pred]
-		if (pred %in% paste0('bio', c(12:14, 16:19)) & log_precip) x <- 10^x
 
 		# create data frame with SDM response
 		if (n_covariates == 1) {

@@ -16,8 +16,10 @@ map_psi <- function(
 ) {
 
 	nam <- vect('./data_from_gadm/gadm_4pt1_level_1_north_america_sans_alaska_lambert.gpkg')
-	data_biomass <- prepare_biomass_data(formula_biomass = ~ 1, log_precip = TRUE, n_response_curve_values = n_response_curve_values, calib = FALSE)
-	site_vect <- data_biomass$site_vect_biomass
+	nam <- simplifyGeom(nam, tolerance = 1000)
+
+	data_biomass <- prepare_biomass_data(formula_biomass = ~ 1, n_response_curve_values = n_response_curve_values, calib = FALSE)
+	site_vect <- data_biomass$site_vect
 
 	# extent
 	site_vect <- project(site_vect, pred_vect_nam)
@@ -30,7 +32,8 @@ map_psi <- function(
 	pred_vect_display <- crop(pred_vect_nam, extent)
 
 	# delineate current range "core"
-	range_core_absent <- delineate_range_core(pred_vect_display, column = response_var, ag_core_quant = 0.1, rule = '<=')
+	range_core_absent <- delineate_range_core(pred_vect_display, column = response_var, core_quant = 0.1, rule = '<=')
+	range_core_present <- delineate_range_core(pred_vect_display, column = response_var, core_quant = 0.95, rule = '>=')
 
 	resp_limits <- c(0, 1)
 
@@ -46,8 +49,9 @@ map_psi <- function(
 		) +
 		layer_spatial(nam, color = 'gray40', fill = NA, linewidth = 0.3) +
 		layer_spatial(counties_with_ag, pch = 16, color = alpha('black', 0.8), size = 0.35) +
-		layer_spatial(range_core_absent, color = '#43145B', fill = NA, linewidth = 0.8) +
-		layer_spatial(site_vect, pch = 4, size = 4, color = 'white') +
+		layer_spatial(range_core_absent, color = 'black', fill = NA, linewidth = 0.8) +
+		layer_spatial(range_core_present, color = 'white', fill = NA, linewidth = 0.8) +
+		layer_spatial(site_vect, pch = 4, size = 4, color = 'orange3') +
 		coord_sf(xlim = c(extent_coords[1], extent_coords[2]), ylim = c(extent_coords[3], extent_coords[4]), expand = FALSE) +
 		ggtitle(title, subtitle) +
 		theme(

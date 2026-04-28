@@ -16,6 +16,7 @@
 ### plots of occurrence and traits in environmental space ###
 ### frequentist presence-absence modeling of occurrence ###
 ### plot likelihood of joint, zero-inflated Poisson-gamma distribution ###
+### correlations between traits ###
 
 #############
 ### setup ###
@@ -1056,5 +1057,57 @@
 # 		theme_minimal()
 
 # 	ggsave(psis, filename = './outputs_loretta/integrated_sdm_pdm/likelihood_of_joint_zero_inflated_poisson_and_1_gamma.png', width = 15, height = 5, bg = 'white')
+
+say('###################################')
+say('### correlations between traits ###')
+say('###################################')
+
+	# load site data
+	site_data_raw <- readRDS('./data_from_loretta/sdm_pdm_00_merged_site_data_with_climate/sites.rds')
+	biomass_data_raw <- readRDS('./data_from_loretta/sdm_pdm_00_merged_site_data_with_climate/biomass.rds')
+	raw_data_facet <- readRDS('./data_from_loretta/sdm_pdm_00_merged_site_data_with_climate/morpho_phys.rds')
+
+	facets <- 
+
+	# get traits
+	trait_columns <- c('Delta13C', 'N_conc', 'CN_ratio', 'Height', 'BladeWidth', 'LeafThick', 'SPAD', 'CanopyDiam', 'WatPot', 'PhotoRate', 'StomCond', 'IntCO2', 'TranspRate')
+	# nice_trait <- c('delta13c', 'n_concentration', 'cn_ratio', 'height', 'blade_width', 'leaf_thickness', 'spad', 'canopy_diameter', 'water_potential', 'photosynthetic_rate', 'stomatal_conductance', 'internal_co2', 'transpiration_rate')
+	nice_trait <- c('n_concentration', 'cn_ratio', 'height', 'blade_width', 'leaf_thickness', 'spad', 'canopy_diameter', 'water_potential', 'photosynthetic_rate', 'stomatal_conductance', 'internal_co2', 'transpiration_rate')
+
+	data <- raw_data_facet[ , c('SITE', 'PLANT')]
+	names(data) <- c('site', 'plant')
+	for (facet in nice_trait) {
+
+		traits_columns <- trait_columns[match(facet, nice_trait)]
+		facet_raw <- get_raw_trait_name_from_rfriendly(facet)
+
+		data <- cbind(data, raw_data_facet[ , ..facet_raw])
+		names(data)[ncol(data)] <- facet
+
+	}
+
+	cors <- cor(data[ , -c(1, 2)], use = 'pairwise.complete.obs', method = 'spearman')
+
+	# Convert correlation matrix to long format
+	cors_long <- as.data.table(cors, keep.rownames = TRUE)
+	cors_long <- pivot_longer(cors_long, cols = -rn, names_to = 'var2', values_to = 'cor')
+	setnames(cors_long, 'rn', 'var1')
+
+	# Create pairs plot
+	cors_plot <- ggplot(cors_long, aes(x = var1, y = var2, fill = cor)) +
+		geom_tile(color = 'white', linewidth = 0.5) +
+		geom_text(aes(label = round(cor, 2)), color = 'black', size = 3) +
+		scale_fill_gradient2(low = '#2166ac', mid = 'white', high = '#b2182b', 
+			midpoint = 0, limits = c(-1, 1), name = 'Spearman\nρ') +
+		coord_fixed() +
+		theme_minimal() +
+		theme(
+			axis.text.x = element_text(angle = 45, hjust = 1),
+			axis.text.y = element_text(size = 9),
+			axis.title = element_blank()
+		)
+
+	ggsave(cors_plot, filename = './outputs_loretta/integrated_sdm_pdm/facet_correlations_non_biomass.png', width = 10, height = 9, dpi = 300, bg = 'white')
+
 
 say('FINIS!', level = 1)

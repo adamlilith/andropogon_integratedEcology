@@ -1,9 +1,9 @@
 ### MODELING ANDROPOGON GERARDI DISTRIBUTION, PHENOTYPE, PHYSIOLOGY, GENOTYPE, and ASSOCIATED MICROBIAL COMMUNITIES
 ### Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | 2023-12
 ###
-### This model estimates the distribution of site-level mean Andropogon gerardi ramet biomass. The distribution of biomasses among ramets at a site follows a zero-inflated gamma or zero-inflated lognormal distribution with individual ramet biomasses drawn from this distribution. The site-level mean biomass is a function of soil/climate. The probability of presence (non-zero) is a function of the same covariate(s) and has the same functional form as the submodel of the mean.
+### This model estimates the distribution of site-level mean Andropogon gerardi ramet biomass. The distribution of biomasses among ramets at a site follows a zero-inflated gamma or zero-inflated lognormal distribution with individual ramet biomasses drawn from this distribution. The site-level mean biomass is a log (positive) function of soil/climate. The probability of presence (non-zero) is a function of the same covariate(s) and has the same functional form as the submodel of the mean. This model does not use a copula.
 ###
-### source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/sdm_pdm_04b_model_biomass_zero_inflated~normal.r')
+### source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/sdm_pdm_04_model_biomass~ZIG_or_~ZILN.r')
 
 #############
 ### setup ###
@@ -20,8 +20,8 @@
 ### user-defined values ###
 ###########################
 
-	# trial <- TRUE # TRUE for testing
-	trial <- FALSE # TRUE for testing
+	trial <- TRUE # TRUE for testing
+	# trial <- FALSE # TRUE for testing
 
 	# do cross-validation?
 	# crossvalidate <- FALSE
@@ -36,7 +36,7 @@
 		# nchains <- 4
 		# waic <- TRUE
 
-		niter <- 400000
+		niter <- 80000
 		nchains <- 4
 
 	} else {
@@ -53,7 +53,7 @@
 
 	### formula for how aspects of species responds to environment
 
-	resp_distribs <- c('ZIG', 'ZILN')
+	resp_distribs <- c('ZILN', 'ZIG')
 	for (resp_distrib in resp_distribs) {
 
 		transform <- if (resp_distrib == 'ZIG') { 'exponential' } else if (resp_distrib == 'ZILN' ) { 'identity' }
@@ -106,7 +106,7 @@
 				formula_biomass <- all_formulae[[count_formula]]
 				preds_filename <- names(all_formulae)[count_formula]
 
-				out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_biomass/', ifelse(trial, 'TRIAL_', ''), '[biomass_', tolower(resp_distrib), '~normal~', preds_filename, ']', ifelse(log_precip, '_log_precip', ''), '/')
+				out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_biomass/', ifelse(trial, 'TRIAL_', ''), '[biomass~', tolower(resp_distrib), '(', preds_filename, ')]', ifelse(log_precip, '_log_precip', ''), '/')
 
 				say(out_dir)
 
@@ -126,7 +126,7 @@
 					##################
 					say('data collation', post = 1)
 
-					say('This model estimates the distribution of site-level mean Andropogon gerardi ramet biomass. The distribution of biomasses among ramets at a site follows a zero-inflated gamma or zero-inflated lognormal distribution with individual ramet biomasses drawn from this distribution. The site-level mean biomass is a function of soil/climate. The probability of presence (non-zero) is a function of the same covariate(s) and has the same functional form as the submodel of the mean.', breaks = 60, post = 1)
+					say('This model estimates the distribution of site-level mean Andropogon gerardi ramet biomass. The distribution of biomasses among ramets at a site follows a zero-inflated gamma or zero-inflated lognormal distribution with individual ramet biomasses drawn from this distribution. The site-level mean biomass is a log (positive) function of soil/climate. The probability of presence (non-zero) is a function of the same covariate(s) and has the same functional form as the submodel of the mean. Unlike other scripts, this model does not use a copula.', breaks = 60, post = 1)
 
 					say('MCMC settings:', level = 2)
 					say('trial ........................ ', trial)
@@ -136,6 +136,7 @@
 					say('nchains ...................... ', nchains)
 					say('resp_distrib ................. ', resp_distrib)
 					say('transform .................... ', transform)
+					say('log_precip ................... ', log_precip)
 					say('formula_biomass .............. ', paste(as.character(formula_biomass), collapse = ' '))
 					say('formula_psi .................. ', paste(as.character(formula_psi), collapse = ' '))
 					say('zero_inflated ................ ', zero_inflated)
@@ -176,11 +177,7 @@
 						n_terms_biomass = data_biomass$n_terms_biomass, # number of terms in formula for biomass model (including intercept)
 						n_terms_psi = data_biomass$n_terms_biomass, # number of terms in formula for psi model (including intercept)
 
-						n_covariates_biomass = data_biomass$n_covariates_biomass,
-						resp_curves_x_biomass = data_biomass$resp_curves_x_biomass, # response curve array for biomass
-
-						# response curves (general)
-						n_response_curve_values = n_response_curve_values # number of values in response curve array
+						n_covariates_biomass = data_biomass$n_covariates_biomass
 
 					)
 
@@ -191,11 +188,8 @@
 
 					inits <- list(
 
-						log_site_biomass_mu = log(data_biomass$site_vect_biomass$biomass_mean),
-						log_sigma_biomass_within_sites = 0.1,
-						log_sigma_biomass_among_sites = 1,
-						y_biomass_sim = data_biomass$y_biomass, # simulated values for biomass (for DHARMa residuals)
 						beta_biomass = beta_biomass_inits,
+						log_sigma_biomass = 0.1,
 						beta_psi = beta_psi_inits,
 						z_site = rep(1, data_biomass$n_pheno_sites)
 
@@ -225,22 +219,20 @@
 						# BIOMASS: priors for probability of presence
 						beta_psi[1] ~ dnorm(0, sd = beta_psi_prior_dnorm_sd_1)
 						for (i in 2:n_terms_psi) {
-							beta_psi[i] ~ ddexp(0, rate = beta_psi_prior_dnorm_sd)
+							# beta_psi[i] ~ ddexp(0, rate = beta_occs_prior_ddexp_rate)
+							beta_psi[i] ~ dnorm(0, sd = beta_psi_prior_dnorm_sd)
 						}
 
-						# prior for sd of mean of biomass at a site on lognormal (~ half-Cauchy), ==> vague
-						log(sigma_biomass_among_sites) ~ dnorm(0, sd = sigma_biomass_among_sites_log_prior_sd)
-
 						# prior for sd of individual plant biomass on lognormal (~ half-Cauchy), ==> vague
-						log(sigma_biomass_within_sites) ~ dnorm(0, sd = sigma_biomass_within_sites_log_prior_sd)
+						log_sigma_biomass ~ dnorm(0, sd = sigma_biomass_log_prior_sd)
+						sigma_biomass <- exp(log_sigma_biomass)
 
 						# BIOMASS: parameters of biomass distribution are latent and functions of environment
 						# individual plant biomasses are samples from the site-level distribution defined by the site-level distribution (next chunk after this one)
 						for (i in 1:n_pheno_sites) {
 
 							# relationship of biomass to the environment
-							log_site_biomass_mu[i] ~ dnorm(log_site_biomass_latent_mu[i], sd = sigma_biomass_among_sites)
-							log_site_biomass_latent_mu[i] <- inprod(beta_biomass[1:n_terms_biomass], x_by_site_biomass[i, 1:n_terms_biomass])
+							log_site_biomass_mu[i] <- inprod(beta_biomass[1:n_terms_biomass], x_by_site_biomass[i, 1:n_terms_biomass])
 							
 							# zero-inflation
 							logit(psi[i]) <- inprod(beta_psi[1:n_terms_biomass], x_by_site_biomass[i, 1:n_terms_biomass])
@@ -264,8 +256,8 @@
 							for (i in 1:n_pheno_sites) {
 
 								# moment matching to get gamma() parameters
-								shape_biomass[i] <- mu_biomass_site[i]^2 / sigma_biomass_within_sites^2
-								rate_biomass[i] <- mu_biomass_site[i] / sigma_biomass_within_sites^2
+								shape_biomass[i] <- mu_biomass_site[i]^2 / sigma_biomass^2
+								rate_biomass[i] <- mu_biomass_site[i] / sigma_biomass^2
 
 							}
 
@@ -275,11 +267,6 @@
 								# likelihood
 								y_biomass[i] ~ dZIG(shape = shape_biomass[site_index_biomass[i]], rate = rate_biomass[site_index_biomass[i]], z = z_site[site_index_biomass[i]])
 
-								# simulated values for unconditional DHARMa residuals
-								y_biomass_sim[i] ~ dZIG(shape = shape_biomass[site_index_biomass[i]], rate = rate_biomass[site_index_biomass[i]], z = z_site[site_index_biomass[i]])
-
-								log_lik_biomass[i] <- dZIG(y_biomass[i], shape = shape_biomass[site_index_biomass[i]], rate = rate_biomass[site_index_biomass[i]], z = z_site[site_index_biomass[i]])
-						
 							}
 
 						})
@@ -292,13 +279,7 @@
 							for (i in 1:n_biomass) {
 
 								# likelihood
-								y_biomass[i] ~ dZILN(meanlog = log_site_biomass_mu[site_index_biomass[i]], sdlog = sigma_biomass_within_sites, z = z_site[site_index_biomass[i]])
-
-								# simulated values for unconditional DHARMa residuals
-								y_biomass_sim[i] ~ dZILN(meanlog = log_site_biomass_mu[site_index_biomass[i]], sdlog = sigma_biomass_within_sites, z = z_site[site_index_biomass[i]])
-
-								# log likelihood
-								log_lik_biomass[i] <- dZILN(y_biomass[i], meanlog = log_site_biomass_mu[site_index_biomass[i]], sdlog = sigma_biomass_within_sites, z = z_site[site_index_biomass[i]])
+								y_biomass[i] ~ dZILN(meanlog = log_site_biomass_mu[site_index_biomass[i]], sdlog = sigma_biomass, z = z_site[site_index_biomass[i]])
 
 							}
 
@@ -306,54 +287,7 @@
 					
 					}
 				
-					### response curves
-					###################
-					if (data_biomass$n_covariates_biomass == 1) {
-
-						### univariate
-						response_curve_code <- nimbleCode({
-
-							# BIOMASS: posterior predictive sampler for response curves: site-level mean
-							# NB we assume just one predictor for biomass, so the response curve "x" is a matrix, not an array
-							for (i in 1:n_response_curve_values) {
-									
-								log_response_curves_biomass_mu[i] <-
-									inprod(beta_biomass[1:n_terms_biomass], resp_curves_x_biomass[i, 1:n_terms_biomass])
-								response_curves_biomass_mu[i] <- exp(log_response_curves_biomass_mu[i])
-
-								logit(response_curves_psi[i]) <-
-									inprod(beta_psi[1:n_terms_biomass], resp_curves_x_biomass[i, 1:n_terms_biomass])
-								
-							}
-
-						})
-					
-					} else {
-					
-						### multivariate
-						response_curve_code <- nimbleCode({
-
-							# BIOMASS: posterior predictive sampler for response curves: site-level mean
-							# NB we assume just one predictor for biomass, so the response curve "x" is a matrix, not an array
-							for (i in 1:n_covariates_biomass) {
-								
-								for (j in 1:n_response_curve_values) {
-										
-									log_response_curves_biomass_mu[j, i] <-
-										inprod(beta_biomass[1:n_terms_biomass], resp_curves_x_biomass[j, 1:n_terms_biomass, i])
-									response_curves_biomass_mu[j, i] <- exp(log_response_curves_biomass_mu[j, i])
-
-									logit(response_curves_psi[j, i]) <-
-										inprod(beta_psi[1:n_terms_biomass], resp_curves_x_biomass[j, 1:n_terms_biomass, i])
-									
-								}
-							}
-
-						})
-					
-					}
-
-					model_code <- glueNimbleCode(model_code, resp_distrib_code, response_curve_code)
+					model_code <- glueNimbleCode(model_code, resp_distrib_code)
 
 					print(model_code)
 
@@ -371,6 +305,7 @@
 					say('$initializeInfo() and $calculate():', level = 2)
 					model$initializeInfo()
 					calc <- model$calculate()
+					check_nodes(model)
 					say('model$calculate(): ', calc)
 					if (is.na(calc) | is.infinite(calc)) stop('Likelihood is incalculable.')
 
@@ -378,7 +313,7 @@
 
 					# monitors for coefficients that have no indexing
 					monitors_coeffs_not_indexed <- c(
-						'sigma_biomass_within_sites', 'sigma_biomass_among_sites'
+						'sigma_biomass'
 					)
 
 					# coefficients that have bracketed indexing
@@ -390,7 +325,6 @@
 					)
 
 					monitors_derived_not_indexed <- c(
-						'log_lik'
 					)
 
 					monitors_derived_single_index <- c(
@@ -402,15 +336,7 @@
 					monitors_geog_conus <- c(
 					)
 
-					monitors_dharma <- c(
-						'y_biomass_sim'
-					)
-
-					monitors_resp_curves <- c(
-						'response_curves_biomass_mu', 'response_curves_psi'
-					)
-
-					monitors <- c(monitors_coeffs_not_indexed, monitors_coeffs_single_index, monitors_coeffs_double_index, monitors_derived_not_indexed, monitors_derived_single_index, monitors_derived_double_index, monitors_dharma, monitors_resp_curves)
+					monitors <- c(monitors_coeffs_not_indexed, monitors_coeffs_single_index, monitors_coeffs_double_index, monitors_derived_not_indexed, monitors_derived_single_index, monitors_derived_double_index)
 
 					conf <- configureMCMC(
 						model,
@@ -461,7 +387,7 @@
 				######################################################
 
 					### post-modeling analysis of BIOMASS
-					descrip <- paste0('biomass ~ ', resp_distrib, '(', ifelse(resp_distrib == 'ZIG', 'exp(', ''), 'normal(env))', ifelse(resp_distrib == 'ZIG', ')', ''))
+					descrip <- paste0('biomass ~ ', resp_distrib, '(', ifelse(resp_distrib == 'ZIG', 'exp(', ''), 'normal(env))', ifelse(resp_distrib == 'ZIG', ')', ''), ' [non-copula]')
 
 					workflow_postmodeling_generic(facet = 'biomass', formulae = formulae, descrip = descrip, out_dir = out_dir)
 

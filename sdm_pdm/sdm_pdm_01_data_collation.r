@@ -9,6 +9,7 @@
 ### setup ###
 ### collate morphology/physiology/community data with climate ###
 ### plot geo-folds in environmental and geographic space ###
+### calculate covariate centers and scales across counties and sites ###
 
 #############
 ### setup ###
@@ -23,100 +24,114 @@
 
 	library(readxl)
 
-say('#################################################################')
-say('### collate morphology/physiology/community data with climate ###')
-say('#################################################################')
+# say('#################################################################')
+# say('### collate morphology/physiology/community data with climate ###')
+# say('#################################################################')
 
-	### data
-	occs <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020_climatena.gpkg')
+# 	### data
+# 	occs <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020_climatena.gpkg')
 
-	# # adjust aridity so values of 0 precipitation do not cause issued
-	# occs$aridity <- (occs$bio1 + 10) / ((occs$bio12 + 1)/1000)
+# 	# # adjust aridity so values of 0 precipitation do not cause issued
+# 	# occs$aridity <- (occs$bio1 + 10) / ((occs$bio12 + 1)/1000)
 
-	# sites: coordinates, mean values
-	sites <- read_excel('./data_from_loretta/!plant_sitelevel_data_11NOV2024 - Google Sheets [aggregated by Erica].xlsx', sheet = 'plantmaster_bysite_19NOV2024')
+# 	# sites: coordinates, mean values
+# 	sites <- read_excel('./data_from_loretta/!plant_sitelevel_data_11NOV2024 - Google Sheets [aggregated by Erica].xlsx', sheet = 'plantmaster_bysite_19NOV2024')
 
-	# biomass
-	biomass <- read_excel('./data_from_loretta/!plant_sitelevel_data_11NOV2024 - Google Sheets [aggregated by Erica].xlsx', sheet = 'biomass_and_size')
+# 	# biomass
+# 	biomass <- read_excel('./data_from_loretta/!plant_sitelevel_data_11NOV2024 - Google Sheets [aggregated by Erica].xlsx', sheet = 'biomass_and_size')
 
-	# morphology & physiology
-	morpho_phys <- read_excel('./data_from_loretta/!plant_sitelevel_data_11NOV2024 - Google Sheets [aggregated by Erica].xlsx', sheet = 'morphology_and_phys')
+# 	# morphology & physiology
+# 	morpho_phys <- read_excel('./data_from_loretta/!plant_sitelevel_data_11NOV2024 - Google Sheets [aggregated by Erica].xlsx', sheet = 'morphology_and_phys')
 
-	sites <- as.data.table(sites)
-	biomass <- as.data.table(biomass)
-	morpho_phys <- as.data.table(morpho_phys)
+# 	sites <- as.data.table(sites)
+# 	biomass <- as.data.table(biomass)
+# 	morpho_phys <- as.data.table(morpho_phys)
 
-	### match sites with environments
-	ppt <- rast(paste0(drive, '/Research Data/ClimateNA/v 7.3 AdaptWest/1991-2020/', paste0('Normal_1991_2020_PPT', prefix(1:12, 2), '.tif')))
-	tmin <- rast(paste0(drive, '/Research Data/ClimateNA/v 7.3 AdaptWest/1991-2020/', paste0('Normal_1991_2020_Tmin', prefix(1:12, 2), '.tif')))
-	tmax <- rast(paste0(drive, '/Research Data/ClimateNA/v 7.3 AdaptWest/1991-2020/', paste0('Normal_1991_2020_Tmax', prefix(1:12, 2), '.tif')))
+# 	### climate
+# 	ppt <- rast(paste0(drive, '/Research Data/ClimateNA/v 7.3 AdaptWest/1991-2020/', paste0('Normal_1991_2020_PPT', prefix(1:12, 2), '.tif')))
+# 	tmin <- rast(paste0(drive, '/Research Data/ClimateNA/v 7.3 AdaptWest/1991-2020/', paste0('Normal_1991_2020_Tmin', prefix(1:12, 2), '.tif')))
+# 	tmax <- rast(paste0(drive, '/Research Data/ClimateNA/v 7.3 AdaptWest/1991-2020/', paste0('Normal_1991_2020_Tmax', prefix(1:12, 2), '.tif')))
 
-	### extract environment at sites
-	sites_spatial <- vect(sites, geom = c('LONGITUDE', 'LATITUDE'), crs = getCRS('NAD83'), keepgeom = TRUE)
-	sites_spatial <- project(sites_spatial, ppt)
+# 	### solar radiation
+# 	srad_2000 <- rast('C:/Kaji/Research Data/Solar Radiation - SAGA GIS/ClimateNA Feb 28 through Aug 30/pisr_2000_02_28_thru_2000_08_30_kWh_per_m2.tif')
+# 	srad_2023 <- rast('C:/Kaji/Research Data/Solar Radiation - SAGA GIS/ClimateNA Feb 28 through Aug 30/pisr_2023_02_28_thru_2023_08_30_kWh_per_m2.tif')
+# 	srad_2000 <- srad_2000[['Total Insolation']]
+# 	srad_2023 <- srad_2023[['Total Insolation']]
 
-	ppt_at_sites <- terra::extract(ppt, sites_spatial, ID = FALSE)
-	tmax_at_sites <- terra::extract(tmax, sites_spatial, ID = FALSE)
-	tmin_at_sites <- terra::extract(tmin, sites_spatial, ID = FALSE)
+# 	### extract environment at sites
+# 	sites_spatial <- vect(sites, geom = c('LONGITUDE', 'LATITUDE'), crs = getCRS('NAD83'), keepgeom = TRUE)
+# 	sites_spatial <- project(sites_spatial, ppt)
 
-	ppt_at_sites <- as.matrix(ppt_at_sites)
-	tmax_at_sites <- as.matrix(tmax_at_sites)
-	tmin_at_sites <- as.matrix(tmin_at_sites)
+# 	ppt_at_sites <- terra::extract(ppt, sites_spatial, ID = FALSE)
+# 	tmax_at_sites <- terra::extract(tmax, sites_spatial, ID = FALSE)
+# 	tmin_at_sites <- terra::extract(tmin, sites_spatial, ID = FALSE)
 
-	bioclims <- bcvars(ppt_at_sites, tmin_at_sites, tmax_at_sites)
-	bioclims <- as.data.frame(bioclims)
-	bioclims$aridity <- (bioclims$bio1 + 10) / ((1 + bioclims$bio12) / 1000) # add aridity
+# 	ppt_at_sites <- as.matrix(ppt_at_sites)
+# 	tmax_at_sites <- as.matrix(tmax_at_sites)
+# 	tmin_at_sites <- as.matrix(tmin_at_sites)
 
-	# # pisr <- rast('E:/ecology/Potential Annual Insolation (SAGA)/Based on ClimateNA 7.03 from SAGA 9.3.0/Annual_Insolation_1990_kW_hr_per_m2.tif')
-	# # pisr <- terra::extract(pisr, sites_spatial, ID = FALSE)
-	# # pisr <- rowSums(pisr)
+# 	bioclims <- bcvars(ppt_at_sites, tmin_at_sites, tmax_at_sites)
+# 	bioclims <- as.data.frame(bioclims)
+# 	bioclims$aridity <- (bioclims$bio1 + 10) / ((1 + bioclims$bio12) / 1000) # add aridity
 
-	sites <- cbind(sites, bioclims)
-	# # sites$solar_rad_kW_hr_per_m2 <- pisr
+# 	srad_at_sites_2000 <- terra::extract(srad_2000, sites_spatial, ID = FALSE)
+# 	srad_at_sites_2023 <- terra::extract(srad_2023, sites_spatial, ID = FALSE)
+# 	names(srad_at_sites_2000) <- 'insolation_2000_growing_season_kWh_per_m2'
+# 	names(srad_at_sites_2023) <- 'insolation_2023_growing_season_kWh_per_m2'
 
-	### create  different data frames for each type of data
-	# each will have coordinates and BIOCLIM predictors that match to site
-	# need to do this because different number of plants were sampled for different metrics
+# 	# # pisr <- rast('E:/ecology/Potential Annual Insolation (SAGA)/Based on ClimateNA 7.03 from SAGA 9.3.0/Annual_Insolation_1990_kW_hr_per_m2.tif')
+# 	# # pisr <- terra::extract(pisr, sites_spatial, ID = FALSE)
+# 	# # pisr <- rowSums(pisr)
 
-	bioclims <- as.data.table(bioclims)
-	bioclims[ , SITE := sites$site_id]
+# 	sites <- cbind(sites, bioclims, srad_at_sites_2000, srad_at_sites_2023)
+# 	# # sites$solar_rad_kW_hr_per_m2 <- pisr
 
-	biomass <- merge(biomass, bioclims, by = 'SITE', suffixes = '')
-	morpho_phys <- merge(morpho_phys, bioclims, by = 'SITE', suffixes = '')
+# 	### create  different data frames for each type of data
+# 	# each will have coordinates and BIOCLIM predictors that match to site
+# 	# need to do this because different number of plants were sampled for different metrics
 
-	### define data folds
-	#####################
+# 	bioclims <- as.data.table(bioclims)
+# 	bioclims[ , SITE := sites$site_id]
 
-		# We define geo-folds of phenotypically sampled sites and of AG occurrence using the locations of the sampled sites
+# 	biomass <- merge(biomass, bioclims, by = 'SITE', suffixes = '')
+# 	morpho_phys <- merge(morpho_phys, bioclims, by = 'SITE', suffixes = '')
 
-		# geo-folds of sample sites
-		# created these manually from map so that as much as possible, sites close to one another are in the same fold, folds are spatially distinct, and each fold as nearly the same number of sites
-		sites$geofold <- NA_integer_
-		sites$geofold[sites$site_id %in% c('MO_1', 'MT_1', 'SD_1', 'KS_2', 'NC_1', 'SC_1')] <- 1
-		sites$geofold[sites$site_id %in% c('IA_1', 'MN_1', 'ND_1', 'TX_1', 'TX_3', 'MS_1', 'AL_1')] <- 2
-		sites$geofold[sites$site_id %in% c('WI_1', 'CO_1', 'NE_2', 'OK_1', 'AR_1', 'IL_1')] <- 3
-		sites$geofold[sites$site_id %in% c('IN_1', 'MI_1', 'KS_1', 'NE_1', 'NM_1', 'LA_1', 'TX_2')] <- 4
+# 	### define data folds
+# 	#####################
 
-		sites_vect <- vect(sites, geom = c('LONGITUDE', 'LATITUDE'), crs = 'wgs84')
-		# sites_gfolds <- geoFold(sites_vect, k = 4, minIn = 6, method = 'single')
+# 		# We define geo-folds of phenotypically sampled sites and of AG occurrence using the locations of the sampled sites
 
-		# geo-folds of biomass values
-		biomass$geofold <- sites$geofold[match(biomass$SITE, sites$site_id)]
-		morpho_phys$geofold <- sites$geofold[match(morpho_phys$SITE, sites$site_id)]
+# 		# geo-folds of sample sites
+# 		# created these manually from map so that as much as possible, sites close to one another are in the same fold, folds are spatially distinct, and each fold as nearly the same number of sites
+# 		sites$geofold <- NA_integer_
+# 		sites$geofold[sites$site_id %in% c('MO_1', 'MT_1', 'SD_1', 'KS_2', 'NC_1', 'SC_1')] <- 1
+# 		sites$geofold[sites$site_id %in% c('IA_1', 'MN_1', 'ND_1', 'TX_1', 'TX_3', 'MS_1', 'AL_1')] <- 2
+# 		sites$geofold[sites$site_id %in% c('WI_1', 'CO_1', 'NE_2', 'OK_1', 'AR_1', 'IL_1')] <- 3
+# 		sites$geofold[sites$site_id %in% c('IN_1', 'MI_1', 'KS_1', 'NE_1', 'NM_1', 'LA_1', 'TX_2')] <- 4
 
-		# geo-folds of occurrences
-		occs$focal_region <- !is.na(occs$n_andropogon_gerardi)
-		occs_cents <- centroids(occs)
-		sites_vect <- project(sites_vect, occs)
-		occs_gfolds <- geoFoldContrast(contrast = occs_cents, pres = sites_vect, presFolds = sites$geofold)
-		occs$geofold <- occs_gfolds
+# 		sites_vect <- vect(sites, geom = c('LONGITUDE', 'LATITUDE'), crs = 'wgs84')
+# 		# sites_gfolds <- geoFold(sites_vect, k = 4, minIn = 6, method = 'single')
 
-		writeVector(occs, './outputs_loretta/integrated_sdm_pdm/andropogon_gerardi_occurrences_with_environment_1961_2020_for_integration.gpkg', overwrite = TRUE)
+# 		# geo-folds of biomass values
+# 		biomass$geofold <- sites$geofold[match(biomass$SITE, sites$site_id)]
+# 		morpho_phys$geofold <- sites$geofold[match(morpho_phys$SITE, sites$site_id)]
 
-		dirCreate('./data_from_loretta/sdm_pdm_00_merged_site_data_with_climate')
-		saveRDS(sites, './data_from_loretta/sdm_pdm_00_merged_site_data_with_climate/sites.rds')
-		saveRDS(biomass, './data_from_loretta/sdm_pdm_00_merged_site_data_with_climate/biomass.rds')
-		saveRDS(morpho_phys, './data_from_loretta/sdm_pdm_00_merged_site_data_with_climate/morpho_phys.rds')
+# 		# geo-folds of occurrences
+# 		occs$focal_region <- !is.na(occs$n_andropogon_gerardi)
+# 		occs_cents <- centroids(occs)
+# 		sites_vect <- project(sites_vect, occs)
+# 		occs_gfolds <- geoFoldContrast(contrast = occs_cents, pres = sites_vect, presFolds = sites$geofold)
+# 		occs$geofold <- occs_gfolds
+
+# 		sites$raster_pH_maybe <- NULL
+# 		names(sites)[names(sites) == 'Elev'] <- 'elevation_m'
+
+# 		writeVector(occs, './outputs_loretta/integrated_sdm_pdm/andropogon_gerardi_occurrences_with_environment_1961_2020_for_integration.gpkg', overwrite = TRUE)
+
+# 		dirCreate('./data_from_loretta/sdm_pdm_00_merged_site_data_with_climate')
+# 		saveRDS(sites, './data_from_loretta/sdm_pdm_00_merged_site_data_with_climate/sites.rds')
+# 		saveRDS(biomass, './data_from_loretta/sdm_pdm_00_merged_site_data_with_climate/biomass.rds')
+# 		saveRDS(morpho_phys, './data_from_loretta/sdm_pdm_00_merged_site_data_with_climate/morpho_phys.rds')
 
 # say('############################################################')
 # say('### plot geo-folds in environmental and geographic space ###')
@@ -182,6 +197,95 @@ say('#################################################################')
 
 # 	combo <- map + env
 # 	ggsave(combo, filename = './outputs_loretta/integrated_sdm_pdm/map_geofolds.png', width = 17, height = 8, dpi = 300)
+
+# say('########################################################################')
+# say('### calculate covariate centers and scales across counties and sites ###')
+# say('########################################################################')
+
+# 		occs <- vect('./outputs_loretta/integrated_sdm_pdm/andropogon_gerardi_occurrences_with_environment_1961_2020_for_integration.gpkg')
+# 		sites <- readRDS('./data_from_loretta/sdm_pdm_00_merged_site_data_with_climate/sites.rds')
+
+# 		occs$bio12_log10p1 <- log10(occs$bio12 + 1)
+# 		sites$bio12_log10p1 <- log10(sites$bio12 + 1)
+
+# 		occs$bio13_log10p1 <- log10(occs$bio13 + 1)
+# 		sites$bio13_log10p1 <- log10(sites$bio13 + 1)
+
+# 		occs$bio14_log10p1 <- log10(occs$bio14 + 1)
+# 		sites$bio14_log10p1 <- log10(sites$bio14 + 1)
+
+# 		occs$bio16_log10p1 <- log10(occs$bio16 + 1)
+# 		sites$bio16_log10p1 <- log10(sites$bio16 + 1)
+
+# 		occs$bio17_log10p1 <- log10(occs$bio17 + 1)
+# 		sites$bio17_log10p1 <- log10(sites$bio17 + 1)
+
+# 		occs$bio18_log10p1 <- log10(occs$bio18 + 1)
+# 		sites$bio18_log10p1 <- log10(sites$bio18 + 1)
+
+# 		occs$bio19_log10p1 <- log10(occs$bio19 + 1)
+# 		sites$bio19_log10p1 <- log10(sites$bio19 + 1)
+
+# 		# add soil chemistry variables from field samples
+# 		soil_data_raw <- openxlsx::read.xlsx('./data_from_loretta/!plant_sitelevel_data_11NOV2024 - Google Sheets [aggregated by Erica].xlsx', sheet = 'original_soil_field_data')
+
+# 		soil_data_raw_site_plant <- tolower(soil_data_raw$X1)
+
+# 		soil_data_raw_site_plant_spaces <- unlist(gregexpr(soil_data_raw_site_plant, pattern = ' '))
+# 		soil_data_raw_site <- substr(soil_data_raw_site_plant, 1, soil_data_raw_site_plant_spaces - 1)
+# 		last_char <- substr(soil_data_raw_site, nchar(soil_data_raw_site), nchar(soil_data_raw_site))
+# 		append_num <- rep('', length(soil_data_raw_site))
+# 		append_num[last_char %notin% c('1', '2', '3')] <- '1'
+# 		soil_data_raw_site <- paste0(soil_data_raw_site, append_num)
+
+# 		site_names <- gsub(tolower(sites$site_id), pattern = '_', replacement = '')
+		
+# 		matches <- match(site_names, soil_data_raw_site)
+# 		sites$ph <- soil_data_raw$pH[matches]
+# 		sites$nitrogen <- soil_data_raw$`Total.N.%`[matches]
+
+# 		vars <- c(paste0('bio', 1:19), paste0('bio', c(12:14, 16:19), '_log10p1'), 'gdd_5_deg', 'climatic_moisture_index', 'pet_warmest_quarter_mm', 'elevation_m', 'aridity', 'insolation_2000_growing_season_kWh_per_m2', 'nitrogen', 'ph', 'sand', 'silt', 'clay')
+
+# 		centers_scales <- data.table()
+# 		for (var in vars) {
+
+# 			center_occs <- colMeans(occs[[var]], na.rm = TRUE)
+# 			scale_occs <- apply(occs[[var]], 2, sd, na.rm = TRUE)
+# 			range_occs <- diff(range(occs[[var]], na.rm = TRUE))
+
+# 			var_sites <- if (var == 'sand') {
+# 				'SAND'
+# 			} else if (var == 'silt') {
+# 				'SILT'
+# 			} else if (var == 'clay') {
+# 				'CLAY'
+# 			} else {
+# 				var
+# 			}
+
+# 			centers_sites <- mean(sites[[var_sites]], na.rm = TRUE)
+# 			scales_sites <- sd(sites[[var_sites]], na.rm = TRUE)
+# 			range_sites <- diff(range(sites[[var_sites]], na.rm = TRUE))
+
+# 			centers_scales <- rbind(
+# 				centers_scales,
+# 				data.table(
+# 					variable = var,
+# 					center_occs = center_occs,
+# 					scale_occs = scale_occs,
+# 					range_occs = range_occs,
+# 					center_sites = centers_sites,
+# 					scale_sites = scales_sites,
+# 					range_sites = range_sites
+# 				)
+# 			)
+
+# 		}
+
+# 	options(scipen = 999)
+# 	print(centers_scales, digits = 2)
+
+# 	fwrite(centers_scales, './outputs_loretta/integrated_sdm_pdm/centers_and_scales_for_covariates.csv')
 
 say(date())
 say('FINIS!', deco = '+', level = 1)

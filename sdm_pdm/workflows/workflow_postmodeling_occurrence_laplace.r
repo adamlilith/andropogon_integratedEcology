@@ -3,10 +3,10 @@
 #' @param laplace Output of `runLaplace()`
 #' @param homoscedastic If `TRUE`, then do not analyze behavior of sigma
 #' @param zero_inflated Logical.
-#' @param formula_occs,formula_occs_bias Formulae for occurrences and for occurrence bias
+#' @param formula_occs,formula_bias Formulae for occurrences and for occurrence bias
 #' @param data_occs Output of `prepare_occurrence_data()`
 #' @param out_dir Folder into which to save results.
-workflow_postmodeling_occurrence_laplace <- function(laplace, homoscedastic, zero_inflated, formula_occs, formula_occs_bias, data_occs, out_dir) {
+workflow_postmodeling_occurrence_laplace <- function(laplace, homoscedastic, zero_inflated, formula_occs, formula_bias, data_occs, out_dir) {
 
 	### response curves: occurrence vs environment
 	##############################################
@@ -65,7 +65,7 @@ workflow_postmodeling_occurrence_laplace <- function(laplace, homoscedastic, zer
 
 	# construct scaled matrix
 	x_centers_occs <- data_occs$x_centers_occs
-	x_scales_occs <- data_occs$x_scales_occs
+	x_scales_occs <- data_occs$x_scales
 	
 	x_centers_occs <- x_centers_occs[terms_linear]
 	x_scales_occs <- x_scales_occs[terms_linear]
@@ -223,7 +223,7 @@ workflow_postmodeling_occurrence_laplace <- function(laplace, homoscedastic, zer
 
 	# # scale
 	# x_centers_occs <- data_occs$x_centers_occs
-	# x_scales_occs <- data_occs$x_scales_occs
+	# x_scales_occs <- data_occs$x_scales
 	
 	# x_centers_occs <- x_centers_occs[terms_linear]
 	# x_scales_occs <- x_scales_occs[terms_linear]
@@ -328,7 +328,7 @@ workflow_postmodeling_occurrence_laplace <- function(laplace, homoscedastic, zer
 	# 	form <- gsub(form, pattern = '\\^2\\)', replacement = '²')
 	# 	form <- gsub(form, pattern = '*)', replacement = '×')
 
-	# 	form_bias <- paste(as.character(formula_occs_bias), collapse = ' ')
+	# 	form_bias <- paste(as.character(formula_bias), collapse = ' ')
 	# 	form_bias <- gsub(form_bias, pattern = 'I\\(', replacement = '')
 	# 	form_bias <- gsub(form_bias, pattern = '\\^2\\)', replacement = '²')
 	# 	form_bias <- gsub(form_bias, pattern = '*)', replacement = '×')
@@ -375,7 +375,7 @@ workflow_postmodeling_occurrence_laplace <- function(laplace, homoscedastic, zer
 	# 		form <- gsub(form, pattern = '\\^2\\)', replacement = '²')
 	# 		form <- gsub(form, pattern = '*)', replacement = '×')
 
-	# 		form_bias <- paste(as.character(formula_occs_bias), collapse = ' ')
+	# 		form_bias <- paste(as.character(formula_bias), collapse = ' ')
 	# 		form_bias <- gsub(form_bias, pattern = 'I\\(', replacement = '')
 	# 		form_bias <- gsub(form_bias, pattern = '\\^2\\)', replacement = '²')
 	# 		form_bias <- gsub(form_bias, pattern = '*)', replacement = '×')
@@ -457,7 +457,7 @@ workflow_postmodeling_occurrence_laplace <- function(laplace, homoscedastic, zer
 	# 	zero_inflated = zero_inflated,
 	# 	formulae = list(
 	# 		formula_occs = formula_occs,
-	# 		formula_occs_bias = formula_occs_bias
+	# 		formula_bias = formula_bias
 	# 	),
 	# 	dharma_resids = data.table(
 	# 		test = c('spatial autocorrelation', 'uniformity', 'dispersion', 'outliers', 'quantiles, overall', 'quantiles, upper', 'quantiles, middle', 'quantiles, lower'),

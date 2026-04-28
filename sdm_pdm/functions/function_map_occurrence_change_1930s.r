@@ -7,7 +7,7 @@
 #' pred_vect_1930s	SpatVector with predictions for CONUS
 map_occurrence_change_1930s <- function(zero_inflated, pred_vect_nam, pred_vect_1930s) {
 
-	data_traits <- prepare_nonbiomass_data(facet = 'height', formula = ~ 1, log_precip = FALSE, n_response_curve_values = n_response_curve_values, calib = calib)
+	data_traits <- prepare_nonbiomass_data(facet = 'height', formula = ~ 1, n_response_curve_values = n_response_curve_values, calib = calib)
 
 	dust_bowl <- vect('./data_from_others/dust_bowl_counties_with_most_severe_wind_erosion.gpkg')
 	dust_bowl <- aggregate(dust_bowl)
@@ -24,25 +24,28 @@ map_occurrence_change_1930s <- function(zero_inflated, pred_vect_nam, pred_vect_
 	extent <- as.vector(extent)
 
 	nam <- vect('./data_from_gadm/gadm_4pt1_level_1_north_america_sans_alaska_lambert.gpkg')
+	nam <- simplifyGeom(nam, tolerance = 1000)
 	nam <- crop(nam, ext(extent_display))
 
 	# identify 1930s range core from wider distribution than we will show in the map
-	site_vect <- data_traits$site_vect_facet
+	site_vect <- data_traits$site_vect
 	site_vect <- project(site_vect, pred_vect_1930s)
 	extent_range_core <- ext(site_vect)
 	extent_range_core <- as.polygons(extent_range_core, crs = pred_vect_1930s)
 	extent_range_core <- buffer(extent_range_core, width = 500 * 1000) # nominal plot extent
 
 	pred_vect_conus_restricted <- crop(pred_vect_1930s, extent_range_core)
-	range_core <- delineate_range_core(pred_vect_conus_restricted, column = 'N_ag_county_mean_1930s', ag_core_quant = ag_core_quant)
+	range_core <- delineate_range_core(pred_vect_conus_restricted, column = 'N_ag_mean_1930s', core_quant = core_quant)
 
 	# change
-	focal_n <- unlist(pred_vect_1930s[['N_ag_county_mean_1930s']])
-	# delta_vect$delta_n <- focal_n / delta_vect$N_ag_county_mean_sq
-	delta_vect$delta_n <- (focal_n - delta_vect$N_ag_county_mean_sq) / delta_vect$N_ag_county_mean_sq
+	focal_n <- unlist(pred_vect_1930s[['N_ag_mean_1930s']])
+	# delta_vect$delta <- focal_n / delta_vect$N_ag_mean_sq
+	delta_vect$delta <- (focal_n - delta_vect$N_ag_mean_sq) / delta_vect$N_ag_mean_sq
 	
-	focal_psi <- unlist(pred_vect_1930s[['psi_county_1930s']])
-	delta_vect$delta_psi <- focal_psi - delta_vect$psi_county_sq
+	if (zero_inflated) {
+		focal_psi <- unlist(pred_vect_1930s[['psi_1930s']])
+		delta_vect$delta_psi <- focal_psi - delta_vect$psi_sq
+	}
 	
 	delta_vect_display <- crop(delta_vect, ext(extent_display))
 
@@ -53,11 +56,11 @@ map_occurrence_change_1930s <- function(zero_inflated, pred_vect_nam, pred_vect_
 		layer_spatial(nam, fill = 'gainsboro', color = NA) +
 		layer_spatial(
 			delta_vect_display,
-			aes(fill = delta_n),
+			aes(fill = delta),
 			color = NA
 		) +
 		scale_fill_gradient2(
-			name = 'Change (%)',
+			name = 'Change',
 			low = '#c51b7d',
 			mid = '#f7f7f7',
 			high = '#4d9221',
@@ -114,9 +117,9 @@ map_occurrence_change_1930s <- function(zero_inflated, pred_vect_nam, pred_vect_
 
 	} # if zero-inflated
 
-	filename <- paste0(out_dir, '/map_abundance_change_1930s.png')
+	filename <- paste0(out_dir, '/map_1930s_abundance_change.png')
 	width <- if (zero_inflated) { 14 } else { 7 }
-	ggsave(maps, filename = filename, width = width, height = 8, dpi = 200, bg = 'white')
+	if (!is.null(out_dir)) ggsave(maps, filename = filename, width = width, height = 8, dpi = 200, bg = 'white')
 	
 	invisible(maps)
 

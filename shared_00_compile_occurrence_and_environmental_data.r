@@ -265,12 +265,13 @@
 # 	names(sand) <- 'sand'
 # 	names(soc) <- 'soc'
 
-# 	nitrogen <- (nitrogen / 100) / 1000
+	# # nitrogen <- (nitrogen / 100) / 1000
+# 	nitrogen <- nitrogen / 1000
 # 	ph <- ph / 10
 # 	cec <- cec / 1000
-# 	clay <- clay / 1000
-# 	silt <- silt / 1000
-# 	sand <- sand / 1000
+# 	clay <- clay / 10
+# 	silt <- silt / 10
+# 	sand <- sand / 10
 # 	soc <- soc / 100
 
 # 	vars <- c('nitrogen', 'ph', 'cec', 'clay', 'silt', 'sand', 'soc')
@@ -348,7 +349,7 @@
 # 		say('nitrogen ................. soil N content (proportion)')
 # 		say('ph ....................... pH, measured in water')
 # 		say('cec ...................... cation exchange capacity, meq/100 g of soil')
-# 		say('sand, silt, clay ......... unit-less (proportion: [0, 1])')
+# 		say('sand, silt, clay ......... unit-less (percentage: [0, 100])')
 # 		say('soc ...................... soil organic carbon (kg of C / m2 ???, or % dry weight ???)')
 
 # 	sink()
@@ -515,88 +516,139 @@
 # 	ggsave(bio1, filename = './outputs_loretta/climate_21_to_0_Kybp_at_centroids_of_counties_with_AG_bio01.png', width = 12, height = 8)
 # 	ggsave(bio12, filename = './outputs_loretta/climate_21_to_0_Kybp_at_centroids_of_counties_with_AG_bio12.png', width = 12, height = 8)
 
-say('#############################################################')
-say('### extract 1930s climate data from PRISM for each county ###')
-say('#############################################################')
+# say('#############################################################')
+# say('### extract 1930s climate data from PRISM for each county ###')
+# say('#############################################################')
 
-	### present-day vector
-	occs <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020_climatena.gpkg')
-	occs <- occs[ , c('country', 'state_province', 'county', 'insolation_2000_growing_season_kWh_per_m2', 'nitrogen', 'ph', 'sand', 'silt', 'clay')]
-	occs <- occs[occs$state_province %in% c('Colorado', 'Nebraska', 'Kansas', 'Oklahoma', 'Texas', 'New Mexico')]
+# 	### present-day vector
+# 	occs <- vect('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1961_2020_climatena.gpkg')
+# 	occs <- occs[ , c('country', 'state_province', 'county', 'insolation_2000_growing_season_kWh_per_m2', 'nitrogen', 'ph', 'sand', 'silt', 'clay')]
+# 	occs <- occs[occs$state_province %in% c('Colorado', 'Nebraska', 'Kansas', 'Oklahoma', 'Texas', 'New Mexico')]
 
-	period <- '1931_1940'
+# 	period <- '1931_1940'
 
-	# BIOCLIMs
-	bcs <- rast(paste0('C:/Kaji/Research Data/PRISM/lt81m/bioclims_', period, '.tif'))
+# 	# BIOCLIMs
+# 	bcs <- rast(paste0('C:/Kaji/Research Data/PRISM/lt81m/bioclims_', period, '.tif'))
 
-	# extract
-	this_occs <- project(occs, bcs)
-	bcs <- crop(bcs, this_occs)
-	env_at_occs_by_cell <- extract(bcs, this_occs, exact = TRUE)
+# 	# extract
+# 	this_occs <- project(occs, bcs)
+# 	bcs <- crop(bcs, this_occs)
+# 	env_at_occs_by_cell <- extract(bcs, this_occs, exact = TRUE)
 
-	# aridity
-	env_at_occs_by_cell$aridity <- (env_at_occs_by_cell$bio1 + 10) / ((env_at_occs_by_cell$bio12 + 1) / 1000)
+# 	# aridity
+# 	env_at_occs_by_cell$aridity <- (env_at_occs_by_cell$bio1 + 10) / ((env_at_occs_by_cell$bio12 + 1) / 1000)
 
-	# calculate weighted average values
-	# weights are proportion of each cell covered by the polygon
-	env_at_occs <- data.frame()
+# 	# calculate weighted average values
+# 	# weights are proportion of each cell covered by the polygon
+# 	env_at_occs <- data.frame()
 
-	vars <- names(env_at_occs_by_cell)
-	vars <- vars[!(vars %in% c('ID', 'fraction'))]
-	IDs <- unique(env_at_occs_by_cell$ID)
+# 	vars <- names(env_at_occs_by_cell)
+# 	vars <- vars[!(vars %in% c('ID', 'fraction'))]
+# 	IDs <- unique(env_at_occs_by_cell$ID)
 
-	for (ID in IDs) {
+# 	for (ID in IDs) {
 
-		vals <- rep(NA_real_, length(vars))
-		names(vals) <- vars
+# 		vals <- rep(NA_real_, length(vars))
+# 		names(vals) <- vars
 		
-		fraction <- env_at_occs_by_cell$fraction[env_at_occs_by_cell$ID == ID]
-		fraction_sum <- sum(fraction, na.rm = TRUE)
+# 		fraction <- env_at_occs_by_cell$fraction[env_at_occs_by_cell$ID == ID]
+# 		fraction_sum <- sum(fraction, na.rm = TRUE)
 		
-		for (var in vars) {
+# 		for (var in vars) {
 		
-			var_vals <- env_at_occs_by_cell[env_at_occs_by_cell$ID == ID, var]
-			val <- sum(var_vals * fraction, na.rm = TRUE) / fraction_sum
+# 			var_vals <- env_at_occs_by_cell[env_at_occs_by_cell$ID == ID, var]
+# 			val <- sum(var_vals * fraction, na.rm = TRUE) / fraction_sum
 
-			vals[[var]] <- val
+# 			vals[[var]] <- val
 		
+# 		}
+		
+# 		vals <- round(vals, 2)
+# 		vals <- rbind(vals)
+# 		env_at_occs <- rbind(env_at_occs, vals, make.row.names = FALSE)
+
+# 	}
+
+# 	this_occs <- cbind(this_occs, env_at_occs)
+
+# 	writeVector(this_occs, paste0('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_', period, '_prism.gpkg')	, overwrite = TRUE)
+
+say('#####################################################################################')
+say('### extract 1950s PRISM climate and SoilGrids variables to McMillan 1964 AG sites ###')
+say('#####################################################################################')
+
+	mcm <- vect('./data_from_mcmillan/mcmillan_1964_fig_3_andropogon_gerardi.shp')
+	mcm <- buffer(mcm, width = 40 * 1000)
+
+	### 1952-1961 climate
+	fifties <- rast('C:/Kaji/Research Data/PRISM/lt81m/bioclims_1952_1961.tif')
+	clim_env <- extract(fifties, mcm, exact = TRUE, ID = TRUE)
+	clim_env$aridity <- (clim_env$bio1 + 10) / ((clim_env$bio12 + 1) / 1000)
+
+	aggregated <- data.table()
+	for (id in unique(clim_env$ID)) {
+		
+		this <- list()
+		fracts <- clim_env$fraction[clim_env$ID == id]
+		for (var in c(paste0('bio', 1:19), 'aridity')) {
+
+			vals <- clim_env[[var]][clim_env$ID == id]
+			vals <- vals * fracts
+			vals <- sum(vals, na.rm = TRUE) / sum(fracts[!is.na(vals)], na.rm = TRUE)
+
+			this$DUMMY <- vals
+			names(this)[length(this)] <- var
+
 		}
-		
-		vals <- round(vals, 2)
-		vals <- rbind(vals)
-		env_at_occs <- rbind(env_at_occs, vals, make.row.names = FALSE)
+
+		aggregated <- rbind(aggregated, as.data.table(this))
 
 	}
 
-	this_occs <- cbind(this_occs, env_at_occs)
+	mcm <- cbind(mcm, aggregated)
 
-	writeVector(this_occs, paste0('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_', period, '_prism.gpkg')	, overwrite = TRUE)
 
-# say('#####################################################################################')
-# say('### extract 1950s PRISM climate and SoilGrids variables to McMillan 1964 AG sites ###')
-# say('#####################################################################################')
+	### soil
+	ph <- rast('C:/Kaji/Research Data/SoilGrids/SoilGrids 2.0/phh2o_0-5cm_mean_northAmerica.tif')
+	sand <- rast('C:/Kaji/Research Data/SoilGrids/SoilGrids 2.0/sand_0-5cm_mean_northAmerica.tif')
+	silt <- rast('C:/Kaji/Research Data/SoilGrids/SoilGrids 2.0/silt_0-5cm_mean_northAmerica.tif')
+	clay <- rast('C:/Kaji/Research Data/SoilGrids/SoilGrids 2.0/clay_0-5cm_mean_northAmerica.tif')
+	nitrogen <- rast('C:/Kaji/Research Data/SoilGrids/SoilGrids 2.0/nitrogen_0-5cm_mean_northAmerica.tif')
 
-# 	mcm <- vect('./data_from_mcmillan/mcmillan_1964_fig_2_andropogon_gerardi.shp')
+	soil <- c(ph, sand, silt, clay, nitrogen)
+	names(soil) <- c('ph', 'sand', 'silt', 'clay', 'nitrogen')
 
-# 	### 1950s climate
-# 	fifties <- rast('C:/Kaji/Research Data/PRISM/lt81m/bioclims_1952_1961.tif')
-# 	clim <- extract(fifties, mcm, ID = FALSE)
-# 	clim$aridity <- (clim$bio1 + 10) / ((clim$bio12 + 1) / 1000)
+	# fill NA cells
+	soil <- focal(soil, w = 3, fun = 'mean', na.policy = 'only', na.rm = TRUE)
+	soil_env <- extract(soil, mcm, exact = TRUE, ID = TRUE)
 
-# 	### soil
-# 	ph <- rast('C:/Kaji/Research Data/SoilGrids/SoilGrids 2.0/phh2o_0-5cm_mean_northAmerica.tif')
-# 	sand <- rast('C:/Kaji/Research Data/SoilGrids/SoilGrids 2.0/sand_0-5cm_mean_northAmerica.tif')
-# 	silt <- rast('C:/Kaji/Research Data/SoilGrids/SoilGrids 2.0/silt_0-5cm_mean_northAmerica.tif')
-# 	clay <- rast('C:/Kaji/Research Data/SoilGrids/SoilGrids 2.0/clay_0-5cm_mean_northAmerica.tif')
+	soil_env$ph <- soil_env$ph / 10
+	soil_env$sand <- soil_env$sand / 10
+	soil_env$silt <- soil_env$silt / 10
+	soil_env$clay <- soil_env$clay / 10
+	soil_env$nitrogen <- soil_env$nitrogen / 1000
 
-# 	soil <- c(ph, sand, silt, clay)
-# 	names(soil) <- c('ph', 'sand', 'silt', 'clay')
+	aggregated <- data.table()
+	for (id in unique(soil_env$ID)) {
 
-# 	# fill NA cells
-# 	soil <- focal(soil, w = 3, fun = 'mean', na.policy = 'only', na.rm = TRUE)
-# 	soil_env <- extract(soil, mcm, ID = FALSE)
+		this <- list()
+		fracts <- soil_env$fraction[soil_env$ID == id]
+		for (var in names(soil)) {
 
-# 	mcm <- cbind(mcm, clim, soil_env)
-# 	writeVector(mcm, './data_from_mcmillan/mcmillan_1964_fig_2_ag_prism_1952_1961_soilgrids_top_5_cm.gpkg')
+			vals <- soil_env[[var]][soil_env$ID == id]
+			vals <- vals * fracts
+			vals <- sum(vals, na.rm = TRUE) / sum(fracts[!is.na(vals)], na.rm = TRUE)
+
+			this$DUMMY <- vals
+			names(this)[length(this)] <- var
+
+		}
+
+		aggregated <- rbind(aggregated, as.data.table(this))
+
+	}
+
+	mcm <- cbind(mcm, aggregated)
+	writeVector(mcm, './data_from_mcmillan/mcmillan_1964_fig_3_ag_prism_1952_1961_soilgrids_top_5_cm.gpkg', overwrite = TRUE)
 
 say('DONE!', level = 1, deco = '!')

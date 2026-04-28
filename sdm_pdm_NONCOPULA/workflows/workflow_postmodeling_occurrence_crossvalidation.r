@@ -189,65 +189,7 @@ workflow_postmodeling_occurrence_crossvalidation <- function(formula_occs, formu
 		)
 	)
 
-	### nimble crossvalidation method
-	# if (!trial) {
-
-	# 	loss_fx <- mae_fx
-
-	# 	say('Cross-validation loss function:')
-	# 	print(loss_fx)
-	# 	say('')
-
-	# 	folds_fx <- folds_for_occurrences # change according to response data type we're using
-
-	# 	cv <- runCrossValidate(
-	# 		MCMCconfiguration = conf,
-	# 		k = k_folds, # universal setting
-	# 		foldFunction = folds_fx,
-	# 		lossFunction = loss_fx,
-	# 		MCMCcontrol = list(niter = niter, nburnin = nburnin),
-	# 		returnSamples = FALSE,
-	# 		nCores = 1,
-	# 		nBootReps = 200,
-	# 		silent = FALSE
-	# 	)
-
-	# 	mean_form <- paste(as.character(formula_occs), collapse = ' ')
-	# 	mean_form <- gsub(mean_form, pattern = 'I\\(', replacement = '')
-	# 	mean_form <- gsub(mean_form, pattern = '\\^2\\)', replacement = '²')
-	# 	mean_form <- gsub(mean_form, pattern = '*)', replacement = '×')
-	# 	form <- paste0(trait, ' ', mean_form)
-
-	# 	crossvalidation <- data.table(
-	# 		model = form,
-	# 		k = 'summary',
-	# 		cv_value = cv$CVvalue,
-	# 		cv_value_se = cv$CVstandardError
-	# 	)
-
-	# 	for (k in 1:k_folds) {
-		
-	# 		crossvalidation <- rbind(
-	# 			crossvalidation,
-	# 			data.table(
-	# 				model = form,
-	# 				k = k,
-	# 				cv_value = cv$foldCVinfo[[k]][1],
-	# 				cv_value_se = cv$foldCVinfo[[k]][2]
-	# 			)
-	# 		)
-
-	# 	}
-
-	# 	# sink(paste0(out_dir, '/cross_validation_occurrence.txt'), split = TRUE)
-	# 	# say('GEO-FOLD CROSS VALIDATION')
-	# 	# say(date(), post = 2)
-	# 	# say('Number of geo-folds: ', k_folds, post = 2)
-	# 	# print(cv)
-	# 	# sink()
-
-	# }
-
+	# remember
 	meta_crossvalidation <- list(
 		facet = 'occurrence',
 		date = date(),

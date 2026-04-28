@@ -9,16 +9,18 @@
 #' formula_biomass_sigma 	Biomass-environment formula for site-level sd.
 #' formula_psi 				Biomass-environment probability of 0 biomass.
 #' resp_distrib		 		Response distribution: 'gamma' or 'lognormal'
-#' log_precip				If `TRUE`, use log of BIOs 12-14 and 16-19.
 #' transform 				Either 'softplus' or 'exponential' or 'identity'
 #' crossvalidate 			If `TRUE`, do cross-validations.
 #' out_dir 					Folder in which to save results.
-workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip, formula_facet, formula_psi, resp_distrib, log_precip, transform, crossvalidate, out_dir) {
+workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip, formula_facet, formula_psi, resp_distrib, transform, crossvalidate, out_dir) {
 
 	facet_nice <- get_nice_trait(facet)
+	facet_short <- facet_nice$short
+	facet_units <- facet_nice$units
+
 	zero_inflated <- !is.null(formula_psi)
 
-	data_facet <- prepare_nonbiomass_data(facet = facet, formula_facet = formula_facet, log_precip = log_precip, n_response_curve_values = n_response_curve_values, calib = calib)
+	data_facet <- prepare_nonbiomass_data(facet = facet, formula_facet = formula_facet, n_response_curve_values = n_response_curve_values, calib = calib)
 
 	### FACET: plant-level residuals analysis
 	#########################################
@@ -70,7 +72,7 @@ workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip
 		lower_est <- apply(preds, 2, quantile, 0.025)
 		upper_est <- apply(preds, 2, quantile, 0.975)
 
-		obs_est <- as.data.table(data_facet$site_vect_biomass)
+		obs_est <- as.data.table(data_facet$site_vect)
 		obs_est$mean_est <- mean_est
 		obs_est$upper_est <- upper_est
 		obs_est$lower_est <- lower_est
@@ -79,13 +81,11 @@ workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip
 		max_val <- 1.05 * max(obs_est$upper_est)
 		lim <- c(min_val, max_val)
 
-		facet_short <- facet_nice$short
-		facet_units <- facet_nice$units
 		if (facet_units != '') facet_units <- paste0('(', facet_units, ')')
 
 		obs_vs_est <- ggplot() +
 			geom_abline(intercept = 0, slope = 1) +
-			geom_point(obs_est, mapping = aes(x = mean_est, y = mean_est), size = 3, pch = 1) +
+			geom_point(obs_est, mapping = aes(x = mean_est, y = get(paste0(facet, '_mean'))), size = 3, pch = 1) +
 			geom_errorbar(obs_est, mapping = aes(x = mean_est, ymin = lower_est, ymax = upper_est), width = 0) +
 			coord_cartesian(xlim = lim, ylim = lim) +
 			xlab(paste0('Observed mean site-level ', facet_short, ' ', facet_units)) +
@@ -109,7 +109,7 @@ workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip
 		site_ids <- unique(data_facet$raw_data_facet$SITE)
 		for (i in 1:constants$n_pheno_sites) residuals_by_site[i] <- mean(residuals_by_plant[data_facet$raw_data_facet$SITE == site_ids[i]])
 
-		site_vect_facet_resid <- data_facet$site_vect_facet
+		site_vect_facet_resid <- data_facet$site_vect
 		site_vect_facet_resid$residual <- residuals_by_site
 
 		coords <- as.data.frame(crds(project(site_vect_facet_resid, enmSdmX::getCRS('WGS84'))))
@@ -120,6 +120,7 @@ workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip
 		moran_p <- paste0('Moran P = ', sprintf('%.3f', round(moran_p, 3)))
 
 		nam <- vect('./data_from_gadm/gadm_4pt1_level_1_north_america_sans_alaska_lambert.gpkg')
+		nam <- simplifyGeom(nam, tolerance = 1000)
 
 		# extent
 		extent <- buffer(site_vect_facet_resid, width = 200 * 1000)
@@ -159,10 +160,12 @@ workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip
 
 		for (i in seq_len(data_facet$n_covariates)) {
 
-			if (data_facet$covariates_facet[i] == 'ph') {
+			covariate <- data_facet$covariates[i]
+
+			if (covariate == 'ph') {
 				x <- data_facet$raw_data_facet[['site_ph']]
 			} else {
-				x <- data_facet$raw_data_facet[[data_facet$covariates_facet[i]]]
+				x <- data_facet$raw_data_facet[[covariate]]
 			}
 
 			this_x <- data.frame(
@@ -179,17 +182,19 @@ workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip
 			resids_vs_covariates_results <- rbind(
 				resids_vs_covariates_results,
 				data.table(
-					covariate = data_facet$covariates_facet[i],
+					covariate = data_facet$covariates[i],
 					F = F,
 					p = p,
 					significance = sig
 				)
 			)
 
+			# if (grep(covariate, pattern = 'log10_p1')) x <- x^10 + 1
+
 			resids_vs_covariates[[i]] <- ggplot(this_x, aes(x = x, y = y)) +
 				geom_point() +
 				geom_smooth(method = loess, formula = y ~ x, se = FALSE) +
-				xlab(data_facet$terms_biomass[i]) +
+				xlab(data_facet$terms[i]) +
 				ylab('Residual value') +
 				ggtitle(paste0('DHARMa Residuals for ', facet_short))
 
@@ -221,37 +226,201 @@ workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip
 	############################
 	say(toupper(facet), ': response curves', level = 2)
 	
-		responses <- graph_response_curves_biomass_nonbiomass_vs_environment(
-			facet = facet,
-			out_dir = out_dir,
-			chains = chains,
-			resp_type = 'mu',
-			log_precip = log_precip,
-			data_biomass_nonbiomass = data_facet,
-			quant_threshold = 0.5
-		)
+		n_covariates <- data_facet$n_covariates
 
-		if (zero_inflated) {
+		responses <- list()
+		for (i in seq_len(n_covariates)) {
 
-			responses <- graph_response_curves_biomass_nonbiomass_vs_environment(
-				facet = facet,
-				out_dir = out_dir,
-				chains = chains,
-				resp_type = 'psi',
-				log_precip = log_precip,
-				data_biomass_nonbiomass = data_facet,
-				quant_threshold = 0.5
+			covariate <- data_facet$covariates[i]
+
+			x <- data_facet$resp_curves_x
+			if (n_covariates > 1) x <- x[ , , i]
+
+			preds <- predict_nonbiomass_single_trait(chains = chains, x = x, resp_distrib = resp_distrib, transform = transform)
+			
+			hdi <- apply(preds, 2, function(x) hdi(x, credMass = 0.90))
+			lowers <- hdi[1, ]
+			uppers <- hdi[2, ]
+
+			medians <- apply(preds, 2, median)
+
+			unscaled <- data_facet$resp_curves_x_unscaled
+			x_unscaled <- unscaled[ , covariate, drop = TRUE]
+			if (covariate %in% paste0('bio', c(12:14, 16:19), '_log10p1')) x_unscaled <- 10^x_unscaled - 1
+
+			center <- data.table(
+				x = x_unscaled,
+				y = medians
 			)
 
+			cis <- data.table(
+				x = c(x_unscaled, rev(x_unscaled)),
+				ci = c(lowers, rev(uppers))
+			)
+
+			nice_covariate <- get_nice_predictor(covariate)
+			title <- paste0(facet_nice$short, ' versus ', nice_covariate$short)
+			xlab <- nice_covariate$long
+			ylab <- facet_nice$long
+
+			response <- ggplot() +
+				geom_polygon(data = cis, mapping = aes(x = x, y = ci), fill = 'lightblue', alpha = 0.5) +
+				geom_line(data = center, mapping = aes(x = x, y = y), color = 'black') +
+				xlab(xlab) +
+				ylab(ylab) +
+				ggtitle(title) +
+				theme(
+					legend.position = 'none',
+					plot.title = element_text(size = 14),
+					axis.title = element_text(size = 12),
+					axis.text = element_text(size = 12)
+				)
+
+			data_by_site <- data_facet$raw_data_facet
+
+			### add measurments
+			if (covariate == 'ph') {
+				names(data_by_site)[names(data_by_site) == 'site_ph'] <- 'ph'
+				x <- data_facet$raw_data_facet[ , .(val = mean(.SD[['site_ph']])), by = SITE][['val']]
+			} else {
+				x <- data_facet$raw_data_facet[ , .(val = mean(.SD[[covariate]])), by = SITE][['val']]
+				if (covariate %in% paste0('bio', c(12:14, 16:19), '_log10p1')) x <- 10^x - 1
+			}
+			
+			observed <- data_facet$raw_data_facet[ , .(val = median(get(get_raw_trait_name_from_rfriendly(facet)))), by = SITE][['val']]
+			
+			data_by_site_collated <- data.table(
+				x = x,
+				y = observed,
+				site = unique(data_by_site$SITE)
+			)
+
+			response <- response + geom_point(
+				data = data_by_site_collated,
+				mapping = aes(x = x, y = y, fill = site),
+				pch = 21, size = 6
+			)
+
+			data_by_plant <- data_facet$raw_data_facet
+
+			if (covariate == 'ph') {
+				data_by_plant$x <- data_by_plant[['site_ph']]
+			} else {
+				data_by_plant$x <- data_by_plant[[covariate]]
+			}
+			if (covariate %in% paste0('bio', c(12:14, 16:19), '_log10p1')) data_by_plant$x <- 10^data_by_plant$x - 1
+			facet_raw <- get_raw_trait_name_from_rfriendly(facet)
+			data_by_plant$y <- data_by_plant[[facet_raw]]
+			data_by_plant$site <- data_by_plant$SITE
+
+			response <- response + geom_point(
+				data = data_by_plant,
+				mapping = aes(x = x, y = y, fill = site),
+				pch = 21, size = 2
+			)
+
+			responses[[i]] <- response
+
 		}
+
+		if (n_covariates == 2) {
+			ncol <- 2
+		} else {
+			ncol <- ceiling(sqrt(n_covariates))
+		}
+		width <- 8 * ncol
+		height <- 7 * ceiling(data_facet$n_covariates / ncol)
+
+		responses <- plot_grid(plotlist = responses, ncol = ncol)
+
+		filename <- paste0(out_dir, '/response_curves_', facet, '_median_hdpi.png')
+		ggsave(plot = responses, filename = filename, width = width, height = height, dpi = 120)
+
+	### FACET-PSI: response curves
+	###############################
+	say(toupper(facet), '-PSI : response curves', level = 2)
+	
+		n_covariates <- data_facet$n_covariates
+
+		responses <- list()
+		for (i in seq_len(n_covariates)) {
+
+			covariate <- data_facet$covariates[i]
+
+			x <- data_facet$resp_curves_x
+			if (n_covariates > 1) x <- x[ , , i]
+
+			preds <- predict_psi(chains = chains, x = x)
+			
+			hdi <- apply(preds, 2, function(x) hdi(x, credMass = 0.90))
+			lowers <- hdi[1, ]
+			uppers <- hdi[2, ]
+
+			medians <- apply(preds, 2, median)
+
+			unscaled <- data_facet$resp_curves_x_unscaled
+			x_unscaled <- unscaled[ , covariate, drop = TRUE]
+			if (covariate %in% paste0('bio', c(12:14, 16:19), '_log10p1')) x_unscaled <- 10^x_unscaled - 1
+
+			center <- data.table(
+				x = x_unscaled,
+				y = medians
+			)
+
+			cis <- data.table(
+				x = c(x_unscaled, rev(x_unscaled)),
+				ci = c(lowers, rev(uppers))
+			)
+
+			rug <- data.table(
+				x = data_facet$site_data_raw[[covariate]]
+			)
+			if (covariate %in% paste0('bio', c(12:14, 16:19), '_log10p1')) rug$x <- 10^rug$x - 1
+
+			nice_covariate <- get_nice_predictor(covariate)
+			title <- paste0('Probability of Occurrence versus ', nice_covariate$short)
+			xlab <- nice_covariate$long
+			ylab <- 'Probability of Occurrence'
+
+			response <- ggplot() +
+				geom_polygon(data = cis, mapping = aes(x = x, y = ci), fill = 'coral', alpha = 0.5) +
+				geom_line(data = center, mapping = aes(x = x, y = y), color = 'darkred') +
+				geom_rug(data = rug, aes(x = x, y = 0), outside = FALSE) +
+				xlab(xlab) +
+				ylab(ylab) +
+				ylim(0, 1) +
+				ggtitle(title, subtitle = facet_nice$short) +
+				theme(
+					legend.position = 'none',
+					plot.title = element_text(size = 14),
+					axis.title = element_text(size = 12),
+					axis.text = element_text(size = 12)
+				)
+
+			responses[[i]] <- response
+
+		}
+
+		if (n_covariates == 2) {
+			ncol <- 2
+		} else {
+			ncol <- ceiling(sqrt(n_covariates))
+		}
+		width <- 8 * ncol
+		height <- 7 * ceiling(data_facet$n_covariates / ncol)
+
+		responses <- plot_grid(plotlist = responses, ncol = ncol)
+
+		filename <- paste0(out_dir, '/response_curves_psi_', facet, '_median_hdpi.png')
+		ggsave(plot = responses, filename = filename, width = width, height = height, dpi = 120)
 
 	### FACET: maps
 	#################
 	say(toupper(facet), ': burn prediction vectors', level = 2)
 
-		pred_vect_nam <- burn_nonbiomass_into_vector(facet = facet, demesne = 'nam', chains = chains, formula_facet = formula_facet, formula_psi = formula_psi, resp_distrib = resp_distrib, transform = transform, log_precip = log_precip)
+		pred_vect_nam <- burn_nonbiomass_into_vector(facet = facet, demesne = 'nam', chains = chains, formula_facet = formula_facet, formula_psi = formula_psi, resp_distrib = resp_distrib, transform = transform)
 
-		pred_vect_1930s <- burn_nonbiomass_into_vector(facet = facet, demesne = '1930s', chains = chains, formula_facet = formula_facet, formula_psi = formula_psi, resp_distrib = resp_distrib, transform = transform, log_precip = log_precip)
+		pred_vect_1930s <- burn_nonbiomass_into_vector(facet = facet, demesne = '1930s', chains = chains, formula_facet = formula_facet, formula_psi = formula_psi, resp_distrib = resp_distrib, transform = transform)
 
 		writeVector(pred_vect_nam, paste0(out_dir, '/prediction_vector_nam.gpkg'), overwrite = TRUE)
 		writeVector(pred_vect_1930s, paste0(out_dir, '/prediction_vector_conus_1930s.gpkg'), overwrite = TRUE)
@@ -273,13 +442,13 @@ workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip
 			out_dir = out_dir,
 			filename_append = 'present',
 			pred_vect_nam = pred_vect_nam,
-			response_var = paste0('mu_', facet, '_county_mean_sq'),
+			response_var = paste0(facet, '_mean_sq'),
 			response_var_type = 'mean',
 			data_occs = data_occs,
 			data_biomass_nonbiomass = data_facet,
-			title = bquote('Present-day site-level mean ' * italic('Andropogon gerardi') * ' ' * .(facet_nice$short)),
+			title = bquote('Present-day ' * .(facet_nice$short)),
 			subtitle = subtitle,
-			legend_title = facet_nice$short
+			legend_title = paste0(facet_nice$short, ifelse(facet_nice$units == '', '', paste0('\n(', facet_nice$units, ')')))
 		)
 
 		if (!is.null(formula_psi)) {
@@ -288,8 +457,8 @@ workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip
 				out_dir = out_dir,
 				filename_append = 'present',
 				pred_vect_nam = pred_vect_nam,
-				response_var = 'psi_county_sq',
-				title = bquote('Present-day probability of presence'),
+				response_var = 'psi_sq',
+				title = bquote('Present-day Probability of Occurrence'),
 				subtitle = subtitle
 			)
 
@@ -304,12 +473,12 @@ workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip
 
 			say(fut)
 
-			response_var <- paste0('mu_', facet, '_county_mean_', fut)
+			response_var <- paste0(facet, '_mean_', fut)
 
 			mean_form <- paste(as.character(formula_facet), collapse = ' ')
 			subtitle <- paste0(facet_nice$short, ' ~ ', mean_form, '  | SSP ', substr(fut, 4, 6), ' ', substr(fut, 8, 11), '-', substr(fut, 13, 16))
 
-			map_biomass_fut <- map_biomass_nonbiomass(
+			map <- map_biomass_nonbiomass(
 				facet = facet,
 				out_dir = out_dir,
 				filename_append = fut,
@@ -318,19 +487,19 @@ workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip
 				response_var_type = 'mean',
 				data_occs = data_occs,
 				data_biomass_nonbiomass = data_facet,
-				title = bquote('Future mean ' * italic('Andropogon gerardi') * ' ' * .(capIt(facet_nice$short))),
+				title = bquote('Future ' * .(capIt(facet_nice$short))),
 				subtitle = subtitle,
-				legend_title = paste0(facet_nice$short, ifelse(facet_nice$units != '', paste0('\n(', facet_nice$units, ')', '')))
+				legend_title = paste0(facet_nice$short, ifelse(facet_nice$units == '', '', paste0('\n(', facet_nice$units, ')')))
 			)
 
 			if (!is.null(formula_psi)) {
 
-				map_fut_psi <- map_psi(
+				map <- map_psi(
 					out_dir = out_dir,
 					filename_append = fut,
 					pred_vect_nam = pred_vect_nam,
-					response_var = paste0('psi_county_', fut),
-					title = 'Future probability of presence',
+					response_var = paste0('psi_', fut),
+					title = 'Future Probability of Occurrence',
 					subtitle = subtitle
 				)
 
@@ -347,13 +516,13 @@ workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip
 
 			say(fut)
 
-			response_var <- paste0('mu_', facet, '_county_mean_', fut)
-			title <- bquote('Change in ' * italic('Andropogon gerardi') * ' ' * .(capIt(facet_nice$short)))
+			response_var <- paste0(facet, '_mean_', fut)
+			title <- bquote('Change in ' * .(capIt(facet_nice$short)))
 
 			mean_form <- paste(as.character(formula_facet), collapse = ' ')
 			subtitle <- paste0(capIt(facet_nice$short), ' ', mean_form, '  | SSP ', substr(fut, 4, 6), ' ', substr(fut, 8, 11), '-', substr(fut, 13, 16))
 
-			map_change <- map_biomass_nonbiomass_change(
+			map <- map_biomass_nonbiomass_change(
 				facet = facet,
 				out_dir = out_dir,
 				filename_append = fut,
@@ -370,14 +539,14 @@ workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip
 
 			if (!is.null(formula_psi)) {
 
-				map_change_in_psi <- map_psi_change(
+				map <- map_psi_change(
 					out_dir = out_dir,
 					filename_append = fut,
 					fut = fut,
 					pred_vect_nam = pred_vect_nam,
-					response_var = paste0('psi_county_', fut),
-					response_var_sq = 'psi_county_sq',
-					title = 'Change in probability of presence',
+					response_var = paste0('psi_', fut),
+					response_var_sq = 'psi_sq',
+					title = 'Change in Probability of Occurrence',
 					subtitle = subtitle
 				)
 
@@ -394,7 +563,6 @@ workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip
 			data_biomass_nonbiomass = data_facet,
 			pred_vect_nam = pred_vect_nam,
 			pred_vect_1930s = pred_vect_1930s,
-			formula_mu = formula_facet,
 			formula_psi = formula_psi
 		)
 
@@ -406,7 +574,7 @@ workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip
 		say(toupper(facet), ': cross-validation', level = 2)
 
 		max_k_folds <- if (trial) { 1 } else { k_folds }
-		crossvalidation_df <- data.table()
+		cv_df <- data.table()
 		for (k in 1:max_k_folds) {
 
 			say('fold: ', k, level = 3)
@@ -428,17 +596,15 @@ workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip
 			fold_constants$n_plants <- fold_constants$n_plants - length(indices)
 			fold_constants$x_by_site_facet <- fold_constants$x_by_site_facet[train_sites, ]
 			fold_constants$n_pheno_sites <- length(train_sites)
-			fold_constants$n_counties <- 1 # faster!
-			fold_constants$n_response_curve_values <- 1 # faster!
 		
 			# inits
 			fold_inits$log_site_facet_mu <- fold_inits$log_site_facet_mu[train_sites]
 			fold_inits$log_sigma_facet_within_sites <- log(mc_extract(chains, 'sigma_facet_within_sites'))
-			fold_inits$log_sigma_facet_among_sites <- log(mc_extract(chains, 'sigma_facet_among_sites'))
+			# fold_inits$log_sigma_facet_among_sites <- log(mc_extract(chains, 'sigma_facet_among_sites'))
 			fold_inits$y_facet_sim <- fold_inits$y_facet_sim[-indices]
 			fold_inits$beta_facet <- mc_extract(chains, 'beta_facet', j = TRUE)
 			fold_inits$beta_psi <- mc_extract(chains, 'beta_psi', j = TRUE)
-			fold_inits$z_site <- fold_inits$z_site[train_sites]
+			# fold_inits$z_site <- fold_inits$z_site[train_sites]
 
 			fold_model <- nimbleModel(
 				code = model_code,
@@ -485,10 +651,10 @@ workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip
 
 			fold_chains <- runMCMC(
 				fold_compiled$fold_build,
-				niter = 2 * niter,
-				nburnin = 2 * nburnin,
-				thin = 2 * thin,
-				nchains = 1,
+				niter = niter,
+				nburnin = nburnin,
+				thin = thin,
+				nchains = 2,
 				inits = fold_inits,
 				progressBar = TRUE,
 				samplesAsCodaMCMC = TRUE,
@@ -502,13 +668,7 @@ workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip
 
 			### evaluate predictions
 			# observed site means
-			site_means <- c()
-			for (i in seq_along(test_sites)) {
-				
-				test_site <- test_sites[i]
-				site_means <- c(site_means, mean(data$y_facet[constants$site_index_facet == test_site]))
-
-			}
+			site_means <- data_facet$site_means[test_sites]
 
 			# RMSE, mean abs prediction error, mean absolute error, correlation between observed and predicted
 			rmse <- mape <- mae <- correl <- rep(NA_real_, nrow(preds))
@@ -529,8 +689,8 @@ workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip
 			# proportion of observations within the inner 90th quantile of the distribution of predicted values
 			obs_quants_prop_in_inner_90 <- sum(obs_quants >= 0.05 & obs_quants <= 0.95) / length(obs_quants)
 
-			crossvalidation_df <- rbind(
-				crossvalidation_df,
+			cv_df <- rbind(
+				cv_df,
 				data.table(
 					k = k,
 
@@ -566,37 +726,37 @@ workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip
 
 		} # next fold
 
-		crossvalidation_df <- rbind(
-			crossvalidation_df,
+		cv_df <- rbind(
+			cv_df,
 			data.table(
 					k = 'means',
 
-					n_train_sites = mean(crossvalidation_df$n_train_sites),
-					n_test_sites = mean(crossvalidation_df$n_test_sites),
+					n_train_sites = mean(cv_df$n_train_sites),
+					n_test_sites = mean(cv_df$n_test_sites),
 
-					n_train_plants = mean(crossvalidation_df$n_train_plants),
-					n_test_plants = mean(crossvalidation_df$n_test_plants),
+					n_train_plants = mean(cv_df$n_train_plants),
+					n_test_plants = mean(cv_df$n_test_plants),
 					
-					correl_lower = mean(crossvalidation_df$correl_lower),
-					correl_mean = mean(crossvalidation_df$correl_mean),
-					correl_upper = mean(crossvalidation_df$correl_upper),
+					correl_lower = mean(cv_df$correl_lower),
+					correl_mean = mean(cv_df$correl_mean),
+					correl_upper = mean(cv_df$correl_upper),
 
-					mae_lower = mean(crossvalidation_df$mae_lower),
-					mae_mean = mean(crossvalidation_df$mae_mean),
-					mae_upper = mean(crossvalidation_df$mae_upper),
+					mae_lower = mean(cv_df$mae_lower),
+					mae_mean = mean(cv_df$mae_mean),
+					mae_upper = mean(cv_df$mae_upper),
 
-					mape_lower = mean(crossvalidation_df$mape_lower),
-					mape_mean = mean(crossvalidation_df$mape_mean),
-					mape_upper = mean(crossvalidation_df$mape_upper),
+					mape_lower = mean(cv_df$mape_lower),
+					mape_mean = mean(cv_df$mape_mean),
+					mape_upper = mean(cv_df$mape_upper),
 
-					rmse_lower = mean(crossvalidation_df$rmse_lower),
-					rmse_mean = mean(crossvalidation_df$rmse_mean),
-					rmse_upper = mean(crossvalidation_df$rmse_upper),
+					rmse_lower = mean(cv_df$rmse_lower),
+					rmse_mean = mean(cv_df$rmse_mean),
+					rmse_upper = mean(cv_df$rmse_upper),
 
-					obs_quants_min = mean(crossvalidation_df$obs_quants_min),
-					obs_quants_mean = mean(crossvalidation_df$obs_quants_mean),
-					obs_quants_max = mean(crossvalidation_df$obs_quants_max),
-					obs_quants_prop_in_inner_90 = mean(crossvalidation_df$obs_quants_prop_in_inner_90)
+					obs_quants_min = mean(cv_df$obs_quants_min),
+					obs_quants_mean = mean(cv_df$obs_quants_mean),
+					obs_quants_max = mean(cv_df$obs_quants_max),
+					obs_quants_prop_in_inner_90 = mean(cv_df$obs_quants_prop_in_inner_90)
 
 			)
 		)
@@ -643,14 +803,13 @@ workflow_postmodeling_nonbiomass_single_facet <- function(facet, chains, descrip
 			formulae = formulae,
 			resp_distrib = resp_distrib,
 			transform = transform,
-			log_precip = log_precip,
 			dharma_resids = dharma_resids,
 			dharma_resids_vs_covariates = resids_vs_covariates_results,
 			fit_mu = c(correl_mu = correl_mu, rmse_mu = rmse_mu, mean_error_mu = mean_error_mu, mean_abs_error_mu = mean_abs_error_mu)
 		)
 
 		meta_facet$crossvalidation <- if (crossvalidate) {
-			crossvalidation_df
+			cv_df
 		} else {
 			NA
 		}

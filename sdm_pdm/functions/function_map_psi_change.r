@@ -1,16 +1,13 @@
 #' Map change in probability of a zero value
 #'
-#' @param out_dir Folder in which to save map.
-#' @param filename_append String to append to file name. Will have "_" prefixed to it.
-#' @param fut String indicating future scenario, for example, 'ssp245_2041_2070'.
-#' @param pred_vect_nam SpatVector with predictions.
-#' @param response_var Column in `pred_vect_nam` representing non-present-day predictions.
-#' @param response_var_sq Column in `pred_vect_nam` representing present-day predictions.
-#' @param site_vect SpatVector with sample sites.
-#' @param title Character for plot title.
-#' @param subtitle Character for plot subtitle.
-#' @param plot_range_core If `TRUE`, extract from `pred_vect_nam` the range core based on `N_ag_county_sq` and plot it.
-#' @param ag_core_quant Quantile used to delineate core from non-core.
+#' out_dir			Folder in which to save map. Leave as `NULL` to not save.
+#' filename_append	String to append to file name. Will have "_" prefixed to it.
+#' fut				String indicating future scenario, for example, 'ssp245_2041_2070'.
+#' pred_vect_nam	SpatVector with predictions.
+#' response_var		Column in `pred_vect_nam` representing non-present-day predictions.
+#' response_var_sq	Column in `pred_vect_nam` representing present-day predictions.
+#' title			Character for plot title.
+#' subtitle			Character for plot subtitle.
 map_psi_change <- function(
 	out_dir,
 	filename_append,
@@ -23,8 +20,10 @@ map_psi_change <- function(
 ) {
 
 	nam <- vect('./data_from_gadm/gadm_4pt1_level_1_north_america_sans_alaska_lambert.gpkg')
-	data_biomass <- prepare_biomass_data(formula_biomass = ~ 1, log_precip = TRUE, n_response_curve_values = n_response_curve_values, calib = FALSE)
-	site_vect <- data_biomass$site_vect_biomass
+	nam <- simplifyGeom(nam, tolerance = 1000)
+
+	data_biomass <- prepare_biomass_data(formula_biomass = ~ 1, n_response_curve_values = n_response_curve_values, calib = FALSE)
+	site_vect <- data_biomass$site_vect
 
 	# extent
 	site_vect <- project(site_vect, pred_vect_nam)
@@ -38,11 +37,11 @@ map_psi_change <- function(
 
 	# get range of values for plotting
 	vars <- c(
-		paste0('psi_county_sq'),
-		paste0('psi_county_ssp245_2041_2070'),
-		paste0('psi_county_ssp245_2071_2100'),
-		paste0('psi_county_ssp370_2041_2070'),
-		paste0('psi_county_ssp370_2071_2100')
+		paste0('psi_sq'),
+		paste0('psi_ssp245_2041_2070'),
+		paste0('psi_ssp245_2071_2100'),
+		paste0('psi_ssp370_2041_2070'),
+		paste0('psi_ssp370_2071_2100')
 	)
 
 	min_val <- Inf
@@ -88,7 +87,7 @@ map_psi_change <- function(
 			plot.subtitle = element_text(size = 14)
 		)
 
-	ggsave(plot = map, filename = paste0(out_dir, '/map_change_psi_', filename_append, '.png'), width = 12, height = 10, dpi = 200)
+	if (!is.null(out_dir)) ggsave(plot = map, filename = paste0(out_dir, '/map_psi_change_', filename_append, '.png'), width = 12, height = 10, dpi = 200)
 	invisible(map)
 
 }

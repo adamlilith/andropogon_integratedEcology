@@ -23,7 +23,7 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 
 				trace <- ggs_traceplot(mcmc, family = var)
 				density <- ggs_density(mcmc, family = var, hpd = TRUE)
-				combo <- trace + density
+				combo <- plot_grid(trace, density, rel_widths = c(2, 1))
 				filename <- paste0(out_dir, '/density_trace_', var, '.png')
 				ggsave(combo, file = filename, width = 18, height = 9)
 			
@@ -40,7 +40,7 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 
 				trace <- ggs_traceplot(mcmc, family = var)
 				density <- ggs_density(mcmc, family = var, hpd = TRUE)
-				combo <- trace + density
+				combo <- plot_grid(trace, density, rel_widths = c(2, 1))
 				filename <- paste0(out_dir, '/density_trace_', var, '.png')
 				ggsave(combo, file = filename, width = 18, height = 12)
 			
@@ -51,15 +51,17 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 		if (length(vars) > 0) {
 			for (var in vars) {
 
-				if (var == 'correlation') {
+				if (var == 'U_star') {
 
 					rows <- matrix(1:n_facets, byrow = FALSE, nrow = n_facets, ncol = n_facets)
 					cols <- matrix(1:n_facets, byrow = TRUE, nrow = n_facets, ncol = n_facets)
 
 					upper_rows <- rows[upper.tri(rows, diag = FALSE)]
 					upper_cols <- cols[upper.tri(cols, diag = FALSE)]
+					upper_rows <- c(upper_rows, 2:n_facets)
+					upper_cols <- c(upper_cols, 2:n_facets)
 
-					params <- paste0('correlation[', upper_rows, ', ', upper_cols, ']')
+					params <- paste0('U_star[', upper_rows, ', ', upper_cols, ']')
 					mcmc <- mc_subset(chains, params)
 
 				} else {
@@ -71,14 +73,14 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 
 				trace <- ggs_traceplot(mcmc, family = var)
 				density <- ggs_density(mcmc, family = var, hpd = TRUE)
-				combo <- trace + density
+				combo <- plot_grid(trace, density, rel_widths = c(2, 1))
 				filename <- paste0(out_dir, '/density_trace_', var, '.png')
-				ggsave(combo, file = filename, width = 18, height = 12)
+				ggsave(combo, file = filename, width = 12, height = 12)
 			
 			}
 		}
 
-		vars <- monitors_derived_not_indexed
+		vars <- c(monitors_derived_not_indexed, monitors_derived_single_index)
 		if (length(vars) > 0) {
 			for (var in vars) {
 
@@ -88,9 +90,26 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 
 				trace <- ggs_traceplot(mcmc, family = var)
 				density <- ggs_density(mcmc, family = var, hpd = TRUE)
-				combo <- trace + density
+				combo <- plot_grid(trace, density, rel_widths = c(2, 1))
 				filename <- paste0(out_dir, '/density_trace_', var, '.png')
 				ggsave(combo, file = filename, width = 18, height = 12)
+			
+			}
+		}
+
+		vars <- monitors_derived_double_index
+		if (length(vars) > 0) {
+			for (var in vars) {
+
+				mcmc <- mc_subset(chains, var)
+				mcmc <- mcmc$samples
+				mcmc <- ggs(mcmc)
+
+				trace <- ggs_traceplot(mcmc, family = var)
+				density <- ggs_density(mcmc, family = var, hpd = TRUE)
+				combo <- plot_grid(trace, density, rel_widths = c(2, 1))
+				filename <- paste0(out_dir, '/density_trace_', var, '.png')
+				ggsave(combo, file = filename, width = 12, height = 12)
 			
 			}
 		}
@@ -127,22 +146,24 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 		if (length(vars) > 0) {
 			for (var in vars) {
 
-				if (var == 'correlation') {
+				if (var == 'U_star') {
 
-					extract <- mc_extract(chains, 'correlation', j = TRUE, k = TRUE)
+					extract <- mc_extract(chains, 'U_star', j = TRUE, k = TRUE)
 					n <- round(sqrt(length(extract)))
 
 					rows <- matrix(rep(1:n, n), n, n)
 					cols <- matrix(rep(1:n, each = n), n, n)
-					rows[lower.tri(rows, diag = TRUE)] <- NA
-					cols[lower.tri(cols, diag = TRUE)] <- NA
+					rows[lower.tri(rows, diag = FALSE)] <- NA
+					cols[lower.tri(cols, diag = FALSE)] <- NA
+					rows[1, 1] <- NA
+					cols[1, 1] <- NA
 
 					expand <- matrix(c(rows, cols), ncol = 2)
 					expand <- expand[complete.cases(expand), , drop = FALSE]
 
 					this <- character()
 					for (i in 1:nrow(expand)) {
-						this[i] <- paste0('correlation[', expand[i, 1], ', ', expand[i, 2], ']')
+						this[i] <- paste0('U_star[', expand[i, 1], ', ', expand[i, 2], ']')
 						indices[[length(indices) + 1]] <- list()
 					}
 					params <- c(params, this)
@@ -178,21 +199,12 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 
 			for (var in vars) {
 
-				if (var == 'correlation[1, 2]') {
-				
-					var <- 'correlation'
-					ggs_mcmc <- ggs(chains$samples)
-
-				} else {
-
-					mcmc <- mc_subset(chains, var)
-					mcmc <- mcmc$samples
-					mcmc <- ggs(mcmc)
-					mcmc <- mc_subset(chains, var)
-					mcmc <- mcmc$samples
-					ggs_mcmc <- ggs(mcmc)
-
-				}
+				mcmc <- mc_subset(chains, var)
+				mcmc <- mcmc$samples
+				mcmc <- ggs(mcmc)
+				mcmc <- mc_subset(chains, var)
+				mcmc <- mcmc$samples
+				ggs_mcmc <- ggs(mcmc)
 
 				ac <- ggs_autocorrelation(ggs_mcmc, family = var)
 				ggsave(ac, file = paste0(out_dir, '/autocorrelation_', var, '.png'), width = 19.2, height = 10.8, dpi = 300)
@@ -217,21 +229,21 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 
 		}
 
-		vars <- monitors_coeffs_double_index
-		if (length(vars) > 0) {
+		# vars <- monitors_coeffs_double_index
+		# if (length(vars) > 0) {
 
-			for (var in vars) {
+		# 	for (var in vars) {
 
-				mcmc <- mc_subset(chains, var, j = TRUE, k = TRUE)
-				mcmc <- mcmc$samples
-				ggs_mcmc <- ggs(mcmc)
+		# 		mcmc <- mc_subset(chains, var, j = TRUE, k = TRUE)
+		# 		mcmc <- mcmc$samples
+		# 		ggs_mcmc <- ggs(mcmc)
 
-				ac <- ggs_autocorrelation(ggs_mcmc, family = var)
-				ggsave(ac, file = paste0(out_dir, '/autocorrelation_', var, '.png'), width = 19.2, height = 10.8, dpi = 300)
+		# 		ac <- ggs_autocorrelation(ggs_mcmc, family = var)
+		# 		ggsave(ac, file = paste0(out_dir, '/autocorrelation_', var, '.png'), width = 19.2, height = 10.8, dpi = 300)
 
-			}
+		# 	}
 
-		}
+		# }
 
 		### correlation between parameters
 		##################################
@@ -269,20 +281,20 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 				}
 			}
 
-			vars <- monitors_coeffs_double_index
-			if (length(vars) > 0) {
-				for (var in vars) {
+			# vars <- monitors_coeffs_double_index
+			# if (length(vars) > 0) {
+			# 	for (var in vars) {
 
-					this_param_stack <- mc_subset(chains, var, j = TRUE, k = TRUE)
-					this_param_stack <- mc_stack(this_param_stack)
-					if (exists('param_stack')) {
-						param_stack <- cbind(param_stack, this_param_stack)
-					} else {
-						param_stack <- this_param_stack
-					}
+			# 		this_param_stack <- mc_subset(chains, var, j = TRUE, k = TRUE)
+			# 		this_param_stack <- mc_stack(this_param_stack)
+			# 		if (exists('param_stack')) {
+			# 			param_stack <- cbind(param_stack, this_param_stack)
+			# 		} else {
+			# 			param_stack <- this_param_stack
+			# 		}
 				
-				}
-			}
+			# 	}
+			# }
 
 			cors <- cor(param_stack, method = 'pearson', use = 'complete.obs')
 			cors_df <- as.data.frame(as.table(cors))
@@ -313,18 +325,9 @@ workflow_postmodeling_generic <- function(facet, formulae, descrip, homoscedasti
 
 			for (var in vars) {
 
-				if (var == 'correlation[1, 2]') {
-				
-					var <- 'correlation'
-					ggs_mcmc <- ggs(chains$samples)
-
-				} else {
-
-					mcmc <- mc_subset(chains, var)
-					mcmc <- mcmc$samples
-					ggs_mcmc <- ggs(mcmc)
-
-				}
+				mcmc <- mc_subset(chains, var)
+				mcmc <- mcmc$samples
+				ggs_mcmc <- ggs(mcmc)
 
 				graphs[[length(graphs) + 1]] <- 
 					ggs_caterpillar(ggs_mcmc, family = var) +

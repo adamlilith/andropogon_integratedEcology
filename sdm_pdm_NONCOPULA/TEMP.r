@@ -1,9 +1,9 @@
 ### MODELING ANDROPOGON GERARDI DISTRIBUTION, PHENOTYPE, PHYSIOLOGY, GENOTYPE, and ASSOCIATED MICROBIAL COMMUNITIES
 ### Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | 2023-12
 ###
-### This script constructs a species distribution model Andropogon gerardi where "county" is the observational unit. It assumes (latent) abundance follows a zero-inflated Poisson distribution, and the observed number of AG is a binomial distribution where the probability of observing AG is a function of county area and the number of Poaceae recorded in the county (including AG). The expected abundance is a log function of environmental predictors (climate, soil, etc.). The probability of (inflated) zero is a function of environmental covariates. The model is run using nimble. Unlike previous versions, this script does not involve a copula.
+### This script constructs a species distribution model Andropogon gerardi where "county" is the observational unit. It assumes (latent) abundance follows a zero-inflated Poisson distribution, and the observed number of AG is a binomial distribution where the probability of observing AG is a function of county area and the number of Poaceae recorded in the county (including AG). The expected abundance drawn from a normal distribution where the mean value is given by a function of environmental predictors (climate, soil, etc.). The probability of (inflated) zero is a function of environmental covariates. The model is run using nimble.
 ###
-### source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/sdm_pdm_03c_model_occurrence_zip=normal.r')
+### source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/TEMP.r')
 ### 
 #############
 ### setup ###
@@ -20,8 +20,8 @@
 ### user-defined values ###
 ###########################
 
-	trial <- TRUE # TRUE for testing
-	# trial <- FALSE # TRUE for testing
+	# trial <- TRUE # TRUE for testing
+	trial <- FALSE # TRUE for testing
 
 	# calib <- TRUE # use just counties with non-NA Poaceae for calibration region
 	calib <- FALSE # use all of North America for calibration region
@@ -58,13 +58,13 @@
 	# bias_filename <- 'area'
 	
 	formula_occs_bias <- ~ 1 + area_km2_log10 # sampling bias for AG records
-	# bias_filename <- 'poaceae'
+	bias_filename <- 'poaceae'
 	
-	formula_occs_bias <- ~ 1 # sampling bias for AG records
-	bias_filename <- '1'
+	# formula_occs_bias <- ~ 1 # sampling bias for AG records
+	# bias_filename <- '1'
 
 	### output folder and bias formula
-	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/', ifelse(trial, 'TRIAL_', ''), '[occs_zip[psi~', zip_filename, ']=normal~', preds_filename, '_[bias~', bias_filename, ']]', ifelse(log_precip, '_log_precip', ''), '/')
+	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/', ifelse(trial, 'TRIAL_', ''), '[occs_zip[psi~', zip_filename, ']~normal~', preds_filename, '_[bias~', bias_filename, ']]', ifelse(log_precip, '_log_precip', ''), '/')
 
 	if (!trial) {
 
@@ -89,31 +89,31 @@
 ### model ###
 #############
 
-	if (!trial) if (file.exists(out_dir)) stop('Output folder already exists.')
-	dirCreate(out_dir)
+	# if (!trial) if (file.exists(out_dir)) stop('Output folder already exists.')
+	# dirCreate(out_dir)
 
-	sink(paste0(out_dir, '/runtime_log.txt'), split = TRUE)
-	say('MODELING OCCURRENCE')
-	say('Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | ', date(), post = 1)
+	# sink(paste0(out_dir, '/runtime_log.txt'), split = TRUE)
+	# say('MODELING OCCURRENCE')
+	# say('Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | ', date(), post = 1)
 
-	### data collation
-	##################
-	say('data collation', post = 1)
+	# ### data collation
+	# ##################
+	# say('data collation', post = 1)
 
-	say('This script constructs a species distribution model Andropogon gerardi where "county" is the observational unit. It assumes (latent) abundance follows a zero-inflated Poisson distribution, and the observed number of AG is a binomial distribution where the probability of observing AG is a function of county area and the number of Poaceae recorded in the county (including AG). The expected abundance drawn from a normal distribution where the mean value is given by a function of environmental predictors (climate, soil, etc.). The probability of (inflated) zero is a function of environmental covariates. The model is run using nimble.', breaks = 60, post = 1)
+	# say('This script constructs a species distribution model Andropogon gerardi where "county" is the observational unit. It assumes (latent) abundance follows a zero-inflated Poisson distribution, and the observed number of AG is a binomial distribution where the probability of observing AG is a function of county area and the number of Poaceae recorded in the county (including AG). The expected abundance drawn from a normal distribution where the mean value is given by a function of environmental predictors (climate, soil, etc.). The probability of (inflated) zero is a function of environmental covariates. The model is run using nimble.', breaks = 60, post = 1)
 
-	say('MCMC settings:', level = 2)
-	say('trial ........................ ', trial)
-	say('niter ........................ ', niter)
-	say('nburnin ...................... ', nburnin)
-	say('thin ......................... ', thin)
-	say('nchains ...................... ', nchains)
-	say('formula_occs ................. ', paste(as.character(formula_occs), collapse = ' '))
-	say('formula_psi .................. ', paste(as.character(formula_psi), collapse = ' '))
-	say('formula_occs_bias ............ ', paste(as.character(formula_occs_bias), collapse = ' '))
+	# say('MCMC settings:', level = 2)
+	# say('trial ........................ ', trial)
+	# say('niter ........................ ', niter)
+	# say('nburnin ...................... ', nburnin)
+	# say('thin ......................... ', thin)
+	# say('nchains ...................... ', nchains)
+	# say('formula_occs ................. ', paste(as.character(formula_occs), collapse = ' '))
+	# say('formula_psi .................. ', paste(as.character(formula_psi), collapse = ' '))
+	# say('formula_occs_bias ............ ', paste(as.character(formula_occs_bias), collapse = ' '))
 
-	say('out_dir')
-	say(out_dir, post = 2)
+	# say('out_dir')
+	# say(out_dir, post = 2)
 
 	formulae <- list(
 		formula_occs = formula_occs,
@@ -260,7 +260,8 @@
 			y_n_ag_sim[i] ~ dbinom(size = N[i], prob = p[i])
 
 			# relationship between expected (latent) abundance and environment assuming NORMAL distribution
-			log(lambda_mu_sq[i]) <- inprod(beta_occs[1:n_terms_occs], counties_x_occs_calib_sq[i, 1:n_terms_occs])
+			log(lambda_mu_sq[i]) ~ dnorm(phi_mu_sq[i], sd = lambda_sigma)
+			phi_mu_sq[i] <- inprod(beta_occs[1:n_terms_occs], counties_x_occs_calib_sq[i, 1:n_terms_occs])
 
 			# (inflated) probability of zero abundance
 			logit(psi[i]) <- inprod(beta_psi[1:n_terms_occs_psi], counties_x_occs_psi_calib_sq[i, 1:n_terms_occs_psi])
@@ -374,25 +375,25 @@
 
 	print(model_code)
 
-	say('nimbleModel():', level = 2)
-	model <- nimbleModel(
-		code = model_code, # our model
-		constants = constants, # constants
-		data = data, # data
-		inits = inits, # initialization values
-		check = TRUE, # any errors?
-		calculate = FALSE,
-		# buildDerivs = TRUE # need for Hamiltonian Monte Carlo
-		buildDerivs = FALSE # need for Hamiltonian Monte Carlo
-	)
+	# say('nimbleModel():', level = 2)
+	# model <- nimbleModel(
+	# 	code = model_code, # our model
+	# 	constants = constants, # constants
+	# 	data = data, # data
+	# 	inits = inits, # initialization values
+	# 	check = TRUE, # any errors?
+	# 	calculate = FALSE,
+	# 	# buildDerivs = TRUE # need for Hamiltonian Monte Carlo
+	# 	buildDerivs = FALSE # need for Hamiltonian Monte Carlo
+	# )
 
-	say('initializeInfo() and $calculate():', level = 2)
-	model$initializeInfo()
-	calc <- model$calculate()
-	say('model$calculate(): ', calc)
-	if (is.na(calc) || is.infinite(calc)) stop('Impossible likelihood.')
+	# say('initializeInfo() and $calculate():', level = 2)
+	# model$initializeInfo()
+	# calc <- model$calculate()
+	# say('model$calculate(): ', calc)
+	# if (is.na(calc) || is.infinite(calc)) stop('Impossible likelihood.')
 	
-	say('configureMCMC():', level = 2)
+	# say('configureMCMC():', level = 2)
 
 	monitors_coeffs_not_indexed <- 'lambda_sigma'
 	monitors_coeffs_single_index <- c('beta_occs', 'beta_psi', 'alpha_occs')
@@ -413,12 +414,12 @@
 
 	monitors <- c(monitors_coeffs_not_indexed, monitors_coeffs_single_index, monitors_coeffs_double_index, monitors_derived_not_indexed, monitors_derived_single_index, monitors_derived_double_index, monitors_dharma, monitors_resp_curves)
 
-	conf <- configureMCMC(
-		model,
-		monitors = monitors,
-		print = TRUE,
-		enableWAIC = TRUE
-	)
+	# conf <- configureMCMC(
+	# 	model,
+	# 	monitors = monitors,
+	# 	print = TRUE,
+	# 	enableWAIC = TRUE
+	# )
 
 	# # add no U-turn sampler (Hamiltonian Monte Carlo)
 	# vars <- c(monitors_coeffs_not_indexed, monitors_coeffs_single_index, monitors_coeffs_double_index)
@@ -441,46 +442,35 @@
 	# conf$addSampler(target = vars, type = 'AF_slice')
 	# say('AF_slice sampler added to ', paste(vars, collapse = ' & '), '.')
 
-	### compile/build/run model/save MCMC
-	build <- buildMCMC(conf)
+	# ### compile/build/run model/save MCMC
+	# build <- buildMCMC(conf)
 
-	say('Compiling ', date())
-	compiled <- compileNimble(model, build, showCompilerOutput = FALSE)
+	# say('Compiling ', date())
+	# compiled <- compileNimble(model, build, showCompilerOutput = FALSE)
 
-	say('Sampling ', date())
-	chains <- runMCMC(
-		compiled$build,
-		niter = niter,
-		nburnin = nburnin,
-		thin = thin,
-		nchains = nchains,
-		inits = inits,
-		progressBar = TRUE,
-		samplesAsCodaMCMC = TRUE,
-		summary = TRUE,
-		WAIC = TRUE,
-		perChainWAIC = FALSE
-	)
+	# say('Sampling ', date())
+	# chains <- runMCMC(
+	# 	compiled$build,
+	# 	niter = niter,
+	# 	nburnin = nburnin,
+	# 	thin = thin,
+	# 	nchains = nchains,
+	# 	inits = inits,
+	# 	progressBar = TRUE,
+	# 	samplesAsCodaMCMC = TRUE,
+	# 	summary = TRUE,
+	# 	WAIC = TRUE,
+	# 	perChainWAIC = FALSE
+	# )
 
-	saveRDS(chains, paste0(out_dir, '/chains.rds'))
-
-	say('session info', level = 2)
-	print(sessionInfo())
-
-	say(date(), pre = 1)
-	sink()
-
-say('#################################################')
-say('### post-modeling diagnostics and predictions ###')
-say('#################################################')
+	# saveRDS(chains, paste0(out_dir, '/chains.rds'))
+	chains <- readRDS(paste0(out_dir, '/chains.rds'))
 
 	descrip <- 'occurrence ~ ZIP ~ exp(normal(env)))'
 	workflow_postmodeling_generic(facet = 'occurrence', formulae = formulae, descrip = descrip, out_dir = out_dir)
-print(NON)
+
 	workflow_postmodeling_occurrence(formula_occs = formula_occs, formula_psi = formula_psi, formula_occs_bias = formula_occs_bias, out_dir = out_dir)
 	
-	if (do_crossvalidation) workflow_postmodeling_occurrence_crossvalidation(formula_occs = formula_occs, formula_occs_bias = formula_occs_bias, formula_psi = formula_psi, constants = constants, out_dir = out_dir)
+	# if (do_crossvalidation) workflow_postmodeling_occurrence_crossvalidation(formula_occs = formula_occs, formula_occs_bias = formula_occs_bias, formula_psi = formula_psi, constants = constants, out_dir = out_dir)
 
-
-say(date())
-say('FINIS!', deco = '+', level = 1)
+say('DONE!', level = 1)

@@ -1,134 +1,4 @@
-### MODELING ANDROPOGON GERARDI DISTRIBUTION, PHENOTYPE, PHYSIOLOGY, GENOTYPE, and ASSOCIATED MICROBIAL COMMUNITIES
-### Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | 2023-12
-###
-### This script constructs a species distribution model Andropogon gerardi where "county" is the observational unit. It assumes (latent) abundance follows a zero-inflated Poisson distribution, and the observed number of AG is a binomial distribution where the probability of observing AG is a function of county area and the number of Poaceae recorded in the county (including AG). The expected abundance drawn from a normal distribution where the mean value is given by a function of environmental predictors (climate, soil, etc.). The probability of (inflated) zero is a function of environmental covariates. The model is run using nimble.
-###
-### source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/TEMP.r')
-### 
-#############
-### setup ###
-#############
-
-	rm(list = ls())
-
-	drive <- 'C:/Kaji/'
-
-	setwd(paste0(drive, '/Research/Andropogon/Andropogon'))
-	source(paste0(drive, '/R/andropogon_integratedEcology/sdm_pdm/sdm_pdm_00_shared_functions_and_variables.r'))
-
-###########################
-### user-defined values ###
-###########################
-
-	# trial <- TRUE # TRUE for testing
-	trial <- FALSE # TRUE for testing
-
-	# calib <- TRUE # use just counties with non-NA Poaceae for calibration region
-	calib <- FALSE # use all of North America for calibration region
-
-	# do cross-validation?
-	do_crossvalidation <- TRUE
-	# do_crossvalidation <- FALSE
-
-	# use log of BIOs 12-14 and 16-19?
-	# log_precip <- FALSE
-	log_precip <- TRUE
-
-	### formula for how aspects of species responds to environment
-
-	formula_occs <- ~ 1 + bio1 + bio12 + bio15 + I(bio1^2) + I(bio12^2) + I(bio15^2) # response of occurrence to climate and soil
-	preds_filename <- 'bio1^2_bio12^2_bio15^2'
-
-	# formula_occs <- ~ 1 + bio1 + bio12 + bio15 + sand + I(bio1^2) + I(bio12^2) + I(bio15^2) + I(sand^2) # response of occurrence to climate and soil
-	# preds_filename <- 'bio1^2_bio12^2_bio15^2_sand^2'
-
-	# formula_psi <- ~ 1 + bio1 + bio12 + bio15 + sand + I(bio1^2) + I(bio12^2) + I(bio15^2) + I(sand^2)
-	# zip_filename <- 'bio1^2_bio12^2_bio15^2_sand^2'
-
-	# formula_psi <- ~ 1 + bio1 + bio12 + bio15 + ph + I(bio1^2) + I(bio12^2) + I(bio15^2) + I(ph^2)
-	# zip_filename <- 'bio1^2_bio12^2_bio15^2_ph^2'
-
-	formula_psi <- ~ 1 + bio1 + bio12 + bio15 + I(bio1^2) + I(bio12^2) + I(bio15^2)
-	zip_filename <- 'bio1^2_bio12^2_bio15^2'
-
-	# formula_occs_bias <- ~ 1 + area_km2_log10 + n_poaceae_log10p1 # sampling bias for AG records
-	# bias_filename <- 'area_poaceae'
-	
-	# formula_occs_bias <- ~ 1 + area_km2_log10 # sampling bias for AG records
-	# bias_filename <- 'area'
-	
-	formula_occs_bias <- ~ 1 + area_km2_log10 # sampling bias for AG records
-	bias_filename <- 'poaceae'
-	
-	# formula_occs_bias <- ~ 1 # sampling bias for AG records
-	# bias_filename <- '1'
-
-	### output folder and bias formula
-	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/', ifelse(trial, 'TRIAL_', ''), '[occs_zip[psi~', zip_filename, ']~normal~', preds_filename, '_[bias~', bias_filename, ']]', ifelse(log_precip, '_log_precip', ''), '/')
-
-	if (!trial) {
-
-		### MCMC settings
-		# need these settings to achieve independent samples using bio1^2, bio12^2, bio15^
-		niter <- 1600000
-		nburnin <- niter / 2
-		thin <- 800
-		nchains <- 4
-
-	} else {
-		
-		### MCMC settings FOR TESTING
-		niter <- 1100
-		nburnin <- 100
-		thin <- 1
-		nchains <- 2
-
-	}
-
-#############
-### model ###
-#############
-
-	# if (!trial) if (file.exists(out_dir)) stop('Output folder already exists.')
-	# dirCreate(out_dir)
-
-	# sink(paste0(out_dir, '/runtime_log.txt'), split = TRUE)
-	# say('MODELING OCCURRENCE')
-	# say('Adam B. Smith | Missouri Botanical Garden | adam.smith@mobot.org | ', date(), post = 1)
-
-	# ### data collation
-	# ##################
-	# say('data collation', post = 1)
-
-	# say('This script constructs a species distribution model Andropogon gerardi where "county" is the observational unit. It assumes (latent) abundance follows a zero-inflated Poisson distribution, and the observed number of AG is a binomial distribution where the probability of observing AG is a function of county area and the number of Poaceae recorded in the county (including AG). The expected abundance drawn from a normal distribution where the mean value is given by a function of environmental predictors (climate, soil, etc.). The probability of (inflated) zero is a function of environmental covariates. The model is run using nimble.', breaks = 60, post = 1)
-
-	# say('MCMC settings:', level = 2)
-	# say('trial ........................ ', trial)
-	# say('niter ........................ ', niter)
-	# say('nburnin ...................... ', nburnin)
-	# say('thin ......................... ', thin)
-	# say('nchains ...................... ', nchains)
-	# say('formula_occs ................. ', paste(as.character(formula_occs), collapse = ' '))
-	# say('formula_psi .................. ', paste(as.character(formula_psi), collapse = ' '))
-	# say('formula_occs_bias ............ ', paste(as.character(formula_occs_bias), collapse = ' '))
-
-	# say('out_dir')
-	# say(out_dir, post = 2)
-
-	formulae <- list(
-		formula_occs = formula_occs,
-		formula_psi = formula_psi,
-		formula_occs_bias = formula_occs_bias
-	)
-	saveRDS(formula, paste0(out_dir, '/formulae.rds'))
-
-	########################s
-	### data preparation ###
-	########################
-
-	data_occs <- prepare_occurrence_data(formula_occs = formula_occs, formula_occs_bias = formula_occs_bias, log_precip = log_precip, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
-
-	data_occs_psi <- prepare_occurrence_data(formula_occs = formula_psi, formula_occs_bias = formula_occs_bias, log_precip = log_precip, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
+# source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/TEMP.r')
 
 	#########################
 	### inputs for nimble ###
@@ -136,80 +6,175 @@
 
 	say('Inputs:', level = 2)
 	data <- list(
-		y_n_ag = data_occs$y_n_ag				# number of AG observations in each county
+		y_n_ag = data_occs_counties$y_n_ag,				# number of AG observations in each county
+		y_biomass = data_biomass_sites$y_biomass		# biomass of individual plants
 	)
+
+	for (f in seq_along(nonbiomass_facets)) {
+
+		data$DUMMY <- data_nonbiomass_sites[[f]]$y_facet
+		names(data)[length(data)] <- paste0('y_facet_', f)
+
+	}
+
+	n_nonbiomasss_facets <- length(nonbiomass_facets)
+	n_facets <- n_nonbiomasss_facets + 2
 
 	constants <- list(
 		
-		# y_n_ag_min = data_occs$y_n_ag,
+		### integration
+		n_facets = n_facets,
+		# n_nonbiomass_facets = n_nonbiomasss_facets,
 
 		### occurrences
-		n_counties_occs_calib = data_occs$n_counties_occs_calib, # number of counties in calibration region
-		n_terms_occs = data_occs$n_terms_occs, # number of terms in formula for occurrence model (including intercept)
-		n_terms_occs_psi = data_occs_psi$n_terms_occs, # number of terms in sampling bias model
+		n_counties_occs_calib = data_occs_counties$n_counties_occs_calib, # number of counties in calibration region
+		n_terms_occs = data_occs_counties$n_terms, # number of terms in formula for occurrence model (including intercept)
+		n_terms_bias = data_occs_counties$n_terms_bias, # number of terms in sampling bias model
+		w_bias = data_occs_counties$w_bias, # model matrix of sampling bias of AG observed occurrences
+		
+		# n_covariates_occs = data_occs_counties$n_covariates, # number of covariates in formula for occurrence model
+		# n_covariates_bias = data_occs_counties$n_covariates_bias, # number of covariates in formula for occurrence model
+		# resp_curves_x_occs = data_occs_counties$resp_curves_x, # response curve array for occurrences vs environment
+		# resp_curves_w = data_occs_counties$resp_curves_w, # response curve array for occurrences vs environment
 
-		w_occs_bias = data_occs$w_occs_bias, # model matrix of sampling bias of AG observed occurrences
-		n_terms_occs_bias = data_occs$n_terms_occs_bias, # number of terms in sampling bias model
+		x_by_county_occs = data_occs_counties$counties_x_sq,
+		x_by_site_occs = data_occs_sites$x_by_site, # MM with covariates for biomass (scaled)
 
-		n_covariates_occs = data_occs$n_covariates_occs, # number of covariates in formula for occurrence model
-		n_covariates_occs_bias = data_occs$n_covariates_occs_bias, # number of covariates in formula for occurrence model
-		resp_curves_x_occs = data_occs$resp_curves_x_occs, # response curve array for occurrences vs environment
-		resp_curves_x_occs_psi = data_occs_psi$resp_curves_x_occs, # response curve array for occurrences vs environment
-		resp_curves_w_occs = data_occs$resp_curves_w_occs, # response curve array for occurrences vs environment
+		### sites (generic)
+		n_pheno_sites = data_biomass_sites$n_pheno_sites, # number of phenotype sample sites
 
-		counties_x_occs_calib_sq = data_occs$counties_x_occs_sq,
-		counties_x_occs_psi_calib_sq = data_occs_psi$counties_x_occs_sq,
+		### biomass
+		x_by_county_biomass = data_biomass_counties$counties_x_sq,
 
-		# response curves (general)
-		n_response_curve_values = n_response_curve_values # number of values in response curve array
+		x_by_site_biomass = data_biomass_sites$x_by_site, # MM with covariates for biomass (scaled)
+		n_biomass = data_biomass_sites$n_biomass, # number of biomass observations
+		site_index_biomass = data_biomass_sites$site_index_biomass, # index of sampled site for each row in biomass data
+		n_terms_biomass = data_biomass_sites$n_terms, # number of terms in formula for biomass model (including intercept)
+
+		# n_covariates_biomass = data_biomass_sites$n_covariates,
+		# resp_curves_x_biomass = data_biomass_sites$resp_curves_x, # response curve array for biomass
+
+		# facets (generic)
+		n_non_biomass = data_nonbiomass_sites[[1]]$n_plants,
+		site_index_facet = data_nonbiomass_sites[[1]]$site_index_facet, # index of sampled site for each row in facet data
+
+		# # response curves (general)
+		# n_response_curve_values = n_response_curve_values, # number of values in response curve array
+
+		# zero inflation
+		n_terms_psi = data_psi_counties$n_terms, # number of terms in sampling bias model
+		# n_covariates_psi = data_psi_counties$n_covariates, # number of terms in sampling bias model
+		x_by_county_psi = data_psi_counties$counties_x_sq,
+		x_by_site_psi = data_psi_sites$x_by_site
+		# resp_curves_x_psi = data_psi_counties$resp_curves_x
 
 	)
 
-	constants <- c(constants, constants_shared_occs, constants_shared_psi)
+	for (f in seq_along(nonbiomass_facets)) {
 
-	N_inits_calib <- data_occs$y_n_ag * 2
-	N_inits_all_counties <- 2 * (1 + data_occs$ag_vect_sq$n_andropogon_gerardi)
+		facet <- names(nonbiomass_facets)[f]
+		constants_facet <- list(
 
-	# # initial values for occ ~ f(env)
-	# formula_occs_terms <- attr(terms(formula_occs), 'term.labels')
-	# formula_occs_terms <- c('(Intercept)', formula_occs_terms)
-	# beta_occs_inits <- rep(0, length(formula_occs_terms))
-	# beta_occs_inits[grepl(formula_occs_terms, pattern = '\\^2')] <- -1
+			x_by_site_facet = data_nonbiomass_sites[[facet]]$x_by_site, # MM with covariates
+			x_by_county_facet = data_nonbiomass_counties[[facet]]$counties_x_sq, # MM with covariates
+			n_terms_facet = nonbiomass_facets[[facet]]$n_terms # includes intercept
 
-	prelim_data <- cbind(data_occs$w_occs_bias, data_occs$counties_x_occs_sq[ , 2:ncol(data_occs$counties_x_occs_sq)])
-	prelim_model <- glm.fit(prelim_data, y = data_occs$y_n_ag, family = poisson(log))
+		)
+		names(constants_facet) <- paste0(names(constants_facet), '_', f)
+		constants <- c(constants, constants_facet)
 
-	alpha_occs_inits <- prelim_model$coefficients[c('(Intercept)', data_occs$terms_occs_bias)]
-	beta_occs_inits <- prelim_model$coefficients[c('(Intercept)', data_occs$terms_occs)]
+	}
 
-	prelim_data <- cbind(data_occs_psi$w_occs_bias, data_occs_psi$counties_x_occs_sq[ , 2:ncol(data_occs_psi$counties_x_occs_sq)])
-	y <- as.numeric(data_occs$y_n_ag > 0)
-	prelim_model <- glm.fit(prelim_data, y = y, family = binomial())
-	beta_occs_psi_inits <- prelim_model$coefficients[c('(Intercept)', data_occs$terms_occs)]
+	constants <- c(constants, constants_shared_occs, constants_shared_biomass, constants_shared_psi, constants_shared_facet)
 
-	response_curves_occs_mu_inits <- matrix(2, nrow = n_response_curve_values, ncol = data_occs$n_covariates_occs)
-	response_curves_occs_z_inits <- matrix(1, nrow = n_response_curve_values, ncol = data_occs$n_covariates_occs)
+	# occurrences initializations
+	# file <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs_zip[psi~', psi_filename, ']~normal~', occs_filename, '_[bias~1]]/chains.rds')
+file <- paste0('C:/Kaji/Research/Andropogon/Andropogon/outputs_loretta/integrated_sdm_pdm/models_occurrence/[occs~hurdle_bio1^2_log(bio12)^2_bio15^2]_[bias~1]_niter_160000/chains.rds')
+say('Using stopgap chains file for OCCURRENCES!!! Need to change for real runs!!!')
+	chains_inits <- readRDS(file)
+	
+	alpha_occs_inits <- mc_extract(chains_inits, 'alpha_occs', j = TRUE)
+	beta_occs_mu_inits <- mc_extract(chains_inits, 'beta_occs', j = TRUE)
+	beta_psi_inits <- mc_extract(chains_inits, 'beta_psi', j = TRUE)
+	
+	# lambda_sq_inits <- mc_extract(chains_inits, 'lambda', j = TRUE)
+	# lambda_sq_inits[lambda_sq_inits > 10] <- 10
+
+	# lambda_sigma_inits <- mc_extract(chains_inits, 'lambda_sigma')
+	# log_lambda_sigma_inits <- log(lambda_sigma_inits)
+
+	rm(chains_inits)
+
+	N_inits_calib <- data_occs_counties$y_n_ag * 2
+
+	# biomass initializations
+	file <- paste0('./outputs_loretta/integrated_sdm_pdm/models_biomass/[biomass~hurdleln_log(bio12)]/chains.rds')
+say('Using stopgap chains file for BIOMASS!!! Need to change for real runs!!!')
+	chains_inits <- readRDS(file)
+	beta_biomass_inits <- mc_extract(chains_inits, 'beta_biomass', j = TRUE)
+	biomass_site_inits <- data_biomass_sites$site_mean
+	sigma_biomass_within_sites_inits <- mc_extract(chains_inits, 'sigma_biomass_within_sites')
+	log_sigma_biomass_within_sites_inits <- log(sigma_biomass_within_sites_inits)
+
+	rm(chains_inits)
 
 	inits <- list(
 
-		lambda_sigma = 1,
-		log_lambda_sigma = log(1),
-
-		y_n_ag_sim = data_occs$y_n_ag, # simulated values of observed number of AG (for DHARMa residuals)
-		z_county = as.numeric(N_inits_calib > 0), # AG present?
-		# log_lambda_mu_sq = rep(1, data_occs$n_counties_occs_calib), # expected value of number of AG
-		log_lambda_mu_sq = log(data_occs$y_n_ag + 1), # expected value of number of AG
+		### occurrences
+		y_n_ag_sim = data_occs_counties$y_n_ag, # simulated values of observed number of AG (for DHARMa residuals)
+		# lambda = lambda_sq_inits, # expected value of number of AG
 		alpha_occs = alpha_occs_inits, # intercept, area, # of Poaceae
-		beta_occs = beta_occs_inits, # occurrence ~ environment coefficients (including intercept)
-		beta_psi = beta_occs_psi_inits, # psi ~ environment coefficients (including intercept)
+		beta_occs = beta_occs_mu_inits, # occurrence ~ environment coefficients (including intercept)
 
 		N = N_inits_calib, # number of latent AG in calibration counties
 
-		log_lambda_resp_curves_mu = response_curves_occs_mu_inits,
-		response_curves_occs_mu = response_curves_occs_mu_inits,
-		response_curves_occs_z = response_curves_occs_z_inits
-		
+		### biomass
+		sigma_biomass_within_sites_log = log_sigma_biomass_within_sites_inits,
+		y_biomass_sim = data_biomass_sites$y_biomass, # simulated values for biomass (for DHARMa residuals)
+		beta_biomass = beta_biomass_inits,
+
+		### integration
+		eta = 1,
+		U_star = diag(1, nrow = n_facets, ncol = n_facets),
+		log_sigmas = c(1, 1),
+		Phi_county = matrix(1, nrow = data_occs_counties$n_counties, ncol = n_facets),
+		Phi_site = matrix(1, nrow = data_biomass_sites$n_pheno_sites, ncol = n_facets),
+
+		### zero inflation
+		beta_psi = beta_psi_inits#,
+		# z_site = rep(1, data_biomass_sites$n_pheno_sites), # present/absent at each site
+		# z_county = z_county_inits # present/absent in county
+
 	)
+
+	# initialize each non-biomass facet
+	for (f in seq_along(nonbiomass_facets)) {
+
+		facet <- names(nonbiomass_facets)[f]
+
+		filename <- nonbiomass_facets[[facet]]$filename
+		resp_distrib <- nonbiomass_facets[[facet]]$resp_distrib
+
+		file <- paste0('./outputs_loretta/integrated_sdm_pdm/models_', facet, '/[', facet, '~', tolower(resp_distrib), '(', filename,  ')]/chains.rds')
+		chains_inits <- readRDS(file)
+
+		sigma_facet_within_sites_init <- mc_extract(chains_inits, 'sigma_facet_within_sites')
+		beta_facet_inits <- mc_extract(chains_inits, 'beta_facet', j = TRUE)
+
+		y_facet_sim <- data_nonbiomass_sites[[facet]]$y_facet # simulated values for facet (for DHARMa residuals)
+
+		inits_facet <- list(
+			log_sigma_facet_within_sites = log(sigma_facet_within_sites_init),
+			beta_facet = beta_facet_inits,
+			y_facet_sim = y_facet_sim
+		)
+
+		names(inits_facet) <- paste0(names(inits_facet), '_', f)
+		inits <- c(inits, inits_facet)
+
+		inits$log_sigmas <- c(inits$log_sigmas, 1)
+
+	}
 
 	say('Data:')
 	print(str(data))
@@ -223,254 +188,208 @@
 	### define model
 	say('nimbleCode():', level = 2)
 
-	model_code <- nimbleCode({
-	
-		# OCCURRENCE: weakly regularized or regularized priors for relationship to environment
-		# ddexp(): rate = 0.7675 sets |beta| < 3 90% of time and <5 97.8% of the time, and <10 99.95% of the time
-		# ddexp(): rate = 0.9986 sets |beta| < 3 95% of time
-		beta_occs[1] ~ dnorm(0, sd = beta_occs_prior_dnorm_sd_1)
-		for (i in 2:n_terms_occs) {
-			beta_occs[i] ~ ddexp(0, rate = beta_occs_prior_ddexp_rate)
-			# beta_occs[i] ~ dnorm(0, sd = beta_occs_prior_dnorm_sd)
+	occs_biomass_code <- nimbleCode({
+
+		# INTEGRATION: LJK prior for standard deviations and correlations between latent occurrence and biomass processes
+		eta ~ dgamma(2, 1)
+		U_star[1:n_facets, 1:n_facets] ~ dlkj_corr_cholesky(eta = eta, p = n_facets)
+		U[1:n_facets, 1:n_facets] <- uppertri_mult_diag(
+			U_star[1:n_facets, 1:n_facets],
+			sigmas[1:n_facets]
+		)
+	  
+		# INTEGRATION: standard deviations of latent occurrence and biomass
+		log(sigmas[1]) ~ dnorm(0, sd = lambda_sigma_prior_sd) # half-Cauchy
+		log(sigmas[2]) ~ dnorm(0, sd = sigma_biomass_among_sites_log_prior_sd) # half-Cauchy
+
+		# INTEGRATION: standard deviations of latent non-biomass
+		# start counter at 3 bc occurrences are indexed by 1 and biomass by 2
+		for (i in 3:n_facets) {
+			log(sigmas[i]) ~ dnorm(0, sd = sigma_facet_among_sites_log_prior_sd) # half-Cauchy
 		}
 
-		beta_psi[1] ~ dnorm(0, sd = beta_psi_prior_dnorm_sd_1)
-		for (i in 2:n_terms_occs_psi) {
-			beta_psi[i] ~ ddexp(0, rate = beta_occs_prior_ddexp_rate)
-			# beta_psi[i] ~ dnorm(0, sd = beta_psi_prior_dnorm_sd)
-		}
-
-		# OCCURRENCE: priors for sampling bias
-		alpha_occs[1] ~ dnorm(0, sd = alpha_occs_prior_dnorm_sd_1)
-
-		# OCCURRENCE: prior for spread of normal distribution of lambda
-		log(lambda_sigma) ~ dnorm(0, sd = lambda_sigma_prior_sd) # half-Cauchy
+		# correlation matrix
+		correlation[1:n_facets, 1:n_facets] <- t(U_star[1:n_facets, 1:n_facets]) %*% U_star[1:n_facets, 1:n_facets]
 
 		# OCCURRENCE: likelihood
 		for (i in 1:n_counties_occs_calib) {
 			
 			### actual abundance (latent--unobserved)
-			N[i] ~ dTruncPseudoZIP(lambda = lambda_mu_sq[i], z = z_county[i])
+			N[i] ~ dHurdlePoisson(lambda[i], psi = psi_county[i])
 
 			### observed number of AG and sampling bias
-			# logit(p[i]) <- inprod(alpha_occs[1:n_terms_occs_bias], w_occs_bias[i, 1:n_terms_occs_bias])
 			y_n_ag[i] ~ dbinom(size = N[i], prob = p[i])
 
 			# simulate observations for DHARMa residuals
 			y_n_ag_sim[i] ~ dbinom(size = N[i], prob = p[i])
 
-			# relationship between expected (latent) abundance and environment assuming NORMAL distribution
-			log(lambda_mu_sq[i]) ~ dnorm(phi_mu_sq[i], sd = lambda_sigma)
-			phi_mu_sq[i] <- inprod(beta_occs[1:n_terms_occs], counties_x_occs_calib_sq[i, 1:n_terms_occs])
+			# probability of observing a single AG
+			logit(p[i]) <- alpha_occs[1]
 
-			# (inflated) probability of zero abundance
-			logit(psi[i]) <- inprod(beta_psi[1:n_terms_occs_psi], counties_x_occs_psi_calib_sq[i, 1:n_terms_occs_psi])
-			z_county[i] ~ dbern(psi[i])
+			# relationship between expected (latent) abundance and environment assuming MV NORMAL distribution
+			log(lambda[i]) <- exp(Phi_county[i, 1])
+
+			# probability of zero inflation
+			logit(psi_county[i]) <- inprod(beta_psi[1:n_terms_psi], x_by_county_psi[i, 1:n_terms_psi])
+
+			# # likelihood
+			# log_lik_occs_y[i] <- dbinom(y_n_ag[i], size = N[i], prob = p[i], log = 1)
+
+		}
+
+		# log_lik_occs <- sum(log_lik_occs_y[1:n_counties_occs_calib])
+
+		# prior for sd of individual plant biomass on lognormal (~ half-Cauchy), ==> vague
+		sigma_biomass_within_sites_log ~ dnorm(0, sd = sigma_biomass_within_sites_log_prior_sd)
+		sigma_biomass_within_sites <- exp(sigma_biomass_within_sites_log)
+
+		# BIOMASS: parameters of biomass distribution are latent and functions of environment
+		# individual plant traits are samples from the site-level distribution defined by the site-level distribution
+		for (i in 1:n_pheno_sites) {
+
+			# PROBABILITY OF ZERO INFLATION
+			logit(psi_site[i]) <- inprod(beta_psi[1:n_terms_psi], x_by_site_psi[i, 1:n_terms_psi])
+
+			### BIOMASS
+			biomass_site[i] <- exp(Phi_site[i, 2])
+
+		}
+
+		# BIOMASS: likelihood of individual plants
+		for (i in 1:n_biomass) {
 
 			# likelihood
-			log_lik_y[i] <- dbinom(y_n_ag[i], prob = p[i], size = N[i], log = 1)
+			y_biomass[i] ~ dHLN(meanlog = Phi_site[site_index_biomass[i], 2], sdlog = sigma_biomass_within_sites, psi = psi_site[site_index_biomass[i]])
+
+			# simulated values for unconditional DHARMa residuals
+			y_biomass_sim[i] ~ dHLN(meanlog = Phi_site[site_index_biomass[i], 2], sdlog = sigma_biomass_within_sites, psi = psi_site[site_index_biomass[i]])
 
 		}
 
-		log_lik <- sum(log_lik_y[1:n_counties_occs_calib])
-
-		# OCCURRENCE: posterior predictive sampler for ENVIRONMENTAL response curves
-		# We're assuming occurrence responds to two or more environmental predictors, so the response curve "x" is an array with one "page" per predictor and output is a matrix with one column per predictor
-		for (i in 1:n_covariates_occs) {
-
-			for (j in 1:n_response_curve_values) {
-				
-				response_curves_occs_mu[j, i] ~ dTruncPseudoZIP(lambda_resp_curves_mu[j, i], z = response_curves_occs_z[j, i])
-				
-				log(lambda_resp_curves_mu[j, i]) ~ dnorm(phi_lambda_resp_curves_mu[j, i], sd = lambda_sigma)
-				
-				phi_lambda_resp_curves_mu[j, i] <-
-					inprod(beta_occs[1:n_terms_occs], resp_curves_x_occs[j, 1:n_terms_occs, i])
-				
-				logit(response_curves_psi[j, i]) <-
-					inprod(beta_psi[1:n_terms_occs_psi], resp_curves_x_occs_psi[j, 1:n_terms_occs_psi, i])
-
-				response_curves_occs_z[j, i] ~ dbern(response_curves_psi[j, i])
-
-			}
-
-		}
 
 	})
 
-	### NO bias covariate
-	if (data_occs$n_covariates_occs_bias == 0) {
+	### model code for NON-BIOMASS FACETS
+	#####################################
 
-		bias_response_curve_code <- nimbleCode({
+	# Written generically so we can model code each facet in a loop, but the code is the same for each facet except for the index of the facet in the Phi_site matrix and the number of terms in the formula for that facet. We add 2 to the index of the facet in the Phi_site matrix to skip the occurrence and biomass terms.
 
-			# OCCURRENCE: likelihood
-			for (i in 1:n_counties_occs_calib) {
-				logit(p[i]) <- alpha_occs[1]
-			}
+	code_facets_raw	 <- '{
 
-			# OCCURRENCE: posterior predictive sampler for BIAS response curves
-			logit(response_curves_occs_bias) <- alpha_occs[1]
+		# location of FACET XYZ in Phi_site matrix... add 2 to skip occurrence and biomass term
+		index_XYZ <- XYZ + 2
 
-		})
+		# NON-BIOMASS FACET XYZ: priors
+		beta_facet_XYZ[1] ~ dnorm(0, sd = beta_facet_prior_dnorm_sd_1)
+		for (i in 2:n_terms_facet_XYZ) {
+			beta_facet_XYZ[i] ~ dnorm(0, sd = beta_facet_prior_dnorm_sd) # broad prior
+		}
 
-		model_code <- glueNimbleCode(model_code, bias_response_curve_code)
+		# NON-BIOMASS FACET XYZ: parameters of biomass distribution are latent and functions of environment
+		# individual plant traits are samples from the site-level distribution defined by the site-level distribution
+		for (i in 1:n_pheno_sites) {
+			mu_facet_site_XYZ[i] <- exp(Phi_site[i, index_XYZ])
+		}
 
-	} else if (data_occs$n_covariates_occs_bias == 1) {
-	### ONE bias covariate
+		# NON-BIOMASS FACET XYZ: prior for sd of individual plant facet value on lognormal (~ half-Cauchy), ==> vague
+		log(sigma_facet_within_sites_XYZ) ~ dnorm(0, sd = sigma_facet_within_sites_log_prior_sd)
 
-		bias_response_curve_code <- nimbleCode({
+		# NON-BIOMASS FACET XYZ: likelihood of the non-biomass trait of an individual plant
+		for (i in 1:n_non_biomass) {
 
-			for (i in 2:n_terms_occs_bias) {
-				alpha_occs[i] ~ dnorm(0, sd = alpha_occs_prior_dnorm_sd)
-			}
+			# likelihood
+			# y_facet_XYZ[i] ~ dHLN(meanlog = Phi_site[site_index_facet[i], index_XYZ], sdlog = sigma_facet_within_sites_XYZ, z = z_site[site_index_facet[i]])
+			y_facet_XYZ[i] ~ dHLN(meanlog = Phi_site[site_index_facet[i], index_XYZ], sdlog = sigma_facet_within_sites_XYZ, psi = psi_site[site_index_facet[i]])
 
-			# OCCURRENCE: likelihood
-			for (i in 1:n_counties_occs_calib) {
-				logit(p[i]) <- inprod(alpha_occs[1:n_terms_occs_bias], w_occs_bias[i, 1:n_terms_occs_bias])
-			}
+			# simulated values for unconditional DHARMa residuals... add 2 
+			# y_facet_sim_XYZ[i] ~ dHLN(meanlog = Phi_site[site_index_facet[i], index_XYZ], sdlog = sigma_facet_within_sites_XYZ, z = z_site[site_index_facet[i]])
+			y_facet_sim_XYZ[i] ~ dHLN(meanlog = Phi_site[site_index_facet[i], index_XYZ], sdlog = sigma_facet_within_sites_XYZ, psi = psi_site[site_index_facet[i]])
 
-			# OCCURRENCE: posterior predictive sampler for BIAS response curves
-			for (j in 1:n_response_curve_values) {
-				
-				logit(response_curves_occs_bias[j]) <-
-					inprod(alpha_occs[1:n_terms_occs_bias], resp_curves_w_occs[j, 1:n_terms_occs_bias])
+		}
+		
+		# INTEGRATION: site-level calculations
+		# This is how the phenotypic variables communicate with abundance. Abundance is naturally estimated at the county level, so we assume that the site-level environmental covariates act like faux counties for abundance, but are indicative of the sites for phenotypic variables.
+		for (i in 1:n_pheno_sites) {
+			phi_facet_site[i, XYZ] <- inprod(beta_facet_XYZ[1:n_terms_facet_XYZ], x_by_site_facet_XYZ[i, 1:n_terms_facet_XYZ])
+		}
 
-			}
+		# INTEGRATION: county-level
+		# NB We have measurements of biomass at the site level, but not county. We thus assume that the estimates of non-biomass facets (and biomass) using county-level covariates are indicative of virtual sites that have the same environments as counties. Biomass and non-biomass facets are still estimated at the site level.
+		for (i in 1:n_counties_occs_calib) {
+			phi_facet_county[i, XYZ] <- inprod(beta_facet_XYZ[1:n_terms_facet_XYZ], x_by_county_facet_XYZ[i, 1:n_terms_facet_XYZ])
+		}
 
-		})
+	}'
 
-		model_code <- glueNimbleCode(model_code, bias_response_curve_code)
+	code_nonbiomass_facets <- list()
+	for (i in seq_along(nonbiomass_facets)) {
 
-	### MORE THAN ONE bias covariate
-	} else if (data_occs$n_covariates_occs_bias > 1) {
-
-		bias_response_curve_code <- nimbleCode({
-
-			for (i in 2:n_terms_occs_bias) {
-				alpha_occs[i] ~ dnorm(0, sd = alpha_occs_prior_dnorm_sd)
-			}
-
-			# OCCURRENCE: likelihood
-			for (i in 1:n_counties_occs_calib) {
-				logit(p[i]) <- inprod(alpha_occs[1:n_terms_occs_bias], w_occs_bias[i, 1:n_terms_occs_bias])
-			}
-
-			# OCCURRENCE: posterior predictive sampler for BIAS response curves
-			for (i in 1:n_covariates_occs_bias) {
-				
-				for (j in 1:n_response_curve_values) {
-					
-					logit(response_curves_occs_bias[j, i]) <-
-						inprod(alpha_occs[1:n_terms_occs_bias], resp_curves_w_occs[j, 1:n_terms_occs_bias, i])
-
-				}
-
-			}
-
-		})
-
-		model_code <- glueNimbleCode(model_code, bias_response_curve_code)
+		code_facets_raw_this_facet <- gsub(pattern = 'XYZ', replacement = i, x = code_facets_raw)
+		code_nonbiomass_facets[[i]] <- code_facets_raw_this_facet
 
 	}
+	code_nonbiomass_facets <- lapply(code_nonbiomass_facets, function(x) parse(text = x)[[1]])
+
+	# code for sampling MVN for sites and counties
+	code_integration <- paste0('{
+
+		for (i in 1:n_pheno_sites) {
+
+			phis_site[i, 1:n_facets] <- c(
+				phi_occs_site[i],
+				phi_biomass_site[i], ',
+				paste0('\nphi_facet_site[i, ', seq_along(nonbiomass_facets), ']', collapse = ', '),
+			')
+			Phi_site[i, 1:n_facets] ~ dmnorm(phis_site[i, 1:n_facets], cholesky = U[1:n_facets, 1:n_facets], prec_param = 0)
+
+			phi_occs_site[i] <- inprod(beta_occs[1:n_terms_occs], x_by_site_occs[i, 1:n_terms_occs])
+			phi_biomass_site[i] <- inprod(beta_biomass[1:n_terms_biomass], x_by_site_biomass[i, 1:n_terms_biomass])
+
+		}
+
+		# INTEGRATION: county-level
+		# NB We have measurements of biomass at the site level, but not county. We thus assume that the estimates of biomass using county-level covariates are indicative of virtual sites that have the same environments as counties. Biomass is still estimated at the site level.
+		for (i in 1:n_counties_occs_calib) {
+
+			phis_county[i, 1:n_facets] <- c(
+				phi_occs_county[i],
+				phi_biomass_county[i], ',
+				paste0('\nphi_facet_county[i, ', seq_along(nonbiomass_facets), ']', collapse = ', '),
+			')
+			
+			Phi_county[i, 1:n_facets] ~ dmnorm(phis_county[i, 1:n_facets], cholesky = U[1:n_facets, 1:n_facets], prec_param = 0)
+
+			phi_occs_county[i] <- inprod(beta_occs[1:n_terms_occs], x_by_county_occs[i, 1:n_terms_occs])
+			phi_biomass_county[i] <- inprod(beta_biomass[1:n_terms_biomass], x_by_county_biomass[i, 1:n_terms_biomass])
+
+		}
+
+	}')
+	code_integration <- parse(text = code_integration)[[1]]
+
+	model_code <- glueNimbleCode(
+		code_integration,
+		occs_biomass_code,
+		model_code_beta_occs_alpha_occs_1_priors,
+		model_code_beta_psi_priors,
+		model_code_beta_biomass_priors
+	)
+	model_code <- Reduce(
+		f = function(code_a, code_b) glueNimbleCode(code_a, code_b),
+		x = code_nonbiomass_facets,
+		init = model_code
+	)
 
 	print(model_code)
 
-	# say('nimbleModel():', level = 2)
-	# model <- nimbleModel(
-	# 	code = model_code, # our model
-	# 	constants = constants, # constants
-	# 	data = data, # data
-	# 	inits = inits, # initialization values
-	# 	check = TRUE, # any errors?
-	# 	calculate = FALSE,
-	# 	# buildDerivs = TRUE # need for Hamiltonian Monte Carlo
-	# 	buildDerivs = FALSE # need for Hamiltonian Monte Carlo
-	# )
-
-	# say('initializeInfo() and $calculate():', level = 2)
-	# model$initializeInfo()
-	# calc <- model$calculate()
-	# say('model$calculate(): ', calc)
-	# if (is.na(calc) || is.infinite(calc)) stop('Impossible likelihood.')
-	
-	# say('configureMCMC():', level = 2)
-
-	monitors_coeffs_not_indexed <- 'lambda_sigma'
-	monitors_coeffs_single_index <- c('beta_occs', 'beta_psi', 'alpha_occs')
-	monitors_coeffs_double_index <- c()
-
-	monitors_derived_not_indexed <- c('log_lik')
-	monitors_derived_single_index <- c() # c('N', 'p', 'z_county', 'psi')
-	monitors_derived_double_index <- c()
-
-	monitors_dharma <- c(
-		'y_n_ag_sim', 'lambda_mu_sq'
+	say('nimbleModel():', level = 2)
+	model <- nimbleModel(
+		code = model_code,
+		constants = constants,
+		data = data,
+		inits = inits,
+		check = TRUE,
+		calculate = FALSE,
+		# buildDerivs = TRUE # need for Hamiltonian Monte Carlo
+		buildDerivs = FALSE # should be TRUE with dmnorm()
 	)
-
-	monitors_resp_curves <- c(
-		'response_curves_occs_mu', 'response_curves_psi'
-	)
-	if (data_occs$n_covariates_occs_bias > 0) monitors_resp_curves <- c(monitors_resp_curves, 'response_curves_occs_bias')
-
-	monitors <- c(monitors_coeffs_not_indexed, monitors_coeffs_single_index, monitors_coeffs_double_index, monitors_derived_not_indexed, monitors_derived_single_index, monitors_derived_double_index, monitors_dharma, monitors_resp_curves)
-
-	# conf <- configureMCMC(
-	# 	model,
-	# 	monitors = monitors,
-	# 	print = TRUE,
-	# 	enableWAIC = TRUE
-	# )
-
-	# # add no U-turn sampler (Hamiltonian Monte Carlo)
-	# vars <- c(monitors_coeffs_not_indexed, monitors_coeffs_single_index, monitors_coeffs_double_index)
-	# conf$addSampler(target = vars, type = 'NUTS')
-	# say('NUTS sampler added to ', paste(vars, collapse = ' & '), '.')
-
-	# # RW block samplers for correlated parameters
-	# conf$removeSamplers('beta_occs[1]')
-	# conf$removeSamplers('beta_occs_vs_biomass')
-	# conf$addSampler(target = c('beta_occs[1]', 'beta_occs_vs_biomass[1]', 'beta_occs_vs_biomass[2]'), type = 'RW_block')
-	# say('RW_block sampler added to beta_occs[1] and beta_occs_vs_biomass[1:2].')
-
-	# # AF slice sampler
-	# vars <- c('alpha_occs', 'beta_occs')
-	# if (!homoscedastic) vars <- c(vars, 'beta_occs_sigma')
-	# if (zero_inflated) vars <- c(vars, 'beta_psi')
-	# for (var in vars) {
-	# 	conf$removeSamplers(var)
-	# }
-	# conf$addSampler(target = vars, type = 'AF_slice')
-	# say('AF_slice sampler added to ', paste(vars, collapse = ' & '), '.')
-
-	# ### compile/build/run model/save MCMC
-	# build <- buildMCMC(conf)
-
-	# say('Compiling ', date())
-	# compiled <- compileNimble(model, build, showCompilerOutput = FALSE)
-
-	# say('Sampling ', date())
-	# chains <- runMCMC(
-	# 	compiled$build,
-	# 	niter = niter,
-	# 	nburnin = nburnin,
-	# 	thin = thin,
-	# 	nchains = nchains,
-	# 	inits = inits,
-	# 	progressBar = TRUE,
-	# 	samplesAsCodaMCMC = TRUE,
-	# 	summary = TRUE,
-	# 	WAIC = TRUE,
-	# 	perChainWAIC = FALSE
-	# )
-
-	# saveRDS(chains, paste0(out_dir, '/chains.rds'))
-	chains <- readRDS(paste0(out_dir, '/chains.rds'))
-
-	descrip <- 'occurrence ~ ZIP ~ exp(normal(env)))'
-	workflow_postmodeling_generic(facet = 'occurrence', formulae = formulae, descrip = descrip, out_dir = out_dir)
-
-	workflow_postmodeling_occurrence(formula_occs = formula_occs, formula_psi = formula_psi, formula_occs_bias = formula_occs_bias, out_dir = out_dir)
-	
-	# if (do_crossvalidation) workflow_postmodeling_occurrence_crossvalidation(formula_occs = formula_occs, formula_occs_bias = formula_occs_bias, formula_psi = formula_psi, constants = constants, out_dir = out_dir)
-
-say('DONE!', level = 1)

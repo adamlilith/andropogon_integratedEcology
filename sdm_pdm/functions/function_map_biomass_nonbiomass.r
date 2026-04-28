@@ -1,7 +1,9 @@
 #' Map biomass model predictions
+#' 
+#' source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/functions/function_map_biomass_nonbiomass.r')
 #'
 #' facet			Name of facet ('biomass', 'n_concentration', etc.)
-#' out_dir 			Folder in which to save map.
+#' out_dir 			Folder in which to save map. Leave as `NULL` to not save.
 #' filename_append String to append to file name. Will have "_" prefixed to it.
 #' pred_vect_nam 	SpatVector with predictions.
 #' response_var 	Any of: 'mu_<facet>_county_sq', 'mu_<facet>_county_ssp245_2041_2070', 'mu_<facet>_county_ssp245_2071_2100', 'mus_<facet>_ssp370_2041_2070', 'mu_<facet>_county_ssp370_2071_2100'
@@ -26,9 +28,10 @@ map_biomass_nonbiomass <- function(
 ) {
 
 	nam <- vect('./data_from_gadm/gadm_4pt1_level_1_north_america_sans_alaska_lambert.gpkg')
+	nam <- simplifyGeom(nam, tolerance = 1000)
 
 	# extent
-	site_vect <- if (facet == 'biomass') { data_biomass_nonbiomass$site_vect_biomass } else { data_biomass_nonbiomass$site_vect_facet }
+	site_vect <- data_biomass_nonbiomass$site_vect
 	site_vect <- project(site_vect, pred_vect_nam)
 	extent <- ext(site_vect)
 	extent <- as.polygons(extent, crs = pred_vect_nam)
@@ -39,15 +42,15 @@ map_biomass_nonbiomass <- function(
 	pred_vect_display <- crop(pred_vect_nam, extent)
 
 	# delineate current range "core"
-	range_core <- delineate_range_core(pred_vect_display, column = response_var, ag_core_quant = ag_core_quant)
+	range_core <- delineate_range_core(pred_vect_display, column = response_var, core_quant = core_quant)
 
 	# get range of values for plotting
 	vars <- c(
-		paste0('mu_', facet, '_county_', response_var_type, '_sq'),
-		paste0('mu_', facet, '_county_', response_var_type, '_ssp245_2041_2070'),
-		paste0('mu_', facet, '_county_', response_var_type, '_ssp245_2071_2100'),
-		paste0('mu_', facet, '_county_', response_var_type, '_ssp370_2041_2070'),
-		paste0('mu_', facet, '_county_', response_var_type, '_ssp370_2071_2100')
+		paste0(facet, '_', response_var_type, '_sq'),
+		paste0(facet, '_', response_var_type, '_ssp245_2041_2070'),
+		paste0(facet, '_', response_var_type, '_ssp245_2071_2100'),
+		paste0(facet, '_', response_var_type, '_ssp370_2041_2070'),
+		paste0(facet, '_', response_var_type, '_ssp370_2071_2100')
 	)
 
 	# Calculate mean and standard deviation of biomass by site
@@ -75,19 +78,19 @@ map_biomass_nonbiomass <- function(
 	counties_with_ag <- pred_vect_display[pred_vect_display$n_andropogon_gerardi > 0]
 	counties_with_ag <- centroids(counties_with_ag)
 
-	response_mean_col <- paste0(facet, '_mean')
+	center_col <- paste0(facet, '_', response_var_type)
 
 	map <- ggplot() +
 		layer_spatial(pred_vect_display, aes(fill = .data[[response_var]]), color = NA) +
 		scale_fill_gradientn(
 			name = legend_title,
-			colors = c('#fcfbfd', '#6a51a3', '#3f007d'),
+			colors = c('#edf8e9', '#74c476', '#005a32'),
 			limits = resp_limits
 		) +
 		layer_spatial(nam, color = 'gray40', fill = NA, linewidth = 0.3) +
 		layer_spatial(counties_with_ag, pch = 16, color = alpha('gray20', 0.5), size = 0.35) +
-		layer_spatial(site_vect, aes(fill = get(response_mean_col)), pch = 21, size = 4) +
-		layer_spatial(range_core, color = 'cyan', fill = NA, linewidth = 1) +
+		layer_spatial(site_vect, aes(fill = .data[[center_col]]), pch = 21, size = 4) +
+		layer_spatial(range_core, color = 'orange2', fill = NA, linewidth = 1) +
 		coord_sf(xlim = c(extent_coords[1], extent_coords[2]), ylim = c(extent_coords[3], extent_coords[4]), expand = FALSE) +
 		ggtitle(title, subtitle) +
 		theme(
@@ -95,7 +98,7 @@ map_biomass_nonbiomass <- function(
 			plot.subtitle = element_text(size = 14)
 		)
 
-	ggsave(plot = map, filename = paste0(out_dir, '/map_', facet, '_', response_var_type, '_', filename_append, '.png'), width = 12, height = 10, dpi = 300)
+	if (!is.null(out_dir)) ggsave(plot = map, filename = paste0(out_dir, '/map_', facet, '_', response_var_type, '_', filename_append, '.png'), width = 12, height = 10, dpi = 200)
 	invisible(map)
 
 }

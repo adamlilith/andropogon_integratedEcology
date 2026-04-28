@@ -6,25 +6,31 @@
 	],
 	"settings": {
 		"workbench.colorCustomizations": {
-			"activityBar.activeBackground": "#85a285",
-			"activityBar.background": "#85a285",
-			"activityBar.foreground": "#15202b",
-			"activityBar.inactiveForeground": "#15202b99",
-			"activityBarBadge.background": "#5858c7",
+			"activityBar.activeBackground": "#2f7c47",
+			"activityBar.background": "#2f7c47",
+			"activityBar.foreground": "#e7e7e7",
+			"activityBar.inactiveForeground": "#e7e7e799",
+			"activityBarBadge.background": "#422c74",
 			"activityBarBadge.foreground": "#e7e7e7",
 			"commandCenter.border": "#e7e7e799",
-			"sash.hoverBorder": "#85a285",
-			"statusBar.background": "#698b69",
+			"sash.hoverBorder": "#2f7c47",
+			"statusBar.background": "#215732",
 			"statusBar.foreground": "#e7e7e7",
-			"statusBarItem.hoverBackground": "#85a285",
-			"statusBarItem.remoteBackground": "#698b69",
+			"statusBarItem.hoverBackground": "#2f7c47",
+			"statusBarItem.remoteBackground": "#215732",
 			"statusBarItem.remoteForeground": "#e7e7e7",
-			"titleBar.activeBackground": "#698b69",
+			"titleBar.activeBackground": "#215732",
 			"titleBar.activeForeground": "#e7e7e7",
-			"titleBar.inactiveBackground": "#698b6999",
+			"titleBar.inactiveBackground": "#21573299",
 			"titleBar.inactiveForeground": "#e7e7e799"
 		},
-		"peacock.color": "#698B69",
-		"git.ignoreLimitWarning": true
+		"peacock.color": "#215732",
+		"git.ignoreLimitWarning": true,
+		"chat.tools.terminal.autoApprove": {
+			"Rscript": true,
+			"Get-Command": true,
+			"Test-Path": true,
+			"&": true
+		}
 	}
 }

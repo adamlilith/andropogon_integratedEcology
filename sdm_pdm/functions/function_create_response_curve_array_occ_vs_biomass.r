@@ -7,8 +7,8 @@
 create_response_curve_array_occ_vs_biomass <- function(formula, data_biomass, n_response_curve_values = 200) {
 
 	# create matrix for predicting response of SDM lambda to biomass
-	site_biomass_mean <- data_biomass$x_centers_biomass # mean biomass for scaling
-	site_biomass_sd <- data_biomass$x_scales_biomass # sd of biomass for scaling
+	site_biomass_mean <- data_biomass$x_centers # mean biomass for scaling
+	site_biomass_sd <- data_biomass$x_scales # sd of biomass for scaling
 
 	biomass_max <- omnibus::roundTo(1.1 * max(data_biomass$y_biomass), 10, ceiling) # max value of biomass for response curve
 

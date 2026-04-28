@@ -30,10 +30,6 @@
 	do_crossvalidation <- TRUE
 	# do_crossvalidation <- FALSE
 
-	# log BIOs 12-14 and 16-19?
-	# log_precip <- FALSE
-	log_precip <- TRUE
-
 	### formula for how aspects of species responds to environment
 
 	# formula_occs <- ~ 1 + bio1 + bio12 + bio15 + I(bio1^2) +  I(bio12^2) + I(bio15^2) # response of occurrence to climate and soil
@@ -45,20 +41,20 @@
 	# formula_occs <- ~ 1 + bio1 + bio12 + bio15 + I(bio1^2) + sand + ph + I(bio12^2) + I(bio15^2) + I(ph^2)# response of occurrence to climate and soil
 	# preds_filename <- 'bio1^2_bio12^2_bio15^2_ph^2'
 
-	# formula_occs_bias <- ~ 1 + n_poaceae_log10p1 # sampling bias for AG records
+	# formula_bias <- ~ 1 + n_poaceae_log10p1 # sampling bias for AG records
 	# bias_filename <- 'poaceae'
 
-	# formula_occs_bias <- ~ 1 + area_km2_log10 # sampling bias for AG records
+	# formula_bias <- ~ 1 + area_km2_log10 # sampling bias for AG records
 	# bias_filename <- 'area'
 
-	# formula_occs_bias <- ~ 1 + area_km2_log10 + n_poaceae_log10p1 # sampling bias for AG records
+	# formula_bias <- ~ 1 + area_km2_log10 + n_poaceae_log10p1 # sampling bias for AG records
 	# bias_filename <- 'area_poaceae'
 
-	formula_occs_bias <- ~ 1 # sampling bias for AG records
+	formula_bias <- ~ 1 # sampling bias for AG records
 	bias_filename <- '1'
 
 	### output folder and bias formula
-	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/', ifelse(trial, 'TRIAL_', ''), '[occs_poisson~normal_homoscedastic~', preds_filename, '_[bias~', bias_filename, ']]', ifelse(log_precip, '_log_precip', ''), '/')
+	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/', ifelse(trial, 'TRIAL_', ''), '[occs_poisson~normal_homoscedastic~', preds_filename, '_[bias~', bias_filename, ']]/')
 
 	if (!trial) {
 
@@ -108,8 +104,7 @@
 	say('nchains ...................... ', nchains)
 	say('formula_occs ................. ', paste(as.character(formula_occs), collapse = ' '))
 	say('formula_psi ................ ', paste(as.character(formula_psi), collapse = ' '))
-	say('formula_occs_bias ............ ', paste(as.character(formula_occs_bias), collapse = ' '))
-	say('log_precip ................... ', log_precip)
+	say('formula_bias ............ ', paste(as.character(formula_bias), collapse = ' '))
 
 	say('out_dir')
 	say(out_dir, post = 2)
@@ -117,7 +112,7 @@
 	formulae <- list(
 		formula_occs = formula_occs,
 		formula_psi = formula_psi,
-		formula_occs_bias = formula_occs_bias
+		formula_bias = formula_bias
 	)
 	saveRDS(formula, paste0(out_dir, '/formulae.rds'))
 
@@ -125,7 +120,7 @@
 	### data preparation ###
 	########################
 
-	data_occs <- prepare_occurrence_data(formula_occs = formula_occs, formula_occs_bias = formula_occs_bias, log_precip = log_precip, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
+	data_occs <- prepare_occurrence_data(formula_occs = formula_occs, formula_bias = formula_bias, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
 
 	#########################
 	### inputs for nimble ###
@@ -142,16 +137,16 @@
 
 		### occurrences
 		n_counties_occs_calib = data_occs$n_counties_occs_calib, # number of counties in calibration region
-		n_terms_occs = data_occs$n_terms_occs, # number of terms in formula for occurrence model (including intercept)
-		w_occs_bias = data_occs$w_occs_bias, # model matrix of sampling bias of AG observed occurrences
-		n_terms_occs_bias = data_occs$n_terms_occs_bias, # number of terms in sampling bias model
+		n_terms_occs = data_occs$n_terms, # number of terms in formula for occurrence model (including intercept)
+		w_occs_bias = data_occs$w_bias, # model matrix of sampling bias of AG observed occurrences
+		n_terms_occs_bias = data_occs$n_terms_bias, # number of terms in sampling bias model
 
 		n_covariates_occs = data_occs$n_covariates_occs, # number of covariates in formula for occurrence model
-		n_covariates_occs_bias = data_occs$n_covariates_occs_bias, # number of covariates in formula for occurrence model
-		resp_curves_x_occs = data_occs$resp_curves_x_occs, # response curve array for occurrences vs environment
-		resp_curves_w_occs = data_occs$resp_curves_w_occs, # response curve array for occurrences vs environment
+		n_covariates_occs_bias = data_occs$n_covariates_bias, # number of covariates in formula for occurrence model
+		resp_curves_x_occs = data_occs$resp_curves_x, # response curve array for occurrences vs environment
+		resp_curves_w_occs = data_occs$resp_curves_w, # response curve array for occurrences vs environment
 
-		counties_x_occs_calib_sq = data_occs$counties_x_occs_sq,
+		counties_x_occs_calib_sq = data_occs$counties_x_sq,
 
 		# response curves (general)
 		n_response_curve_values = n_response_curve_values # number of values in response curve array
@@ -163,11 +158,11 @@
 	N_inits_calib <- data_occs$y_n_ag * 2
 	N_inits_all_counties <- 2 * (1 + data_occs$ag_vect_sq$n_andropogon_gerardi)
 
-	prelim_data <- cbind(data_occs$w_occs_bias, data_occs$counties_x_occs_sq[ , 2:ncol(data_occs$counties_x_occs_sq)])
+	prelim_data <- cbind(data_occs$w_bias, data_occs$counties_x_sq[ , 2:ncol(data_occs$counties_x_sq)])
 	prelim_model <- glm.fit(prelim_data, y = data_occs$y_n_ag, family = poisson(log))
 
-	alpha_occs_inits <- prelim_model$coefficients[c('(Intercept)', data_occs$terms_occs_bias)]
-	beta_occs_inits <- prelim_model$coefficients[c('(Intercept)', data_occs$terms_occs)]
+	alpha_occs_inits <- prelim_model$coefficients[c('(Intercept)', data_occs$terms_bias)]
+	beta_occs_inits <- prelim_model$coefficients[c('(Intercept)', data_occs$terms)]
 
 	response_curves_occs_mu_inits <- matrix(2, nrow = n_response_curve_values, ncol = data_occs$n_covariates_occs)
 
@@ -202,18 +197,6 @@
 
 	model_code <- nimbleCode({
 	
-		# OCCURRENCE: weakly regularized or regularized priors for relationship to environment
-		# ddexp(): rate = 0.7675 sets |beta| < 3 90% of time and <5 97.8% of the time, and <10 99.95% of the time
-		# ddexp(): rate = 0.9986 sets |beta| < 3 95% of time
-		beta_occs[1] ~ dnorm(0, sd = beta_occs_prior_dnorm_sd_1)
-		for (i in 2:n_terms_occs) {
-			beta_occs[i] ~ ddexp(0, rate = beta_occs_prior_ddexp_rate)
-			# beta_occs[i] ~ dnorm(0, sd = beta_occs_prior_dnorm_sd)
-		}
-
-		# OCCURRENCE: priors for sampling bias
-		alpha_occs[1] ~ dnorm(0, sd = alpha_occs_prior_dnorm_sd_1)
-
 		# OCCURRENCE: prior for spread of normal distribution of lambda
 		log(lambda_sigma) ~ dnorm(0, sd = lambda_sigma_prior_sd) # half-Cauchy
 
@@ -230,16 +213,19 @@
 			# simulate observations for DHARMa residuals
 			y_n_ag_sim[i] ~ dbinom(prob = p[i], size = N[i])
 
-			# relationship between expected (latent) abundance and environment assuming NORMAL distribution
-			log(lambda_mu_sq[i]) ~ dnorm(phi_mu_sq[i], sd = lambda_sigma)
-			phi_mu_sq[i] <- inprod(beta_occs[1:n_terms_occs], counties_x_occs_calib_sq[i, 1:n_terms_occs])
+			# # relationship between expected (latent) abundance and environment assuming NORMAL distribution
+			# log(lambda_mu_sq[i]) ~ dnorm(phi_occs[i], sd = lambda_sigma)
+			# phi_occs[i] <- inprod(beta_occs[1:n_terms_occs], counties_x_occs_calib_sq[i, 1:n_terms_occs])
 
-			# likelihood
-			log_lik_y[i] <- dbinom(y_n_ag[i], prob = p[i], size = N[i], log = 1)
+			# relationship between expected (latent) abundance and environment
+			log(lambda_mu_sq[i]) <- inprod(beta_occs[1:n_terms_occs], counties_x_occs_calib_sq[i, 1:n_terms_occs])
+
+			# # likelihood
+			# log_lik_y[i] <- dbinom(y_n_ag[i], prob = p[i], size = N[i], log = 1)
 
 		}
 
-		log_lik <- sum(log_lik_y[1:n_counties_occs_calib])
+		# log_lik <- sum(log_lik_y[1:n_counties_occs_calib])
 
 		# OCCURRENCE: posterior predictive sampler for ENVIRONMENTAL response curves
 		# We're assuming occurrence responds to two or more environmental predictors, so the response curve "x" is an array with one "page" per predictor and output is a matrix with one column per predictor
@@ -259,7 +245,7 @@
 	})
 
 	### NO bias covariate
-	if (data_occs$n_covariates_occs_bias == 0) {
+	if (data_occs$n_covariates_bias == 0) {
 
 		bias_response_curve_code <- nimbleCode({
 
@@ -275,7 +261,7 @@
 
 		model_code <- glueNimbleCode(model_code, bias_response_curve_code)
 
-	} else if (data_occs$n_covariates_occs_bias == 1) {
+	} else if (data_occs$n_covariates_bias == 1) {
 	### ONE bias covariate
 
 		bias_response_curve_code <- nimbleCode({
@@ -302,7 +288,7 @@
 		model_code <- glueNimbleCode(model_code, bias_response_curve_code)
 
 	### MORE THAN ONE bias covariate
-	} else if (data_occs$n_covariates_occs_bias > 1) {
+	} else if (data_occs$n_covariates_bias > 1) {
 
 		bias_response_curve_code <- nimbleCode({
 
@@ -333,6 +319,8 @@
 
 	}
 
+	model_code <- glueNimbleCode(model_code, model_code_beta_occs_alpha_occs_1_priors)
+
 	print(model_code)
 
 	say('nimbleModel():', level = 2)
@@ -359,18 +347,18 @@
 	monitors_coeffs_single_index <- c('beta_occs', 'alpha_occs')
 	monitors_coeffs_double_index <- c()
 
-	monitors_derived_not_indexed <- c('log_lik')
+	monitors_derived_not_indexed <- c()
 	monitors_derived_single_index <- c()
 	monitors_derived_double_index <- c()
 
 	monitors_dharma <- c(
-		'y_n_ag_sim', 'lambda_mu_sq'
+		'y_n_ag_sim'
 	)
 
 	monitors_resp_curves <- c(
 		'response_curves_occs_mu'
 	)
-	if (data_occs$n_covariates_occs_bias > 0) monitors_resp_curves <- c(monitors_resp_curves, 'response_curves_occs_bias')
+	if (data_occs$n_covariates_bias > 0) monitors_resp_curves <- c(monitors_resp_curves, 'response_curves_occs_bias')
 
 	monitors <- c(monitors_coeffs_not_indexed, monitors_coeffs_single_index, monitors_coeffs_double_index, monitors_derived_not_indexed, monitors_derived_single_index, monitors_derived_double_index, monitors_dharma, monitors_resp_curves)
 
@@ -418,7 +406,15 @@
 
 	saveRDS(chains, paste0(out_dir, '/chains.rds'))
 
-	say('session info', level = 2)
+	say('PRIORS', level = 1)
+
+	say('constants_shared_occs', level = 2)
+	print(constants_shared_occs)
+
+	say('constants_shared_psi', level = 2)
+	print(constants_shared_psi)
+
+	say('session info', level = 1)
 	print(sessionInfo())
 
 	say(date(), pre = 1)
@@ -431,9 +427,9 @@ say('#################################################')
 	descrip <- 'occurrence: Poisson ~ normal homoscedastic'
 	workflow_postmodeling_generic(facet = 'occurrence', formulae = formulae, descrip = descrip, out_dir = out_dir)
 	
-	workflow_postmodeling_occurrence(formula_occs = formula_occs, formula_psi = formula_psi, formula_occs_bias = formula_occs_bias, out_dir = out_dir)
+	workflow_postmodeling_occurrence(formula_occs = formula_occs, formula_psi = formula_psi, formula_bias = formula_bias, out_dir = out_dir)
 	
-	if (do_crossvalidation) workflow_postmodeling_occurrence_crossvalidation(formula_occs = formula_occs, formula_occs_bias = formula_occs_bias, formula_occs_sigma = formula_occs_sigma, formula_psi = formula_psi, constants = constants, out_dir = out_dir)
+	if (do_crossvalidation) workflow_postmodeling_occurrence_crossvalidation(formula_occs = formula_occs, formula_bias = formula_bias, formula_occs_sigma = formula_occs_sigma, formula_psi = formula_psi, constants = constants, out_dir = out_dir)
 
 
 say(date())

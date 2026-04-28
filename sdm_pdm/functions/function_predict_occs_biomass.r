@@ -4,7 +4,7 @@
 #' x_occs			Model matrix
 #' x_biomass		Model matrix
 #' x_psi			Model matrix for probability of presence or `NULL`
-#' resp_distrib 	Named vector of response distributions. For occurrence, this can be 'Poisson' or 'ZIP'. For biomass this can be 'gamma', 'ZIG' (zero-inflated gamma), 'lognormal', or 'ZILN' (zero-inflated lognormal)
+#' resp_distrib 	Named vector of response distributions. For occurrence, this can be 'Poisson' or 'ZIP'. For biomass this can be 'gamma', 'hGamma' (zero-inflated gamma), 'lognormal', or 'hurdleLN' (zero-inflated lognormal)
 #' transform		Named vector of transformations to translate MVN to mean occurrence intensity or biomass: 'identity', 'softplus' or 'exponential'.
 #'
 #' Returns a matrix of predictions. Rows are iterations and columns are sample IDs.
@@ -71,7 +71,12 @@ predict_occs_biomass <- function(chains, resp_distrib, transform, x_occs, x_biom
 
 			# occurrence
 			lambda <- exp(Phis[ , 1])
-			pred_occs <- rpois(n_samples, lambda)
+			if (is.null(x_psi)) {
+				pred_occs <- rpois(n_samples, lambda)
+			} else {
+				pred_occs <- rep(NA_integer_, n_samples)
+				for (i in 1:n_samples) pred_occs[i] <- rHurdlePoisson(1, lambda = lambda[i], prob = z[i])
+			}
 
 			### BIOMASS
 			###########
@@ -95,7 +100,7 @@ predict_occs_biomass <- function(chains, resp_distrib, transform, x_occs, x_biom
 
 				for (count in seq_along(pred_biomass)) pred_biomass[count] <- rgamma(1, shape = shape_biomass[count], rate = rate_biomass[count])
 
-			} else if (resp_distrib['biomass'] == 'ZIG') {
+			} else if (resp_distrib['biomass'] == 'hGamma') {
 
 				shape_biomass <- mu_biomass^2 / this_sigma_biomass_within_sites^2
 				rate_biomass <- mu_biomass / this_sigma_biomass_within_sites^2
@@ -106,9 +111,9 @@ predict_occs_biomass <- function(chains, resp_distrib, transform, x_occs, x_biom
 			
 				for (count in seq_along(pred_biomass)) pred_biomass[count] <- rlnorm(1, meanlog = mu_biomass[count], sdlog = this_sigma_biomass_within_sites)
 
-			} else if (resp_distrib['biomass'] == 'ZILN') {
+			} else if (resp_distrib['biomass'] == 'hurdleLN') {
 
-				for (count in seq_along(pred_biomass)) pred_biomass[count] <- rZILN(1, meanlog = mu_biomass[count], sdlog = this_sigma_biomass_within_sites, z = z[count])
+				for (count in seq_along(pred_biomass)) pred_biomass[count] <- rHLN(1, meanlog = mu_biomass[count], sdlog = this_sigma_biomass_within_sites, z = z[count])
 			
 			}
 

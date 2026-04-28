@@ -3,18 +3,16 @@
 #' source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/workflows/workflow_postmodeling_occurrence_biomass.r')
 #'
 #' formula_... 		Formulae for occurrences/biomass mean, sigma, and probability of zero-inflation, and (for occurrences) bias.
-#' resp_distrib 	Named vector of response distributions. For occurrence, this can be 'Poisson' or 'ZIP'. For biomass this can be 'gamma', 'ZIG' (zero-inflated gamma), 'lognormal', or 'ZILN' (zero-inflated lognormal)
+#' resp_distrib 	Named vector of response distributions. For occurrence, this can be 'Poisson' or 'ZIP'. For biomass this can be 'gamma', 'hGamma' (zero-inflated gamma), 'lognormal', or 'hurdleLN' (zero-inflated lognormal)
 #' transform		Named vector of transformations to translate MVN to mean occurrence intensity or biomass: 'identity', 'softplus' or 'exponential'.
-#' log_precip 		Logical. If `TRUE`, log bios 12-14 and 16-19
 #' out_dir 			Folder into which to save results.
 workflow_postmodeling_occurrence_biomass <- function(
 	formula_occs,
-	formula_occs_bias,
+	formula_bias,
 	formula_biomass,
 	formula_psi,
 	resp_distrib,
 	transform,
-	log_precip,
 	out_dir
 ) {
 
@@ -33,8 +31,7 @@ workflow_postmodeling_occurrence_biomass <- function(
 			formula_biomass = formula_biomass,
 			formula_psi = formula_psi,
 			resp_distrib = resp_distrib,
-			transform = transform,
-			log_precip = log_precip
+			transform = transform
 		)
 
 		pred_vect_1930s <- burn_occs_biomass_into_vector(
@@ -44,8 +41,7 @@ workflow_postmodeling_occurrence_biomass <- function(
 			formula_biomass = formula_biomass,
 			formula_psi = formula_psi,
 			resp_distrib = resp_distrib,
-			transform = transform,
-			log_precip = log_precip
+			transform = transform
 		)
 
 		writeVector(pred_vect_nam, paste0(out_dir, '/prediction_vector_nam.gpkg'), overwrite = TRUE)
@@ -59,8 +55,7 @@ workflow_postmodeling_occurrence_biomass <- function(
 			out_dir = out_dir,
 			resp_type = 'mu',
 			chains = chains,
-			data = data_occs,
-			log_precip = log_precip
+			data = data_occs
 		)
 
 		if (zero_inflated) {
@@ -69,13 +64,12 @@ workflow_postmodeling_occurrence_biomass <- function(
 				out_dir = out_dir,
 				resp_type = 'psi',
 				chains = chains,
-				data = data_county_psi,
-				log_precip = log_precip
+				data = data_county_psi
 			)
 
 		}
 
-		if (data_occs$n_covariates_occs_bias >= 1) {
+		if (data_occs$n_covariates_bias >= 1) {
 
 			responses_bias <- graph_response_curves_occurrence_bias_vs_bias_covariates(
 				out_dir = out_dir,
@@ -105,16 +99,16 @@ workflow_postmodeling_occurrence_biomass <- function(
 		}
 
 		mult <- 10
-		covariates <- data_occs$covariates_occs
+		covariates <- data_occs$covariates
 		presences <- data_occs$ag_vect_sq$n_andropogon_gerardi > 0
 		x <- data_occs$ag_vect_sq[presences, covariates]
 		x <- as.data.table(x)
-		x <- scale(x, center = data_occs$x_centers_occs, scale = data_occs$x_scales_occs)
+		x <- scale(x, center = data_occs$x_centers_occs, scale = data_occs$x_scales)
 		means <- colMeans(x)
 		x <- cbind(matrix(rep(means, mult * n_response_curve_values), byrow = TRUE, ncol = 3))
 		colnames(x) <- covariates
 		x_seq <- seq(x_min, x_max, length.out = mult * n_response_curve_values)
-		x_seq <- (x_seq - data_occs$x_centers_occs['bio12']) / data_occs$x_scales_occs['bio12']
+		x_seq <- (x_seq - data_occs$x_centers_occs['bio12']) / data_occs$x_scales['bio12']
 		x[ , 'bio12'] <- x_seq
 		x <- as.data.table(x)
 
@@ -127,14 +121,12 @@ workflow_postmodeling_occurrence_biomass <- function(
 		preds_occs <- colMeans(preds$preds_occs)
 		preds_biomass <- colMeans(preds$preds_biomass)
 
-		x_unscaled <- x_seq * data_occs$x_scales_occs['bio12'] + data_occs$x_centers_occs['bio12']
+		x_unscaled <- x_seq * data_occs$x_scales['bio12'] + data_occs$x_centers_occs['bio12']
 		df_joint <- data.table(
 			occurrence = preds_occs,
 			biomass = preds_biomass,
 			bio12 = x_unscaled
 		)
-
-		if (log_precip) df_joint$bio12 <- 10^(df_joint$bio12) - 1
 
 		# hexagonal heatmap of predicted occurrence vs biomass,
 		# filled by the mean bio12 within each hexagon
@@ -151,46 +143,20 @@ workflow_postmodeling_occurrence_biomass <- function(
 	################################
 	say('OCCURRENCE: dharma residuals', level = 2)
 
-		fits <- mc_extract(chains, param = 'lambda_mu_sq', j = TRUE, stat = 'mean')
-		fits <- fits[data_occs$ag_vect_sq$focal_region]
-
-		observed_y <- data_occs$y_n_ag[data_occs$ag_vect_sq$focal_region]
-
-		sims <- mc_subset(chains, param = 'y_n_ag_sim', j = TRUE, na.rm = TRUE)
+		sims <- mc_subset(chains, 'y_n_ag_sim', j = TRUE)
 		sims <- mc_rbind(sims)
-		sims <- sims[ , data_occs$ag_vect_sq$focal_region]
+		sims <- sims[ , data_occs_counties$ag_vect_sq$focal_region]
 
-		# assign mean value of a site to NAs
-		if (anyNA(sims)) {
+		observed_y <- data_occs_counties$y_n_ag[data_occs_counties$ag_vect_sq$focal_region]
 
-			col_means <- colMeans(sims, na.rm = TRUE)
-			col_means_nas <- colMeans(sims)
-			na_cols <- which(is.na(col_means_nas))
-			
-			for (col in na_cols) {
-				sims[is.na(sims[ , col]), col] <- col_means[col]
-			}
-
-		}
-
-		col_means_nas <- colMeans(sims)
-		nas_in_sims <- which(is.na(col_means_nas))
-		if (length(nas_in_sims) > 0) {
-		
-			fits <- fits[-nas_in_sims]
-			observed_y <- observed_y[-nas_in_sims]
-			sims <- sims[ , -nas_in_sims]
-
-			culled_nas <- TRUE
-		
-		} else {
-		
-			culled_nas <- FALSE
-
+		nas_occs <- which(is.na(colSums(sims)))
+		if (length(nas_occs) > 0) {
+			sims <- sims[ , -nas_occs]
+			observed_y <- observed_y[-nas_occs]
 		}
 
 		sims <- t(sims)
-		dharma_occs <- createDHARMa(simulatedResponse = sims, observedResponse = observed_y, fittedPredictedResponse = fits, integerResponse = TRUE)
+		dharma_occs <- createDHARMa(simulatedResponse = sims, observedResponse = observed_y, integerResponse = TRUE)
 
 		dharma_quant_test_occs <- testQuantiles(dharma_occs, plot = FALSE)
 		dharma_resid_test_occs <- testResiduals(dharma_occs, plot = FALSE) # uniformity, dispersion, outlier
@@ -210,7 +176,7 @@ workflow_postmodeling_occurrence_biomass <- function(
 	#######################################
 
 		coords <- as.data.frame(crds(centroids(project(pred_vect_nam[pred_vect_nam$focal_region], enmSdmX::getCRS('WGS84')))))
-		if (culled_nas) coords <- coords[-nas_in_sims, ]
+		if (length(nas_occs) > 0) coords <- coords[-nas_occs, ]
 
 		# Compute Moran's I
 		moran_occs <- moran.test(dharma_occs$scaledResiduals, nb2listw(knn2nb(knearneigh(coords, longlat = TRUE, k = 4))))
@@ -218,7 +184,7 @@ workflow_postmodeling_occurrence_biomass <- function(
 		moran_p <- paste0('Moran P = ', sprintf('%.3f', round(moran_p, 3)))
 
 		residuals_vect <- pred_vect_nam[pred_vect_nam$focal_region]
-		if (culled_nas) residuals_vect <- residuals_vect[-nas_in_sims]
+		if (length(nas_occs) > 0) residuals_vect <- residuals_vect[-nas_occs]
 		residuals_vect$residual <- dharma_occs$scaledResiduals
 
 		extent <- ext(residuals_vect[residuals_vect$focal_region])
@@ -247,7 +213,7 @@ workflow_postmodeling_occurrence_biomass <- function(
 		form <- gsub(form, pattern = '\\^2\\)', replacement = '²')
 		form <- gsub(form, pattern = '*)', replacement = '×')
 
-		form_bias <- paste(as.character(formula_occs_bias), collapse = ' ')
+		form_bias <- paste(as.character(formula_bias), collapse = ' ')
 		form_bias <- gsub(form_bias, pattern = 'I\\(', replacement = '')
 		form_bias <- gsub(form_bias, pattern = '\\^2\\)', replacement = '²')
 		form_bias <- gsub(form_bias, pattern = '*)', replacement = '×')
@@ -309,7 +275,7 @@ workflow_postmodeling_occurrence_biomass <- function(
 			form <- gsub(form, pattern = '\\^2\\)', replacement = '²')
 			form <- gsub(form, pattern = '*)', replacement = '×')
 
-			form_bias <- paste(as.character(formula_occs_bias), collapse = ' ')
+			form_bias <- paste(as.character(formula_bias), collapse = ' ')
 			form_bias <- gsub(form_bias, pattern = 'I\\(', replacement = '')
 			form_bias <- gsub(form_bias, pattern = '\\^2\\)', replacement = '²')
 			form_bias <- gsub(form_bias, pattern = '*)', replacement = '×')
@@ -470,7 +436,7 @@ workflow_postmodeling_occurrence_biomass <- function(
 			zero_inflated = zero_inflated,
 			formulae = list(
 				formula_occs = formula_occs,
-				formula_occs_bias = formula_occs_bias,
+				formula_bias = formula_bias,
 				formula_psi = formula_psi
 			),
 			dharma_resids = dharma_resids
@@ -497,7 +463,7 @@ workflow_postmodeling_occurrence_biomass <- function(
 		preds <- predict_biomass(chains = chains, x = data_biomass$x_by_site, resp_distrib = resp_distrib, transform = transform)
 		estimates <- colMeans(preds)
 
-		# estimates <- mc_subset(chains, param = 'mu_biomass_site', j = TRUE)
+		# estimates <- mc_subset(chains, param = 'biomass_site', j = TRUE)
 		# estimates <- mc_rbind(estimates)
 
 		site_counts <- data_biomass$raw_data_biomass[ , .N, by = SITE]
@@ -531,11 +497,11 @@ workflow_postmodeling_occurrence_biomass <- function(
 		lower_est <- apply(preds, 2, quantile, 0.025)
 		upper_est <- apply(preds, 2, quantile, 0.975)
 
-		# mean_est <- mc_extract(chains, 'mu_biomass_site', j = TRUE)
-		# lower_est <- mc_extract(chains, 'mu_biomass_site', j = TRUE, stat = 'lower')
-		# upper_est <- mc_extract(chains, 'mu_biomass_site', j = TRUE, stat = 'upper')
+		# mean_est <- mc_extract(chains, 'biomass_site', j = TRUE)
+		# lower_est <- mc_extract(chains, 'biomass_site', j = TRUE, stat = 'lower')
+		# upper_est <- mc_extract(chains, 'biomass_site', j = TRUE, stat = 'upper')
 
-		obs_est_biomass <- as.data.table(data_biomass$site_vect_biomass)
+		obs_est_biomass <- as.data.table(data_biomass$site_vect)
 		obs_est_biomass$mean_est <- mean_est
 		obs_est_biomass$lower_est <- lower_est
 		obs_est_biomass$upper_est <- upper_est
@@ -568,10 +534,11 @@ workflow_postmodeling_occurrence_biomass <- function(
 		site_ids <- unique(data_biomass$raw_data_biomass$SITE)
 		for (i in 1:constants$n_pheno_sites) residuals_by_site[i] <- mean(residuals_by_plant[data_biomass$raw_data_biomass$SITE == site_ids[i]])
 
-		site_vect_biomass_resid <- data_biomass$site_vect_biomass
+		site_vect_biomass_resid <- data_biomass$site_vect
 		site_vect_biomass_resid$residual <- residuals_by_site
 
 		nam <- vect('./data_from_gadm/gadm_4pt1_level_1_north_america_sans_alaska_lambert.gpkg')
+		nam <- simplifyGeom(nam, tolerance = 1000)
 
 		# extent
 		extent <- buffer(site_vect_biomass_resid, width = 200 * 1000)
@@ -616,10 +583,10 @@ workflow_postmodeling_occurrence_biomass <- function(
 
 		for (i in seq_len(data_biomass$n_covariates)) {
 
-			if (data_biomass$covariates_biomass[i] == 'ph') {
+			if (data_biomass$covariates[i] == 'ph') {
 				x <- data_biomass$raw_data_biomass[['site_ph']]
 			} else {
-				x <- data_biomass$raw_data_biomass[[data_biomass$covariates_biomass[i]]]
+				x <- data_biomass$raw_data_biomass[[data_biomass$covariates[i]]]
 			}
 
 			this_x <- data.frame(
@@ -636,7 +603,7 @@ workflow_postmodeling_occurrence_biomass <- function(
 			resids_vs_covariates_results <- rbind(
 				resids_vs_covariates_results,
 				data.table(
-					covariate = data_biomass$covariates_biomass[i],
+					covariate = data_biomass$covariates[i],
 					F = F,
 					p = p,
 					significance = sig
@@ -646,7 +613,7 @@ workflow_postmodeling_occurrence_biomass <- function(
 			resids_vs_covariates[[i]] <- ggplot(this_x, aes(x = x, y = y)) +
 				geom_point() +
 				geom_smooth(method = loess, formula = y ~ x, se = FALSE) +
-				xlab(data_biomass$terms_biomass[i]) +
+				xlab(data_biomass$terms[i]) +
 				ylab('Residual value') +
 				ggtitle('DHAMRa Residuals for Biomass Means')
 
@@ -670,7 +637,7 @@ workflow_postmodeling_occurrence_biomass <- function(
 		observed <- data_biomass$raw_data_biomass[ , .(mean_biomass = mean(Biomass)), by = SITE][['mean_biomass']]
 		preds <- predict_biomass(chains = chains, x = data_biomass$x_by_site, resp_distrib = resp_distrib, transform = transform)
 		estimated <- colMeans(preds)
-		# estimated <- mc_extract(chains, 'mu_biomass_site', j = TRUE)
+		# estimated <- mc_extract(chains, 'biomass_site', j = TRUE)
 		correl_mu <- cor(observed, estimated)
 
 		rmse_mu <- unname(rmse_fx(observed, estimated))
@@ -685,7 +652,6 @@ workflow_postmodeling_occurrence_biomass <- function(
 			out_dir = out_dir,
 			chains = chains,
 			resp_type = 'mu',
-			log_precip = log_precip,
 			data_biomass = data_biomass,
 			quant_threshold = 0.5
 		)
@@ -705,7 +671,7 @@ workflow_postmodeling_occurrence_biomass <- function(
 			out_dir = out_dir,
 			filename_append = 'present',
 			pred_vect_nam = pred_vect_nam,
-			response_var = 'mu_biomass_county_mean_sq',
+			response_var = 'biomass_county_median_sq',
 			response_var_type = 'mu',
 			data_occs = data_occs,
 			data_biomass_nonbiomass = data_biomass,
@@ -722,7 +688,7 @@ workflow_postmodeling_occurrence_biomass <- function(
 
 			say(fut)
 
-			response_var <- paste0('mu_biomass_county_mean_', fut)
+			response_var <- paste0('biomass_county_median_', fut)
 
 			mean_form <- paste(as.character(formula_biomass), collapse = ' ')
 			subtitle <- paste0('Biomass μ ', mean_form, '  | SSP ', substr(fut, 4, 6), ' ', substr(fut, 8, 11), '-', substr(fut, 13, 16))
@@ -746,14 +712,14 @@ workflow_postmodeling_occurrence_biomass <- function(
 	###############################
 	say('BIOMASS: future change maps', level = 2)
 
-		site_vect <- data_biomass$site_vect_biomass
+		site_vect <- data_biomass$site_vect
 
 		maps_biomass_change <- list()
 		for (fut in futs) {
 
 			say(fut)
 
-			response_var <- paste0('mu_biomass_county_mean_', fut)
+			response_var <- paste0('biomass_county_median_', fut)
 			title <- bquote('Change in ' * italic('Andropogon gerardi') * ' biomass ')
 
 			mean_form <- paste(as.character(formula_biomass), collapse = ' ')
@@ -778,7 +744,13 @@ workflow_postmodeling_occurrence_biomass <- function(
 	##############################
 	say('BIOMASS: 1930s change maps', level = 2)
 
-		map_thirties <- map_biomass_nonbiomass_change_1930s(facet = 'biomass', data_biomass_traits = data_biomass, pred_vect_nam = pred_vect_nam, pred_vect_1930s = pred_vect_1930s, formula_mu = formula_biomass, formula_psi = formula_psi)
+		map_thirties <- map_biomass_nonbiomass_change_1930s(
+			facet = 'biomass',
+			data_biomass_traits = data_biomass,
+			pred_vect_nam = pred_vect_nam,
+			pred_vect_1930s = pred_vect_1930s,
+			formula_psi = formula_psi
+		)
 
 	### summary
 	###########
