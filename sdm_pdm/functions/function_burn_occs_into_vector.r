@@ -8,7 +8,7 @@
 #' formula_psi				Formula for occurrence probability of inflated zero or `NULL`
 #'
 #' Returns a SpatVector.
-burn_occs_into_vector <- function(demesne, chains, formula_occs, formula_psi = NULL) {
+burn_occs_into_vector <- function(demesne, chains, formula_occs, formula_psi = NULL, overdispersed = FALSE) {
 
 	zero_inflated <- !is.null(formula_psi)
 
@@ -18,10 +18,10 @@ burn_occs_into_vector <- function(demesne, chains, formula_occs, formula_psi = N
 
 	pred_vect <- if (demesne == 'nam') {
 		pred_vect <- data_occs$ag_vect_sq
+		pred_vect <- simplifyGeom(pred_vect, tolerance = 1000)
 	} else if (demesne == '1930s') {
 		pred_vect <- vect(paste0('./data_from_adam_and_loretta/andropogon_gerardi_occurrences_with_environment_1931_1940_prism.gpkg'))
 	}
-	pred_vect <- simplifyGeom(pred_vect, tolerance = 1000)
 
 	### predict mu
 	##############
@@ -41,7 +41,7 @@ burn_occs_into_vector <- function(demesne, chains, formula_occs, formula_psi = N
 	}
 
 	say('   burning present lambda...')
-	preds <- predict_occs(chains = chains, x = x, x_psi = x_psi)
+	preds <- predict_occs(chains = chains, x = x, x_psi = x_psi, overdispersed = overdispersed)
 
 	preds_mean <- colMeans(preds)
 	preds_median <- apply(preds, 2, median)

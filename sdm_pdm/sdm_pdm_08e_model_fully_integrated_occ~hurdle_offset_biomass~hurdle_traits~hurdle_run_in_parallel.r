@@ -3,7 +3,7 @@
 ###
 ### This model estimates the occurrence (present/absent), relative abundance, and site-level mean values of one or more traits of Andropogon gerardi. Traits include aboveground individual biomass, height, canopy diameter, and others. All of these "facets" integrate through a shared, non-centered multivariate normal distribution that accounts for correlations among facets. Mean values (or transforms of the means) are drawn from the MVN, then used as parameters for facet-specific distributions (e.g., zero-inflated Poisson for abundance, zero-inflated lognormal for biomass, etc.). It assumes relative abundance follows a hurdle (zero-inflated) Poisson distribution, which is a log-linear function of environmental covariates and an offset (number of Poaceae specimens that are not A. gerardi). To obviate issues with taking the log of zero, 1 is added to the offset. However, this can create an upward bias in coefficients since some AG can be found at sites with no other species found (implying zero search effort, so the abundance of AG must be due to highly suitable climate). To correct for this, a binary dummy variable is used for cases where AG is >0 and number of other Poaceae is 0 (dummy variable = 1 in these cases). The interpretation is then that a site with nno other Poaceae has an abundance of AG that is equivalent to exp(bias_coeff) non-AG plants. This correction can be paired with a tightly-regularized prior for the intercept. The probability of (inflated) zero is a function of environmental covariates. teh occurrence/abundance, biomass, and trait models share the same hurdle component. Ergo, if the species is predicted to be absent in a location, all of its facet values will be forced to 0, as well. This script is intended to be run "in series", i.e., a set of chains is run, the state saved, then another can be run using the last set as a starting point, etc. The script is set to always include occurrence/abundance and biomass in the model and either morphological or physiological traits, but not both types of traits at the same time. This is because including all traits in the same model creates a very high-dimensional parameter space that is difficult to sample from and causes a memory overflow when the model is compiled.
 ###
-### source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/sdm_pdm_08e_model_fully_integrated_occ~hurdle_offset_biomass~hurdle_traits~hurdle_run_in_series.r')
+### source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/sdm_pdm_08e_model_fully_integrated_occ~hurdle_offset_biomass~hurdle_traits~hurdle_run_in_parallel.r')
 ### 
 #############
 ### setup ###
@@ -20,15 +20,15 @@
 ## user-defined values ###
 ##########################
 
-	chain <- 1 # also used as starting seed
-	chain <- 2 # also used as starting seed
-	chain <- 3 # also used as starting seed
+	# chain <- 1 # also used as starting seed
+	# chain <- 2 # also used as starting seed
+	# chain <- 3 # also used as starting seed
 	chain <- 4 # also used as starting seed
-	chain <- 5 # also used as starting seed
-	chain <- 6 # also used as starting seed
+	# chain <- 5 # also used as starting seed
+	# chain <- 6 # also used as starting seed
 
 	facet_type <- 'morphological' # model occurrence, biomass, and *morphological* traits
-	facet_type <- 'physiological' # model occurrence, biomass, and *physiological* traits
+	# facet_type <- 'physiological' # model occurrence, biomass, and *physiological* traits
 
 	# if FALSE, assume we are starting this chain running from the 1st iteration (ie, running for the very first time); if TRUE, then we restart at state of previous set of iterations which should have been saved
 	pickup_from_last_set <- FALSE
@@ -45,7 +45,7 @@
 		### MCMC settings
 		# ~1 hr to do 8000 iterations with 2 non-biomass facets
 		niter <- 1000 # per set, total iter = niter * max_sets
-		max_sets <- 160
+		max_sets <- 1024 # number of sets of iterations, each niter long
 		nburnin <- 0
 		thin <- 1
 
@@ -68,11 +68,25 @@
 	formula_psi <- formula_occs
 	psi_filename <- occs_filename
 
+	meta_occs <- list(
+		occs_filename = occs_filename,
+		file_occs = file_occs
+	)
+
 	formula_biomass <- ~ 1 + bio12_log10p1 # response of biomass to environment
 	biomass_filename <- 'log(bio12)'
+	log_precip_biomass <- TRUE
 	resp_distrib_biomass <- 'hurdleLN'
 	transform_biomass <- if (resp_distrib_biomass == 'hGamma') { 'exponential' } else if (resp_distrib_biomass == 'hurdleLN') { 'identity' }
 	file_biomass <- paste0('./outputs_loretta/integrated_sdm_pdm/models_biomass/[biomass~', tolower(resp_distrib_biomass), '_', biomass_filename, ']/chains.rds')
+
+	meta_biomass <- list(
+		biomass_filename = biomass_filename,
+		resp_distrib_biomass = resp_distrib_biomass,
+		transform_biomass = transform_biomass,
+		file_biomass = file_biomass,
+		log_precip_biomass = log_precip_biomass
+	)
 
 	nonbiomass_facets <- list(
 		blade_width = list(
@@ -88,7 +102,7 @@
 			resp_distrib = 'hurdleLN',
 			transform = 'identity',
 			type = 'morphological'
-		)
+		),
 		cn_ratio = list(
 			formula = ~ 1 + bio12,
 			filename = 'bio12',
@@ -102,7 +116,7 @@
 			resp_distrib = 'hurdleLN',
 			transform = 'identity',
 			type = 'morphological'
-		)#,
+		),
 		# # # internal_co2 = list(
 		# 	# formula = ~ 1 + bio12 + nitrogen + bio12:nitrogen,
 		# 	# filename = 'bio12_x_nitrogen',
@@ -222,8 +236,10 @@
 
 		formulae <- list(
 			formula_occs = formula_occs,
+			meta_occs = meta_occs,
 			formula_psi = formula_psi,
 			formula_biomass = formula_biomass,
+			meta_biomass = meta_biomass,
 			nonbiomass_facets = nonbiomass_facets
 		)
 		saveRDS(formulae, paste0(out_dir, '/formulae.rds'))
@@ -240,7 +256,7 @@
 		### data preparation ###
 		########################
 
-		say('preparing data for occurrences ', date(), level = 2)
+		say('preparing data for occurrences ', date())
 
 		# data for OCCURRENCES at counties
 		data_occs_counties <- prepare_occurrence_data(formula_occs = formula_occs, formula_bias = ~ 1, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
@@ -248,7 +264,7 @@
 		# data for OCCURRENCES using site-level environment
 		data_occs_sites <- prepare_biomass_data(formula_biomass = formula_occs, n_response_curve_values = n_response_curve_values, calib = calib)
 
-		say('preparing data for psi ', date(), level = 2)
+		say('preparing data for psi ', date())
 
 		# data for ZERO-INFLATION at counties
 		data_psi_counties <- prepare_occurrence_data(formula_occs = formula_psi, formula_bias = ~ 1, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
@@ -256,7 +272,7 @@
 		# data for psi at sites
 		data_psi_sites <- prepare_biomass_data(formula_biomass = formula_psi, n_response_curve_values = n_response_curve_values, calib = calib)
 
-		say('preparing data for biomass ', date(), level = 2)
+		say('preparing data for biomass ', date())
 		# data for BIOMASS at sites
 		data_biomass_sites <- prepare_biomass_data(formula_biomass = formula_biomass, n_response_curve_values = n_response_curve_values, calib = calib)
 
@@ -268,7 +284,7 @@
 		for (f in seq_along(nonbiomass_facets)) {
 
 			facet <- names(nonbiomass_facets)[f]
-			say('preparing data for ', facet, ' ', date(), level = 2)
+			say('preparing data for ', facet, ' ', date())
 			
 			formula_facet <- nonbiomass_facets[[facet]]$formula
 
@@ -483,9 +499,9 @@
 		# find which set this is
 		chains_files <- listFiles(out_dir, pattern = 'chains_set_')
 		chains_file <- chains_files[length(chains_files)]
-		chains_file <- filename(chains_file)
+		chains_file <- basename(chains_file)
 		chains_file <- gsub(chains_file, pattern = '.rds', replacement = '')
-		sets <- substr(chains_files, 12, nchar(chains_files))
+		sets <- substr(chains_file, 12, nchar(chains_files))
 		sets <- as.numeric(sets)
 		set <- max(sets) + 1
 
@@ -773,7 +789,7 @@
 		build <- buildMCMC(conf)
 
 		say('compileNimble() ', date(), level = 2)
-		compiled <- compileNimble(model, build, showCompilerOutput = TRUE)
+		compiled <- compileNimble(model, build, showCompilerOutput = FALSE)
 
 	} # if this is the first set since starting R
 

@@ -3,7 +3,7 @@
 #' source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/workflows/workflow_postmodeling_occurrence_biomass.r')
 #'
 #' formula_occs			Formula for occurrences
-#' formula_bias	Formula for bias in sampling occurrences
+#' formula_bias			Formula for bias in sampling occurrences
 #' formula_psi			Formula for presence/absence
 #' formula_biomass		Formula for biomass
 #' nonbiomass_facets	Named list of non-biomass facets
@@ -17,6 +17,71 @@ workflow_postmodeling_fully_integrated <- function(
 	nonbiomass_facets,
 	out_dir
 ) {
+	
+	### collate data
+	################
+
+		# data for OCCURRENCES at counties
+		say('preparing data for occurrences')
+		data_occs_counties <- prepare_occurrence_data(formula_occs = formula_occs, formula_bias = ~ 1, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
+
+		# data for OCCURRENCES using site-level environment
+		data_occs_sites <- prepare_biomass_data(formula_biomass = formula_occs, n_response_curve_values = n_response_curve_values, calib = calib)
+
+		say('preparing data for psi')
+
+		# data for ZERO-INFLATION at counties
+		data_psi_counties <- prepare_occurrence_data(formula_occs = formula_psi, formula_bias = ~ 1, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
+
+		# data for psi at sites
+		data_psi_sites <- prepare_biomass_data(formula_biomass = formula_psi, n_response_curve_values = n_response_curve_values, calib = calib)
+
+		say('preparing data for biomass')
+		# data for BIOMASS at sites
+		data_biomass_sites <- prepare_biomass_data(formula_biomass = formula_biomass, n_response_curve_values = n_response_curve_values, calib = calib)
+
+		# data for BIOMASS using county-level environment
+		data_biomass_counties <- prepare_occurrence_data(formula_occs = formula_biomass, formula_bias = ~ 1, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
+
+		# data for NON-BIOMASS FACETS at sites and counties
+		data_nonbiomass_sites <- data_nonbiomass_counties <- list()
+		for (f in seq_along(nonbiomass_facets)) {
+
+			facet <- names(nonbiomass_facets)[f]
+			say('preparing data for ', facet)
+			
+			formula_facet <- nonbiomass_facets[[facet]]$formula
+
+			data_nonbiomass_sites[[f]] <- prepare_nonbiomass_data(facet = facet, formula_facet = formula_facet, n_response_curve_values = n_response_curve_values, calib = calib)
+
+			data_nonbiomass_counties[[f]] <- prepare_occurrence_data(formula_occs = formula_facet, formula_bias = ~ 1, n_response_curve_values = n_response_curve_values, psa_quant = psa_quant, calib = calib)
+
+		}
+
+		names(data_nonbiomass_sites) <- names(data_nonbiomass_counties) <- names(nonbiomass_facets)
+
+say('ASSUMING WE ARE USING CHAINS WITH DIFFERENT # OF ITERATIONS.\nREFORMATING INTO A SINGLE CHAIN.\nREMOVE THIS WHEN ALL ITERATIONS ARE DONE!!!', level = 1)
+n_chains <- length(chains$samples)
+n_iter_1 <- nrow(chains$samples[[1]])
+diff_iter <- FALSE
+if (n_chains > 1) {
+	for (i in 2:n_chains) {
+		if (n_iter_1 != nrow(chains$samples[[i]])) diff_iter <- TRUE
+	}
+}
+
+if (diff_iter & n_chains > 1) {
+	for (i in 2:n_chains) {
+		chains$samples[[1]] <- rbind(chains$samples[[1]], chains$samples[[i]])
+	}
+	chains <- list(samples = as.mcmc(chains$samples[[1]]))
+	chains$samples <- as.mcmc.list(chains$samples, start = 1, send = nrow(chains$samples[[1]]), thin = 1)
+}
+
+
+	resp_distrib_biomass <- formulae$meta_biomass$resp_distrib_biomass
+	transform_biomass <- formulae$meta_biomass$transform_biomass
+	log_precip_biomass <- formulae$meta_biomass$log_precip_biomass
 
 	### burn predictions into vector
 	################################
@@ -29,6 +94,9 @@ workflow_postmodeling_fully_integrated <- function(
 			formula_bias = formula_bias,
 			formula_psi = formula_psi,
 			formula_biomass = formula_biomass,
+			resp_distrib_biomass = resp_distrib_biomass,
+			transform_biomass = transform_biomass,
+			log_precip_biomass = log_precip_biomass,
 			nonbiomass_facets = nonbiomass_facets
 		)
 

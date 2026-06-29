@@ -4,7 +4,7 @@
 #'
 #' formula_occs,formula_psi,formula_bias Formulae for occurrences, sigma, probability of zero-inflation, and  occurrence bias
 #' out_dir Folder into which to save results.
-workflow_postmodeling_occurrence <- function(formula_occs, formula_psi, formula_bias, out_dir) {
+workflow_postmodeling_occurrence <- function(formula_occs, formula_psi, formula_bias, out_dir, overdispersed = FALSE) {
 
 	zero_inflated <- !is.null(formula_psi)
 
@@ -12,8 +12,8 @@ workflow_postmodeling_occurrence <- function(formula_occs, formula_psi, formula_
 	################################
 	say('OCCURRENCE: burn prediction vectors', level = 2)
 
-		pred_vect_nam <- burn_occs_into_vector(demesne = 'nam', chains = chains, formula_occs = formula_occs, formula_psi = formula_psi)
-		pred_vect_1930s <- burn_occs_into_vector(demesne = '1930s', chains = chains, formula_occs = formula_occs, formula_psi = formula_psi)
+		pred_vect_nam <- burn_occs_into_vector(demesne = 'nam', chains = chains, formula_occs = formula_occs, formula_psi = formula_psi, overdispersed = overdispersed)
+		pred_vect_1930s <- burn_occs_into_vector(demesne = '1930s', chains = chains, formula_occs = formula_occs, formula_psi = formula_psi, overdispersed = overdispersed)
 
 		writeVector(pred_vect_nam, paste0(out_dir, '/prediction_vector_nam.gpkg'), overwrite = TRUE)
 		writeVector(pred_vect_1930s, paste0(out_dir, '/prediction_vector_conus_1930s.gpkg'), overwrite = TRUE)
@@ -25,7 +25,8 @@ workflow_postmodeling_occurrence <- function(formula_occs, formula_psi, formula_
 		responses <- graph_response_curves_occurrence_vs_environment(
 			out_dir = out_dir,
 			chains = chains,
-			zero_inflated = zero_inflated
+			zero_inflated = zero_inflated,
+			overdispersed = overdispersed
 		)
 
 		if (zero_inflated) {

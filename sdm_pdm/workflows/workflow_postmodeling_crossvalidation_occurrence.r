@@ -4,9 +4,9 @@
 #' zero_inflated Logical.
 #' constants `constants` `list` from model preparation.
 #' out_dir Folder into which to save results.
-workflow_postmodeling_occurrence_crossvalidation <- function(formula_occs, formula_psi = NULL, formula_bias, constants, out_dir) {
+workflow_postmodeling_occurrence_crossvalidation <- function(formula_occs, formula_psi = NULL, formula_bias, constants, out_dir, overdispersed = FALSE) {
 
-	say('OCCURRENCE: cross-validation', level = 2)
+	say('OCCURRENCE: cross-validation ', date(), level = 2)
 
 	zero_inflated <- !is.null(formula_psi)
 
@@ -90,7 +90,7 @@ workflow_postmodeling_occurrence_crossvalidation <- function(formula_occs, formu
 		)
 
 		# evaluate predictions
-		preds <- predict_occs(chains = fold_chains, x = test_x, x_psi = test_x_psi)
+		preds <- predict_occs(chains = fold_chains, x = test_x, x_psi = test_x_psi, overdispersed = overdispersed)
 		if (zero_inflated) preds_psi <- predict_psi(chains = fold_chains, x = test_x_psi)
 		
 		test_n <- data$y_n_ag[indices]
@@ -155,6 +155,8 @@ workflow_postmodeling_occurrence_crossvalidation <- function(formula_occs, formu
 
 			)
 		)
+
+		fwrite(crossvalidation, paste0(out_dir, '/!meta_crossvalidation_UP_TO_AND_INCLUDING_FOLD_', k, '.csv'))
 
 	}
 

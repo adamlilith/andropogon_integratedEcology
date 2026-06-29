@@ -5,13 +5,15 @@
 #' chains
 #' x 				Model matrix
 #' x_psi 			Model matrix for probability of zero abundance or `NULL`
+#' overdispersed	Should be `TRUE` is response is Poisson(exp(N(lambda, sigma))), `FALSE` if just Poisson(exp(lambda))
 #'
 #' Returns a matrix of predictions. Rows are iterations and columns are sample IDs.
-predict_occs <- function(chains, x, x_psi = NULL) {
+predict_occs <- function(chains, x, x_psi = NULL, overdispersed = FALSE) {
 
 	betas <- mc_subset(chains, 'beta_occs', j = TRUE)
 	# lambda_sigma <- mc_subset(chains, 'lambda_sigma')
 	if (!is.null(x_psi)) betas_psi <- mc_subset(chains, 'beta_psi', j = TRUE)
+	if (overdispersed) sigmas_occs <- mc_subset(chains, 'sigma_occs')
 
 	n_samples <- nrow(x)
 	nchains <- mc_n_chains(chains)
@@ -36,6 +38,22 @@ predict_occs <- function(chains, x, x_psi = NULL) {
 			log_lambda <- x %*% this_beta
 			log_lambda <- log_lambda[ , 1]
 			# log_lambda <- rnorm(n_samples, phi_lambda_mu, sd = this_lambda_sigma)
+
+			if (overdispersed) {
+				
+				sigma_occs <- sigmas_occs$samples[[chain]][iter, ]
+				# log_lambda <- log_lambda - 1 / exp(1) # remove bias offset
+
+				# assume zero-correction is nil, which happens when AG absent from county
+				# if (zero_correction) {
+				# 	alpha_occs <- alphas_occs$samples[[chain]][iter, ]
+				# 	log_lambda <- log_lambda + alpha_occs # zero-correction
+				# }
+
+				log_lambda <- rnorm(n_samples, log_lambda, sd = sigma_occs)
+			
+			}
+
 			lambda <- exp(log_lambda)
 
 			# predicting zero-UNinflated

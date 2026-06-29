@@ -8,7 +8,7 @@
 #' x_biomass		Model matrix
 #' x_psi			Model matrix for probability of presence or `NULL`
 #' resp_distrib_biomass 	For biomass this can be 'gamma', 'hGamma' (zero-inflated gamma), 'lognormal', or 'hurdleLN' (zero-inflated lognormal)
-#' transform_biomass		Named vector of transformations to translate MVN to mean biomass: 'identity', 'softplus' or 'exponential'.
+#' transform_biomass	Named vector of transformations to translate MVN to mean biomass: 'identity', 'softplus' or 'exponential'.
 #' w_occs			Model matrix for bias covariates in occurrence model, or `NULL` if no bias covariates. If not `NULL`, the function will also predict bias-corrected occurrence probabilities.
 #' sampled			If `TRUE`, predictions are samples from estimated distributions (ie, as per a posterior predictive node). If `FALSE`, they are the expected (mean) value of the prediction given the environment at the sample. These values will still vary across chains/iterations, but not subject to sampling. In the `sampled = FALSE` case, all probabilities of presence will be forced to 1 if psi >=0.5 and 0 if <0.5.
 #'
@@ -89,9 +89,11 @@ predict_fully_integrated <- function(
 			this_sigma_facet_within_sites <- rep(NA_real_, length(nonbiomass_facets))
 			this_beta_nonbiomass <- list()
 			for (f in seq_along(nonbiomass_facets)) {
+			
 				n_terms <- length(attr(terms(nonbiomass_facets[[f]]$formula), 'term.labels')) + 1
 				this_beta_nonbiomass[[f]] <- betas_nonbiomass[[f]]$samples[[chain]][iter, paste0('beta_facet_', f, '[', 1:n_terms,']')]
 				this_sigma_facet_within_sites[f] <- sigmas_facet_within_sites[[f]]$samples[[chain]][iter, paste0('sigma_facet_within_sites_', f)]
+			
 			}
 
 			# predict latent abundance

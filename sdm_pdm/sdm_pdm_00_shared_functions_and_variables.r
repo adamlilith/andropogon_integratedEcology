@@ -90,11 +90,11 @@
 
 	constants_shared_occs <- list(
 	
-		# beta_occs_prior_dnorm_sd_1 = 100,
+		beta_occs_prior_dnorm_sd_1 = 100,
 		# # # beta_occs_prior_ddexp_rate = 0.7675,
 		# beta_occs_prior_dnorm_sd = 20
 
-		beta_occs_prior_dnorm_sd_1 = 2,
+		# beta_occs_prior_dnorm_sd_1 = 2,
 		# # beta_occs_prior_ddexp_rate = 0.7675,
 		beta_occs_prior_dnorm_sd = 20,
 

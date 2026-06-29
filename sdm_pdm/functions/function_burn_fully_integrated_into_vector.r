@@ -1,6 +1,6 @@
 #' Burn predictions from an occurrence/biomass/non-biomass model into a SpatVector of North America or Dust Bowl map
 #'
-#' source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/functions/function_burn_occs_biomass_nonbiomass_facets_into_vector.r')
+#' source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/functions/function_burn_fully_integrated_into_vector.r')
 #'
 #' demesne				'nam' (North America) or '1930s' (Dust Bowl area) or '1950s' (post-Dust Bowl)
 #' chains				Chains from NIMBLE
@@ -11,6 +11,8 @@
 #' formula_psi			Formula for presence/absences (assumes that we use the log/unlogged version of precipitation as per log_precip_occs)
 #' 
 #' formula_biomass		Formula for biomass
+#' resp_distrib_biomass	Distribution for biomass (eg, 'gamma', 'hGamma' (zero-inflated gamma), 'lognormal', or 'hurdleLN' (zero-inflated lognormal))
+#' transform_biomass	Named vector of transformations to translate MVN to mean biomass: 'identity', 'softplus' or 'exponential'. The names of the vector should be the same as the response variable for biomass in formula_biomass.
 #' log_precip_biomass	TRUE/FALSE: log precipitation predictors for biomass submodel
 #' 
 #' nonbiomass_facets	Named list of non-biomass facets
@@ -22,6 +24,8 @@ burn_fully_integrated_into_vector <- function(
 	log_precip_occs,
 	formula_psi,
 	formula_biomass,
+	resp_distrib_biomass,
+	transform_biomass,
 	log_precip_biomass,
 	nonbiomass_facets
 ) {
@@ -71,7 +75,8 @@ burn_fully_integrated_into_vector <- function(
 		x_occs = x_occs,
 		x_biomass = x_biomass,
 		x_psi = x_psi,
-		x_nonbiomass = x_nonbiomass
+		x_nonbiomass = x_nonbiomass,
+		w_occs = if (demesne == 'nam') data_occs_counties$counties_w_sq else data_occs_counties$counties_w_thirties
 	)
 
 	preds_occs <- preds$preds_occs

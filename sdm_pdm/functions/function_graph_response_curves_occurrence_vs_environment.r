@@ -3,7 +3,9 @@
 #' out_dir			Folder in which to save graphs. If NULL, do not save file.
 #' chains			MCMC chains
 #' zero_inflated	If `TRUE`, model is zero-inflated
-graph_response_curves_occurrence_vs_environment <- function(out_dir, chains, zero_inflated) {
+#'
+#' source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/functions/function_graph_response_curves_occurrence_vs_environment.r')
+graph_response_curves_occurrence_vs_environment <- function(out_dir, chains, zero_inflated, overdispersed = FALSE) {
 
 	y_lab <- 'Relative Abundance'
 
@@ -30,9 +32,10 @@ graph_response_curves_occurrence_vs_environment <- function(out_dir, chains, zer
 		}
 
 		# predict multiple times to smooth over RNG
-		preds <- predict_occs(chains = chains, x = x, x_psi = x)
+		preds <- predict_occs(chains = chains, x = x, x_psi = x, overdispersed = overdispersed)
 
-		medians <- apply(preds, 2, median)
+		# centers <- apply(preds, 2, median)
+		centers <- apply(preds, 2, mean)
 		hdi <- apply(preds, 2, function(x) hdi(x, credMass = 0.90))
 		lowers <- hdi[1, ]
 		uppers <- hdi[2, ]
@@ -44,7 +47,7 @@ graph_response_curves_occurrence_vs_environment <- function(out_dir, chains, zer
 		# data frames to hold predictions in long format
 		df_center <- data.frame(
 			x = x_unscaled,
-			response = medians
+			response = centers
 		)
 
 		df_ci <- data.frame(
@@ -99,7 +102,7 @@ graph_response_curves_occurrence_vs_environment <- function(out_dir, chains, zer
 	}
 
 	responses <- plot_grid(plotlist = responses, nrow = nrow)
-	if (!is.null(out_dir)) ggsave(plot = responses, filename = paste0(out_dir, '/response_curves_abundance_median_hdpi.png'), width = width, height = height, dpi = 120)
+	if (!is.null(out_dir)) ggsave(plot = responses, filename = paste0(out_dir, '/response_curves_abundance_mean_hdpi.png'), width = width, height = height, dpi = 120)
 	invisible(responses)
 
 }
