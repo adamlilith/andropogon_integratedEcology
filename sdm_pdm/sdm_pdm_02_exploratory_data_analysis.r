@@ -940,7 +940,7 @@
 # 		}
 
 # 	maps <- plot_grid(plotlist = maps, ncol = 4)
-# 	ggsave(maps, filename = paste0(out_dir, '/maps_of_environmental_variables_in_focal_region.png'), width = 19.2, height = 10.8, bg = 'white')
+# 	ggsave(maps, filename = paste0(out_dir, '/maps_environmental_variables_in_focal_region.png'), width = 19.2, height = 10.8, bg = 'white')
 
 # say('###########################################################')
 # say('### frequentist presence-absence modeling of occurrence ###')

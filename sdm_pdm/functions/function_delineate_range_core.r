@@ -16,6 +16,8 @@ delineate_range_core <- function(pred_vect, column, core_quant = 0.95, rule = '>
 		pred_vect[pred_vect[[column]] >= threshold]
 	} else if (rule == '<=') {
 		pred_vect[pred_vect[[column]] <= threshold]
+	} else if (rule == '<') {
+		pred_vect[pred_vect[[column]] < threshold]
 	} else {
 		stop('Bad `rule` for delineating range core.')
 	}

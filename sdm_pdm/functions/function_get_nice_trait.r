@@ -103,13 +103,13 @@ get_nice_trait <- function(rfriendly) {
 		short <- 'Photosynthetic rate'
 		long <- 'Photosynthetic rate (mol CO₂ m⁻² s⁻¹)'
 		units <- 'mol CO₂ m⁻² s⁻¹'
-		legend_title <- 'Photo.\nrate\'(mol CO₂ m⁻² s⁻¹)'
+		legend_title <- 'Photo.\nrate\n(mol CO₂ m⁻² s⁻¹)'
 		range_fx <- bottom0_range_fx
 	} else if (rfriendly == 'stomatal_conductance') {
 		short <- 'Stomatal conductance'
 		long <- 'Stomatal conductance (mol H2O₂ m⁻² s⁻¹)'
 		units <- 'mol H2O₂ m⁻² s⁻¹'
-		legend_title <- 'Stomatal\nconduct.\n()mol H2O₂ m⁻² s⁻¹)'
+		legend_title <- 'Conduct.\n(mol H2O₂ m⁻² s⁻¹)'
 		range_fx <- bottom0_range_fx
 	} else if (rfriendly == 'internal_co2') {
 		short <- 'CO₂ concentration'

@@ -646,7 +646,7 @@ say('#################################################')
 say('### post-modeling diagnostics and predictions ###')
 say('#################################################')
 
-	descrip <- 'occurrence ~ ZIP(MVN), biomass ~ 'hurdleLN'(MVN)'
+	descrip <- 'occurrence ~ ZIP(MVN), biomass ~ hurdleLN(MVN)'
 	workflow_postmodeling_generic(facet = 'occurrence + biomass', formulae = formulae, descrip = descrip, out_dir = out_dir)
 	
 	resp_distrib <- c(

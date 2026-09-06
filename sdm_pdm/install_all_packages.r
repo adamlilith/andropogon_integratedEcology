@@ -2,6 +2,7 @@
 	# Install all packages
 	packages <- c(
 		'bayesplot',
+		'brms',
 		'coda',
 		'cowplot',
 		'data.table',
@@ -13,12 +14,14 @@
 		'ggnewscale',
 		'ggspatial',
 		'HDInterval',
+		'lmtest',
 		'nimble',
 		'nimbleHMC',
 		'omnibus',
 		'openxlsx',
 		'patchwork',
 		'predicts',
+		'sandwich',
 		'spdep',
 		'statisfactory',
 		'terra',

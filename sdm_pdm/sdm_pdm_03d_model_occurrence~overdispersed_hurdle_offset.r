@@ -28,20 +28,23 @@
 ### user-defined values ###
 ###########################
 
+	chain <- 4
+	set.seed(chain)
+
 	# trial <- TRUE # TRUE for testing
 	trial <- FALSE # TRUE for testing
 
 	# what kind of bias correction?
-	correction <- 'no_offset' # do not use Poaceae as offset
-	# correction <- 'offset_with_zero_correction' # use log(Poaceae) offset, and add 1/exp(1) + alpha * absent
+	# correction <- 'no_offset' # do not use Poaceae as offset
+	correction <- 'offset_with_zero_correction' # use log(Poaceae) offset, and add 1/exp(1) + alpha * absent
 	# correction <- 'offset_without_zero_correction' # use log(Poaceae) offset, but do not add zero correction
 
 	# calib <- TRUE # use just counties with non-NA Poaceae for calibration region
 	calib <- FALSE # use all of North America for calibration region
 
 	# do cross-validation?
-	do_crossvalidation <- TRUE
-	# do_crossvalidation <- FALSE
+	# do_crossvalidation <- TRUE
+	do_crossvalidation <- FALSE
 
 	### formula for how aspects of species responds to environment
 
@@ -57,7 +60,7 @@
 
 	### output folder and bias formula
 	if (correction == 'offset_with_zero_correction') {
-		out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/', ifelse(trial, 'TRIAL_', ''), '[occs~overdispersed_hurdlepoisson(', filename_occs, ')]_[bias~poaceae_offset_plus_exp_neg_1_WITH_zero_correction_covariate]')
+		out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/', ifelse(trial, 'TRIAL_', ''), '[occs~overdispersed_hurdlepoisson(', filename_occs, ')]_[bias~poaceae_offset_plus_exp_neg_1_WITH_zero_correction_covariate]_REDO_chain_', chain)
 	} else if (correction == 'offset_without_zero_correction') {
 		out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_occurrence/', ifelse(trial, 'TRIAL_', ''), '[occs~overdispersed_hurdlepoisson(', filename_occs, ')]_[bias~poaceae_offset_plus_exp_neg_1_SANS_zero_correction_covariate]')
 	} else if (correction == 'no_offset') {
@@ -67,8 +70,9 @@
 	if (!trial) {
 
 		### MCMC settings
-		niter <- 1200000 # need ~1M to achieve ESS ~1000 for all coefficients
-		nchains <- 4
+		niter <- 3200000 # need ~1M to achieve ESS ~1000 for all coefficients
+		# nchains <- 4
+		nchains <- 1
 
 	} else {
 		
@@ -79,9 +83,6 @@
 	}
 	nburnin <- niter / 2
 	thin <- if ((niter - nburnin) / 1000 < 1) { 1 } else { (niter - nburnin) / 1000 }
-
-	seed <- 1
-	set.seed(seed)
 
 #############
 ### model ###
@@ -108,7 +109,8 @@
 
 	say('MCMC settings:', level = 2)
 	say('trial ........................ ', trial)
-	say('seed ......................... ', seed)
+	say('seed ......................... ', chain)
+	say('chain ........................ ', chain)
 	say('niter ........................ ', niter)
 	say('nburnin ...................... ', nburnin)
 	say('thin ......................... ', thin)
@@ -380,22 +382,22 @@
 	say(date(), pre = 1)
 	sink()
 
-say('#################################################')
-say('### post-modeling diagnostics and predictions ###')
-say('#################################################')
+# say('#################################################')
+# say('### post-modeling diagnostics and predictions ###')
+# say('#################################################')
 
-	descrip <- paste0('occs ~ OD hurdlePoisson(exp(', filename_occs, ')) | bias ~ ', ifelse(correction == 'offset_with_zero_correction', 'offset_with_zero_correction', ifelse(correction == 'offset_without_zero_correction', 'offset_without_zero_correction', 'no_offset')), ' | psi ~ ', filename_psi)
-	workflow_postmodeling_generic(facet = 'occurrence', formulae = formulae, descrip = descrip, out_dir = out_dir)
+# 	descrip <- paste0('occs ~ OD hurdlePoisson(exp(', filename_occs, ')) | bias ~ ', ifelse(correction == 'offset_with_zero_correction', 'offset_with_zero_correction', ifelse(correction == 'offset_without_zero_correction', 'offset_without_zero_correction', 'no_offset')), ' | psi ~ ', filename_psi)
+# 	workflow_postmodeling_generic(facet = 'occurrence', formulae = formulae, descrip = descrip, out_dir = out_dir)
 
-	workflow_postmodeling_occurrence(
-		formula_occs = formula_occs,
-		formula_psi = formula_psi,
-		formula_bias = ~ 1,
-		out_dir = out_dir,
-		overdispersed = TRUE
-	)
+# 	workflow_postmodeling_occurrence(
+# 		formula_occs = formula_occs,
+# 		formula_psi = formula_psi,
+# 		formula_bias = ~ 1,
+# 		out_dir = out_dir,
+# 		overdispersed = TRUE
+# 	)
 	
-	if (do_crossvalidation) workflow_postmodeling_occurrence_crossvalidation(formula_occs = formula_occs, formula_bias = ~ 1, formula_psi = formula_psi, constants = constants, out_dir = out_dir)
+# 	if (do_crossvalidation) workflow_postmodeling_occurrence_crossvalidation(formula_occs = formula_occs, formula_bias = ~ 1, formula_psi = formula_psi, constants = constants, out_dir = out_dir)
 
 say(date())
 say('FINIS!', deco = '+', level = 1)

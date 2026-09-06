@@ -2,11 +2,13 @@
 #'
 #' chains			MCMC chains list
 #' x 				Model matrix
+#' x_psi			Model matrix for psi (asumed to have same form as x). Leave as NULL to use x.
 #' resp_distrib 	Named vector of response distribution. This can be 'gamma', 'hGamma' (zero-inflated gamma), 'lognormal', or 'hurdleLN' (zero-inflated lognormal)
 #' transform		Named vector of transformations to translate MVN to mean occurrence intensity or biomass: 'identity', 'softplus' or 'exponential'.
+#' force_presence	If FALSE, presence/absence dynamically determined using psi. If TRUE, psi set to == 1. Ignored if not zero inflated.
 #'
 #' @returns A matrix of predictions. Rows are MCMC iterations and columns are samples.
-predict_nonbiomass_single_trait <- function(chains, x, resp_distrib, transform) {
+predict_nonbiomass_single_trait <- function(chains, x, x_psi = NULL, resp_distrib, transform, force_presence = FALSE) {
 
 	vars <- paste0('beta_facet')
 	betas <- mc_subset(chains, vars, j = TRUE)
@@ -15,7 +17,10 @@ predict_nonbiomass_single_trait <- function(chains, x, resp_distrib, transform) 
 	sigmas_facet_within_sites <- mc_subset(chains, 'sigma_facet_within_sites')
 
 	zero_inflated <- resp_distrib %in% c('hGamma', 'hurdleLN')
-	if (zero_inflated) betas_psi <- mc_subset(chains, 'beta_psi', j = TRUE)
+	if (zero_inflated) {
+		betas_psi <- mc_subset(chains, 'beta_psi', j = TRUE)
+		if (is.null(x_psi)) x_psi <- x
+	}
 
 	n_samples <- nrow(x)
 	if (is.list(chains$samples)) {
@@ -46,14 +51,16 @@ predict_nonbiomass_single_trait <- function(chains, x, resp_distrib, transform) 
 			# log_mu_facet <- rnorm(n_samples, mean = pred_untrans, sd = this_sigma_facet_among_sites)
 
 			# zero-inflation
-			if (zero_inflated) {
+			if (zero_inflated & !force_presence) {
 
 				beta_psi <- betas_psi$samples[[chain]][iter, ]
 				beta_psi <- cbind(beta_psi)
-				psi <- x %*% beta_psi
+				psi <- x_psi %*% beta_psi
 				psi <- psi[ , 1]
 				psi <- expit(psi)
 
+			} else if (zero_inflated & force_presence) {
+				psi <- rep(1, nrow(x_psi))
 			}
 			
 			# transform mean response

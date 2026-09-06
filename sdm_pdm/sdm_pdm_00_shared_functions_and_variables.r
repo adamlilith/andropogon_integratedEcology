@@ -37,7 +37,8 @@
 	library(openxlsx) # Excel files
 	library(patchwork) # combining ggplots
 	library(predicts) # GIS & SDMing
-	# library(readxl) # Excel
+	library(readxl) # Excel
+	library(scales) # transparency and scales
 	library(spdep) # spatial statistics
 	library(statisfactory) # statistics
 	library(terra) # spatial objects
@@ -85,8 +86,10 @@
 	# calib <- TRUE # use just counties with non-NA Poaceae for calibration region
 	calib <- FALSE # use all of North America for calibration region
 
-	# delineate range "core" as the set of relative abundances >= this quantile
+	# delineate range "core" as the set of relative abundances/trait values >= this quantile
+	# delineate range "anticore" as the set of relative abundances/trait values < this quantile
 	core_quant <- 0.95
+	anticore_quant <- 0.05
 
 	constants_shared_occs <- list(
 	
@@ -206,6 +209,90 @@
 	)
 
 	Sys.sleep(1)
+
+	### non-biomass facet metadata
+	##############################
+
+	# Values pertain to best single-facet models that are then used as the basis for constructing the integrated models.
+
+	nonbiomass_facets <- list(
+		blade_width = list(
+			formula = ~ 1 + ph + I(ph^2),
+			filename = 'ph^2',
+			resp_distrib = 'hurdleLN',
+			transform = 'identity',
+			type = 'morphological'
+		),
+		canopy_diameter = list(
+			formula = ~ 1 + bio1 + bio12 + bio1:bio12,
+			filename = 'bio1_x_bio12',
+			resp_distrib = 'hurdleLN',
+			transform = 'identity',
+			type = 'morphological'
+		),
+		cn_ratio = list(
+			formula = ~ 1 + bio12,
+			filename = 'bio12',
+			resp_distrib = 'hurdleLN',
+			transform = 'identity',
+			type = 'physiological'
+		),
+		height = list(
+			formula = ~ 1 + bio1 + bio12 + bio1:bio12,
+			filename = 'bio1_x_bio12',
+			resp_distrib = 'hurdleLN',
+			transform = 'identity',
+			type = 'morphological'
+		),
+		# # # internal_co2 = list(
+		# 	# formula = ~ 1 + bio12 + nitrogen + bio12:nitrogen,
+		# 	# filename = 'bio12_x_nitrogen',
+		# 	# resp_distrib = 'hurdleLN',
+		# 	# transform = 'identity'
+		# # ),
+		# # leaf_thickness = list(
+		# # 	formula = ~ 1 + bio12,
+		# # 	filename = 'bio12',
+		# # 	resp_distrib = 'hurdleLN',
+		# # 	transform = 'identity'
+		# # ),
+		# # n_concentration = list(
+		# # 	formula = ~ 1 + bio12,
+		# # 	filename = 'bio12',
+		# # 	resp_distrib = 'hurdleLN',
+		# # 	transform = 'identity'
+		# # ),
+		photosynthetic_rate = list(
+			formula = ~ 1 + bio1 + bio12 + bio1:bio12,
+			filename = 'bio1_x_bio12',
+			resp_distrib = 'hurdleLN',
+			transform = 'identity',
+			type = 'physiological'
+		),
+		spad = list(
+			formula = ~ 1 + bio12 + insolation_2000_growing_season_kWh_per_m2,
+			filename = 'bio12_srad',
+			resp_distrib = 'hurdleLN',
+			transform = 'identity',
+			type = 'physiological'
+		),
+		stomatal_conductance = list(
+			formula = ~ 1 + bio1 + bio12_log10p1 + I(bio1^2),
+			filename = 'bio1^2_log(bio12)',
+			resp_distrib = 'hurdleLN',
+			transform = 'identity',
+			type = 'physiological'
+		),
+		transpiration_rate = list(
+			formula = ~ 1 + bio1 + bio12 + I(bio12^2),
+			filename = 'bio1_bio12^2',
+			resp_distrib = 'hurdleLN',
+			transform = 'identity',
+			type = 'physiological'
+		)
+	)
+
+
 
 	# # # # BIOMASS: indices of each plant in each fold
 	# # # fold_1_biomass <- c(11, 12, 13, 14, 15, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 84, 85, 86, 87, 88, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103)

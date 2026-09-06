@@ -4,9 +4,11 @@
 #' x 				Model matrix
 #' resp_distrib 	Named vector of response distribution. This can be 'gamma', 'hGamma' (zero-inflated gamma), 'lognormal', or 'hurdleLN' (zero-inflated lognormal)
 #' transform		Named vector of transformations to translate MVN to mean occurrence intensity or biomass: 'identity', 'softplus' or 'exponential'.
+#' force_presence   If FALSE, presence/absence is dynamically determined by psi. If TRUE, psi is set to == 1. No effect if not zero inflated.
+#' 
 #'
 #' @returns A matrix of predictions. Rows are MCMC iterations and columns are samples.
-predict_biomass <- function(chains, x, resp_distrib, transform = NULL) {
+predict_biomass <- function(chains, x, x_psi = NULL, resp_distrib, transform = NULL, force_presence = FALSE) {
 
 	vars <- paste0('beta_biomass')
 	betas <- mc_subset(chains, vars, j = TRUE)
@@ -18,7 +20,12 @@ predict_biomass <- function(chains, x, resp_distrib, transform = NULL) {
 	sigmas_biomass_within_sites <- mc_subset(chains, 'sigma_biomass_within_sites')
 
 	zero_inflated <- resp_distrib %in% c('hGamma', 'hurdleLN')
-	if (zero_inflated) betas_psi <- mc_subset(chains, 'beta_psi', j = TRUE)
+	if (zero_inflated) {
+		
+		betas_psi <- mc_subset(chains, 'beta_psi', j = TRUE)
+		if (is.null(x_psi)) x_psi <- x
+
+	}
 
 	n_samples <- nrow(x)
 	if (is.list(chains$samples)) {
@@ -51,15 +58,17 @@ predict_biomass <- function(chains, x, resp_distrib, transform = NULL) {
 			# log_mu_biomass <- rnorm(n_samples, mean = pred_untrans, sd = this_sigma_biomass_among_sites)
 
 			# zero-inflation
-			if (zero_inflated) {
+			if (zero_inflated & !force_presence) {
 
 				beta_psi <- betas_psi$samples[[chain]][iter, ]
 				beta_psi <- cbind(beta_psi)
-				psi <- x %*% beta_psi
+				psi <- x_psi %*% beta_psi
 				psi <- psi[ , 1]
 				psi <- expit(psi)
 				# z <- rbinom(nrow(x), size = 1, prob = psi)
 
+			} else if (zero_inflated & force_presence) {
+				psi <- rep(1, nrow(x_psi))
 			}
 			
 			# transform mean response

@@ -7,9 +7,10 @@
 #' formula_psi				Formula for probability of presence. Ignored if `NULL`.
 #' resp_distrib 			Response distribution: 'hGamma' or 'hurdleLN'
 #' transform 				Either 'exponential' or 'identity' (depending on value of resp_distrib).
+#' force_presence			If TRUE, force psi == 1.
 #'
 #' Returns a SpatVector.
-burn_nonbiomass_into_vector <- function(facet, demesne, chains, formula_facet, formula_psi, resp_distrib, transform) {
+burn_nonbiomass_into_vector <- function(facet, demesne, chains, formula_facet, formula_psi, resp_distrib, transform, force_presence = FALSE) {
 
 	zero_inflated <- !is.null(formula_psi)
 
@@ -34,7 +35,7 @@ burn_nonbiomass_into_vector <- function(facet, demesne, chains, formula_facet, f
 	########################
 
 	say('   burning present...')
-	preds <- predict_nonbiomass_single_trait(chains = chains, x = x, resp_distrib = resp_distrib, transform = transform)
+	preds <- predict_nonbiomass_single_trait(chains = chains, x = x, resp_distrib = resp_distrib, transform = transform, force_presence = force_presence)
 
 	pred_vect$DUMMY1 <- colMeans(preds)
 	pred_vect$DUMMY2 <- apply(preds, 2, median)

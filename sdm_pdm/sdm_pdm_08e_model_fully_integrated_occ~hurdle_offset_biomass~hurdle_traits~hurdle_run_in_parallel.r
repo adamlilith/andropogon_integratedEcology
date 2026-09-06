@@ -23,12 +23,13 @@
 	# chain <- 1 # also used as starting seed
 	# chain <- 2 # also used as starting seed
 	# chain <- 3 # also used as starting seed
-	chain <- 4 # also used as starting seed
+	# chain <- 4 # also used as starting seed
 	# chain <- 5 # also used as starting seed
 	# chain <- 6 # also used as starting seed
+	chain <- 9 # also used as starting seed
 
-	facet_type <- 'morphological' # model occurrence, biomass, and *morphological* traits
-	# facet_type <- 'physiological' # model occurrence, biomass, and *physiological* traits
+	# facet_type <- 'morphological' # model occurrence, biomass, and *morphological* traits
+	facet_type <- 'physiological' # model occurrence, biomass, and *physiological* traits
 
 	# if FALSE, assume we are starting this chain running from the 1st iteration (ie, running for the very first time); if TRUE, then we restart at state of previous set of iterations which should have been saved
 	pickup_from_last_set <- FALSE
@@ -187,7 +188,7 @@
 	}
 
 	### output folder and bias formula
-	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_integrated/', ifelse(trial, 'TRIAL_', ''), 'non_centered_MVN([occs~hurdlepoisson_offset]_[biomass~hurdleln]_[', nonbiomass_facet_names_short, '])_chain_', chain)
+	out_dir <- paste0('./outputs_loretta/integrated_sdm_pdm/models_integrated/', ifelse(trial, 'TRIAL_', ''), 'non_centered_MVN([occs~hurdlepoisson_offset]_[biomass~hurdleln]_[', nonbiomass_facet_names_short, '])_eta=2_chain_', chain)
 
 ################
 ### set loop ###
@@ -296,6 +297,12 @@
 
 		names(data_nonbiomass_sites) <- names(data_nonbiomass_counties) <- names(nonbiomass_facets)
 
+		saveRDS(data_occs_counties, paste0('./outputs_loretta/integrated_sdm_pdm/models_integrated/data_occs_counties_', nonbiomass_facet_names_short, '.rds'))
+		saveRDS(data_biomass_counties, paste0('./outputs_loretta/integrated_sdm_pdm/models_integrated/data_biomass_counties_', nonbiomass_facet_names_short, '.rds'))
+		saveRDS(data_biomass_sites, paste0('./outputs_loretta/integrated_sdm_pdm/models_integrated/data_biomass_sites_', nonbiomass_facet_names_short, '.rds'))
+		saveRDS(data_nonbiomass_counties, paste0('./outputs_loretta/integrated_sdm_pdm/models_integrated/data_nonbiomass_counties_', nonbiomass_facet_names_short, '.rds'))
+		saveRDS(data_nonbiomass_sites, paste0('./outputs_loretta/integrated_sdm_pdm/models_integrated/data_nonbiomass_sites_', nonbiomass_facet_names_short, '.rds'))
+
 		#########################
 		### inputs for nimble ###
 		#########################
@@ -325,6 +332,7 @@
 			
 			### integration
 			n_facets = n_facets,
+			eta = 2,
 
 			### occurrences
 			n_counties_occs_calib = data_occs_counties$n_counties_occs_calib, # number of counties in calibration region
@@ -403,7 +411,7 @@
 			# y_biomass_sim = data_biomass_sites$y_biomass, # simulated values for biomass (for DHARMa residuals)
 		
 			### integration
-			eta = 1,
+			# eta = 2,
 			U_star = diag(1, nrow = n_facets, ncol = n_facets),
 			log_sigmas = c(1, 1),
 			Phi_county = matrix(1, nrow = data_occs_counties$n_counties, ncol = n_facets),
@@ -526,7 +534,7 @@
 		model_code_base <- nimbleCode({
 
 			# INTEGRATION: LJK prior for standard deviations and correlations between latent occurrence and biomass processes
-			eta ~ dgamma(2, 1)
+			# eta ~ dgamma(2, 1)
 			U_star[1:n_facets, 1:n_facets] ~ dlkj_corr_cholesky(eta = eta, p = n_facets)
 		
 			# INTEGRATION: standard deviations of latent occurrence and biomass
@@ -545,7 +553,7 @@
 			phi_biomass_county[1:n_counties_occs_calib] <- (x_by_county_biomass[1:n_counties_occs_calib, 1:n_terms_biomass] %*% beta_biomass[1:n_terms_biomass])[ , 1]
 			# phi_facet_county_XYZ[1:n_counties_occs_calib] <- ... # included for each non-biomass facet in generic code blocks below
 
-			# # matrix of standard normals... including in loop be low row-by-row to enhance mixing
+			# # matrix of standard normals... including in loop below row-by-row to enhance mixing
 			# z_county[1:n_counties_occs_calib, 1:n_facets] ~ dIIDStandardNorm(n_row = n_counties_occs_calib, n_col = n_facets)
 
 			# non-centered MVN method to avoid sampling directly from MVN
@@ -711,8 +719,10 @@
 			init = model_code
 		)
 
+		sink(paste0(out_dir, '/.model_code.txt'))
 		print(model_code)
-
+		sink()
+print(NON)
 		say('nimbleModel()', level = 2)
 		model <- nimbleModel(
 			code = model_code,
@@ -734,7 +744,8 @@
 
 		say('configureMCMC() ', date(), level = 2)
 
-		monitors_coeffs_not_indexed <- c('alpha_occs', 'eta', 'sigma_biomass_within_sites')
+		# monitors_coeffs_not_indexed <- c('alpha_occs', 'eta', 'sigma_biomass_within_sites')
+		monitors_coeffs_not_indexed <- c('alpha_occs', 'sigma_biomass_within_sites')
 		for (f in seq_along(nonbiomass_facets)) monitors_coeffs_not_indexed <- c(monitors_coeffs_not_indexed, paste0('sigma_facet_within_sites_', f))
 		monitors_coeffs_single_index <- c('beta_occs', 'beta_biomass', 'beta_psi', 'sigmas')
 		for (f in seq_along(nonbiomass_facets)) monitors_coeffs_single_index <- c(monitors_coeffs_single_index, paste0('beta_facet_', f))
@@ -753,6 +764,10 @@
 		)
 
 		monitors <- c(monitors_coeffs_not_indexed, monitors_coeffs_single_index, monitors_coeffs_double_index, monitors_derived_not_indexed, monitors_derived_single_index, monitors_derived_double_index, monitors_dharma, monitors_debug)
+
+		sink(paste0(out_dir, '/monitors.txt'))
+		print(monitors)
+		sink()
 
 		conf <- configureMCMC(
 			model,
@@ -795,7 +810,7 @@
 
 	while (set <= max_sets) {
 
-		say('MCMC set ', set, ' of ', max_sets, ' ', date(), level = 1)
+		say('MCMC set ', set, ' of ', max_sets, ' on chain ', chain, ' ', date(), level = 1)
 
 		### restarting from same or previous R session
 		if (exists('set_state', inherits = FALSE) && (set > starting_set || pickup_from_last_set)) {

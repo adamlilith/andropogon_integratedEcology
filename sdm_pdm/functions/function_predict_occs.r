@@ -6,9 +6,10 @@
 #' x 				Model matrix
 #' x_psi 			Model matrix for probability of zero abundance or `NULL`
 #' overdispersed	Should be `TRUE` is response is Poisson(exp(N(lambda, sigma))), `FALSE` if just Poisson(exp(lambda))
+#' force_presence   If FALSE, allow presence/absence to be dynamically determined. If TRUE, predictions will always assume the species is present (z == 1).
 #'
 #' Returns a matrix of predictions. Rows are iterations and columns are sample IDs.
-predict_occs <- function(chains, x, x_psi = NULL, overdispersed = FALSE) {
+predict_occs <- function(chains, x, x_psi = NULL, overdispersed = FALSE, force_presence = FALSE) {
 
 	betas <- mc_subset(chains, 'beta_occs', j = TRUE)
 	# lambda_sigma <- mc_subset(chains, 'lambda_sigma')
@@ -68,9 +69,13 @@ predict_occs <- function(chains, x, x_psi = NULL, overdispersed = FALSE) {
 				this_beta_psi <- betas_psi$samples[[chain]][iter, ]
 				this_beta_psi <- cbind(this_beta_psi)
 
-				psi <- x_psi %*% this_beta_psi
-				psi <- psi[ , 1]
-				psi <- expit(psi)
+				if (!force_presence) {
+					psi <- x_psi %*% this_beta_psi
+					psi <- psi[ , 1]
+					psi <- expit(psi)
+				} else {
+					psi <- rep(1, nrow(x_psi))
+				}
 
 				# z <- as.numeric(runif(n_samples) < psi)
 

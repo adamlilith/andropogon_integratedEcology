@@ -6,9 +6,10 @@
 #' formula_psi				Formula for probability of presence. Ignored if `NULL`.
 #' resp_distrib 			Response distribution: 'gamma' or 'lognormal' or 'hGamma' or 'hurdleLN'.
 #' transform 				Either 'exponential' or 'identity'.
+#' force_presence			If TRUE, force presence (psi == 1). Only applicable to zero-inflated models.
 #'
 #' Returns a SpatVector.
-burn_biomass_into_vector <- function(demesne, chains, formula_biomass, formula_psi, resp_distrib, transform) {
+burn_biomass_into_vector <- function(demesne, chains, formula_biomass, formula_psi, resp_distrib, transform, force_presence) {
 
 	zero_inflated <- !is.null(formula_psi)
 
@@ -33,7 +34,7 @@ burn_biomass_into_vector <- function(demesne, chains, formula_biomass, formula_p
 	########################
 
 	say('   burning present...')
-	preds <- predict_biomass(chains = chains, x = x, resp_distrib = resp_distrib, transform = transform)
+	preds <- predict_biomass(chains = chains, x = x, resp_distrib = resp_distrib, transform = transform, force_presence = force_presence)
 
 	pred_vect$DUMMY1 <- colMeans(preds)
 	pred_vect$DUMMY2 <- apply(preds, 2, median)

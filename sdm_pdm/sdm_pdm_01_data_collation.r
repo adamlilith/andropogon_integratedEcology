@@ -133,70 +133,82 @@
 # 		saveRDS(biomass, './data_from_loretta/sdm_pdm_00_merged_site_data_with_climate/biomass.rds')
 # 		saveRDS(morpho_phys, './data_from_loretta/sdm_pdm_00_merged_site_data_with_climate/morpho_phys.rds')
 
-# say('############################################################')
-# say('### plot geo-folds in environmental and geographic space ###')
-# say('############################################################')
+say('############################################################')
+say('### plot geo-folds in environmental and geographic space ###')
+say('############################################################')
 
-# 	# Create a map of the geofolds and plot them in environmental space
+	# Create a map of the geofolds and plot them in environmental space
 
-# 	# North America, occurrence,s and biomass
-# 	nam <- vect('./data_from_gadm/gadm_4pt1_level_1_north_america_sans_alaska_lambert.gpkg')
-# 	ag_vect_sq <- vect('./outputs_loretta/integrated_sdm_pdm/andropogon_gerardi_occurrences_with_environment_1961_2020_for_integration.gpkg')
-# 	sites <- readRDS('./data_from_loretta/sdm_pdm_00_merged_site_data_with_climate/sites.rds')
+	# North America, occurrence,s and biomass
+	nam <- vect('./data_from_gadm/gadm_4pt1_level_1_north_america_sans_alaska_lambert.gpkg')
+	ag_vect_sq <- vect('./outputs_loretta/integrated_sdm_pdm/andropogon_gerardi_occurrences_with_environment_1961_2020_for_integration.gpkg')
+	sites <- readRDS('./data_from_loretta/sdm_pdm_00_merged_site_data_with_climate/sites.rds')
 
-# 	sites$id <- sub(sites$site_id, pattern = '_', replacement = '')
+	sites$id <- sub(sites$site_id, pattern = '_', replacement = '')
 
-# 	### map
-# 	#######
+	### map
+	#######
 
-# 		sites_vect <- vect(sites, geom = c('LONGITUDE', 'LATITUDE'), crs = getCRS('WGS84'))
+		sites_vect <- vect(sites, geom = c('LONGITUDE', 'LATITUDE'), crs = getCRS('WGS84'))
 
-# 		# extent
-# 		sites_vect <- project(sites_vect, ag_vect_sq)
-# 		extent <- ext(sites_vect)
-# 		extent <- as.polygons(extent, crs = ag_vect_sq)
-# 		extent <- buffer(extent, width = 200 * 1000) # nominal plot extent
-# 		extent_display <- buffer(extent, width = 300 * 1000) # larger than plot extent
-# 		extent <- ext(extent)
-# 		extent <- as.vector(extent)
+		# extent
+		sites_vect <- project(sites_vect, ag_vect_sq)
+		extent <- ext(sites_vect)
+		extent <- as.polygons(extent, crs = ag_vect_sq)
+		extent <- buffer(extent, width = 200 * 1000) # nominal plot extent
+		extent_display <- buffer(extent, width = 300 * 1000) # larger than plot extent
+		extent <- ext(extent)
+		extent <- as.vector(extent)
 
-# 		ag_vect_display <- crop(ag_vect_sq, extent_display)
+		ag_vect_display <- crop(ag_vect_sq, extent_display)
 
-# 		counties_with_ag <- ag_vect_display[ag_vect_display$n_andropogon_gerardi > 0]
-# 		counties_with_ag <- centroids(counties_with_ag)
+		counties_with_ag <- ag_vect_display[ag_vect_display$n_andropogon_gerardi > 0]
+		counties_with_ag <- centroids(counties_with_ag)
 
-# 		map <- ggplot() +
-# 			layer_spatial(ag_vect_display, aes(fill = factor(geofold)), color = alpha('gray', 0.5)) +
-# 			layer_spatial(nam, color = 'gray40', fill = NA, linewidth = 0.3) +
-# 			layer_spatial(counties_with_ag, pch = 16, color = alpha('gray20', 0.5), size = 0.35) +
-# 			layer_spatial(sites_vect, mapping = aes(size = mBiomass, fill = factor(geofold)), pch = 21, color = 'red') +
-# 			scale_fill_viridis_d() +
-# 			geom_sf_text(data = st_as_sf(sites_vect), aes(label = id), color = 'white', size = 3, fontface = 'bold') +
-# 			scale_size_continuous(name = 'Mean\nbiomass (g)') +
-# 			ggtitle('A) Map of geo-folds') +
-# 			xlim(extent[1], extent[2]) + ylim(extent[3], extent[4]) +
-# 			labs(fill = 'Fold')
+		map <- ggplot() +
+			layer_spatial(ag_vect_display, aes(fill = factor(geofold)), color = alpha('gray', 0.5)) +
+			layer_spatial(nam, color = 'gray40', fill = NA, linewidth = 0.3) +
+			layer_spatial(counties_with_ag, pch = 16, color = alpha('gray20', 0.5), size = 0.35) +
+			layer_spatial(sites_vect, mapping = aes(size = 4 * mBiomass, fill = factor(geofold)), pch = 21, color = 'red') +
+			scale_fill_viridis_d() +
+			geom_sf_text(data = st_as_sf(sites_vect), aes(label = id), color = 'white', size = 3, fontface = 'bold') +
+			scale_size_continuous(name = 'Mean\nbiomass (g)') +
+			ggtitle('A) Map of geo-folds') +
+			xlim(extent[1], extent[2]) + ylim(extent[3], extent[4]) +
+			labs(fill = 'Fold') +
+			theme(
+				plot.title = element_text(size = 24),
+				axis.title = element_blank(),
+				legend.title = element_text(size = 22),
+				legend.text = element_text(size = 22)
+			)
 
-# 	### environmental space
-# 	#######################
+	### environmental space
+	#######################
 
-# 		ag_env <- as.data.table(ag_vect_sq)
-# 		ag_env_occs <- ag_env[n_andropogon_gerardi > 0]
+		ag_env <- as.data.table(ag_vect_sq)
+		ag_env_occs <- ag_env[n_andropogon_gerardi > 0]
 		
-# 		env <- ggplot() +
-# 			geom_point(data = ag_env, aes(x = bio1, y = bio12, color = factor(geofold)), alpha = 0.1, pch = 3) +
-# 			geom_point(data = ag_env_occs, aes(x = bio1, y = bio12, color = factor(geofold)), alpha = 0.5) +
-# 			geom_point(data = sites, aes(x = bio1, y = bio12, fill = factor(geofold), size = mBiomass), color = 'red', pch = 21) +
-# 			geom_text(data = sites, aes(x = bio1, y = bio12, label = id), color = 'black', size = 3) +
-# 			scale_color_viridis_d(name = 'Fold') +
-# 			scale_fill_viridis_d(name = 'Fold') +
-# 			scale_size_continuous(name = 'Mean\nbiomass (g)') +
-# 			xlab('Mean annual temperature (°C)') + ylab('Total annual precipitation (mm)') +
-# 			ggtitle('B) Geo-folds in environmental space')
+		env <- ggplot() +
+			geom_point(data = ag_env, aes(x = bio1, y = bio12, color = factor(geofold)), alpha = 0.1, pch = 3) +
+			geom_point(data = ag_env_occs, aes(x = bio1, y = bio12, color = factor(geofold)), alpha = 0.5) +
+			geom_point(data = sites, aes(x = bio1, y = bio12, fill = factor(geofold), size = 4 * mBiomass), color = 'red', pch = 21) +
+			geom_text(data = sites, aes(x = bio1, y = bio12, label = id), color = 'black', size = 3) +
+			scale_color_viridis_d(name = 'Fold') +
+			scale_fill_viridis_d(name = 'Fold') +
+			scale_size_continuous(name = 'Mean\nbiomass (g)') +
+			xlab('Mean annual temperature (°C)') + ylab('Total annual precipitation (mm)') +
+			ggtitle('B) Geo-folds in environmental space') +
+			theme(
+				plot.title = element_text(size = 24),
+				axis.title = element_text(size = 20),
+				legend.title = element_text(size = 22),
+				legend.text = element_text(size = 22)
+			)
 
 
-# 	combo <- map + env
-# 	ggsave(combo, filename = './outputs_loretta/integrated_sdm_pdm/map_geofolds.png', width = 17, height = 8, dpi = 300)
+	combo <- map / env
+	ggsave(combo, filename = './outputs_loretta/integrated_sdm_pdm/map_geofolds.png', width = 7, height = 10, dpi = 300)
 
 # say('########################################################################')
 # say('### calculate covariate centers and scales across counties and sites ###')

@@ -18,15 +18,15 @@
 		"titleBar.inactiveBackground": "#80808099",
 		"titleBar.inactiveForeground": "#15202b99"
 	},
-	"r.rterm.windows": "C:\\Program Files\\R\\R-4.5.0\\bin\\R.exe",
-	"r.rpath.windows": "C:\\Program Files\\R\\R-4.5.0\\bin\\R.exe",
+	"r.rterm.windows": "C:\\Program Files\\R\\R-4.6.0\\bin\\R.exe",
+	"r.rpath.windows": "C:\\Program Files\\R\\R-4.6.0\\bin\\R.exe",
 	"r.rterm.option": [
 		"--no-restore",
 		"--no-save"
 	],
-	"r.lsp.enabled": true,
+	"r.lsp.enabled": false,
 	"r.lsp.debug": false,
 	"r.bracketedPaste": true,
-	"r.sessionWatcher": true,
+	"r.sessionWatcher": false,
 	"r.rtermSendDelay": 8
 }

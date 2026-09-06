@@ -7,11 +7,14 @@
 #' x_occs			Model matrix
 #' x_biomass		Model matrix
 #' x_psi			Model matrix for probability of presence or `NULL`
+#' x_nonbiomass     List of model matrices for each non-biomass facet.
 #' resp_distrib_biomass 	For biomass this can be 'gamma', 'hGamma' (zero-inflated gamma), 'lognormal', or 'hurdleLN' (zero-inflated lognormal)
 #' transform_biomass	Named vector of transformations to translate MVN to mean biomass: 'identity', 'softplus' or 'exponential'.
 #' w_occs			Model matrix for bias covariates in occurrence model, or `NULL` if no bias covariates. If not `NULL`, the function will also predict bias-corrected occurrence probabilities.
 #' sampled			If `TRUE`, predictions are samples from estimated distributions (ie, as per a posterior predictive node). If `FALSE`, they are the expected (mean) value of the prediction given the environment at the sample. These values will still vary across chains/iterations, but not subject to sampling. In the `sampled = FALSE` case, all probabilities of presence will be forced to 1 if psi >=0.5 and 0 if <0.5.
-#'
+#' type				'sampled' ==> calculate predictions across each chain/iteration and return all predictions. 'means' ==> calculate predictions using the summary mean across all chains/iterations.
+#' force_presence		If `TRUE`, force all predictions assuming presence (N > 0). If FALSE, allow presences and absences to be predicted. This will override the effect of "type" (so if force_presence  TRUE, we will still always force presence at a prediction).
+#' 
 #' Returns a matrix of predictions. Rows are iterations and columns are sample IDs.
 predict_fully_integrated <- function(
 	chains,
@@ -23,8 +26,24 @@ predict_fully_integrated <- function(
 	x_biomass,
 	x_nonbiomass,
 	w_occs = NULL,
-	sampled = TRUE
+	sampled = TRUE,
+	type = 'samples',
+	force_presence = FALSE
 ) {
+
+	if (type == 'means') {
+
+		# say('Predicting to mean coefficient values across all chains/iterations.')
+		summary_all_chains <- chains$summary$all.chains[ , 'Mean']
+		chains <- list(samples = list(matrix(summary_all_chains, nrow = 1, dimnames = list(NULL, names(summary_all_chains)))))
+		chains$samples[[1]] <- as.mcmc(chains$samples[[1]])
+		chains$samples <- as.mcmc.list(chains$samples)
+	
+	} else if (type == 'samples') {
+		# say('Predicting to samples across all chains/iterations.')
+	} else {
+		stop('Invalid `type` argument. Must be either "samples" or "means".')
+	}
 
 	# coefficients: occurrence
 	betas_occs <- mc_subset(chains, 'beta_occs', j = TRUE)
@@ -129,19 +148,23 @@ predict_fully_integrated <- function(
 			n_phis <- 2 + length(nonbiomass_facets)
 			for (i in seq_len(n_samples)) {
 
-				z <- rnorm(4, 0, 1)
+				z <- if (type == 'samples') {
+					rnorm(2 + n_nonbiomass_facets, 0, 1)
+				} else {
+					rep(0, 2 + n_nonbiomass_facets)
+				}
 
 				# abundance
 				this_sigmas <- sigmas$samples[[chain]][iter, 'sigmas[1]']
-				Phi[i, 1] <- phi_lambda_mu[i] + this_sigmas[1] * inprod(U_star, z)
+				Phi[i, 1] <- phi_lambda_mu[i] + this_sigmas * inprod(U_star[ , 1], z)
 				
 				this_sigmas <- sigmas$samples[[chain]][iter, 'sigmas[2]']
-				Phi[i, 2] <- phi_biomass_mu[i] + this_sigmas * inprod(U_star, z)
+				Phi[i, 2] <- phi_biomass_mu[i] + this_sigmas * inprod(U_star[ , 2], z)
 
 				for (f in seq_along(nonbiomass_facets)) {
 				
 					this_sigmas <- sigmas$samples[[chain]][iter, paste0('sigmas[', f + 2, ']')]
-					Phi[i, f + 2] <- phi_facets_mu[f, i] + this_sigmas * inprod(U_star, z)
+					Phi[i, f + 2] <- phi_facets_mu[f, i] + this_sigmas * inprod(U_star[ , f + 2], z)
 				
 				}
 					
@@ -153,7 +176,9 @@ predict_fully_integrated <- function(
 			psi <- x_psi %*% beta_psi
 			psi <- psi[ , 1]
 			psi <- expit(psi)
-			if (sampled) {
+			if (force_presence) {
+				z <- rep(1, n_samples)
+			} else if (sampled) {
 				z <- rbinom(n_samples, size = 1, prob = psi)
 			} else {
 				z <- as.numeric(psi >= 0.5)

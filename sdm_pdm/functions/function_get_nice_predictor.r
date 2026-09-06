@@ -37,7 +37,7 @@ get_nice_predictor <- function(pred) {
 		range_fx <- bottom0_range_fx
 	} else if (pred == 'bio15') {
 		short <- 'Precipitation Seasonality (BIO15)'
-		long <- 'Precipitation seasonality'
+		long <- 'Precipitation seasonality (mm)'
 		units <- ''
 		range_fx <- bottom0_range_fx
 	} else if (pred %in% c('bio12', 'bio18_log10p1')) {
@@ -77,7 +77,7 @@ get_nice_predictor <- function(pred) {
 		range_fx <- percent_range_fx
 	} else if (pred %in% c('insolation_2000_growing_season_kWh_per_m2', 'insolation_2023_growing_season_kWh_per_m2')) {
 		short <- 'Solar Insolation'
-		long <- 'Growing season solar insolation'
+		long <- 'Growing season insolation (kWh∙m¯²)'
 		units <- 'kWh∙m¯²'
 		range_fx <- standard_range_fx
 	}

@@ -6,9 +6,10 @@
 #' chains					Chains from NIMBLE
 #' formula_occs_mu			Formula for occurrences
 #' formula_psi				Formula for occurrence probability of inflated zero or `NULL`
+#' force_presence			If TRUE, force psi == 1 when making predictions
 #'
 #' Returns a SpatVector.
-burn_occs_into_vector <- function(demesne, chains, formula_occs, formula_psi = NULL, overdispersed = FALSE) {
+burn_occs_into_vector <- function(demesne, chains, formula_occs, formula_psi = NULL, overdispersed = FALSE, force_presence = FALSE) {
 
 	zero_inflated <- !is.null(formula_psi)
 
@@ -41,7 +42,7 @@ burn_occs_into_vector <- function(demesne, chains, formula_occs, formula_psi = N
 	}
 
 	say('   burning present lambda...')
-	preds <- predict_occs(chains = chains, x = x, x_psi = x_psi, overdispersed = overdispersed)
+	preds <- predict_occs(chains = chains, x = x, x_psi = x_psi, overdispersed = overdispersed, force_presence = force_presence)
 
 	preds_mean <- colMeans(preds)
 	preds_median <- apply(preds, 2, median)
@@ -102,7 +103,7 @@ burn_occs_into_vector <- function(demesne, chains, formula_occs, formula_psi = N
 			}
 		
 			say('   burning ', fut, ' lambda...')
-			preds <- predict_occs(chains = chains, x = x, x_psi = x_psi)
+			preds <- predict_occs(chains = chains, x = x, x_psi = x_psi, force_presence = force_presence)
 
 			preds_mean <- colMeans(preds)
 			preds_inner_quant <- apply(preds, 2, inner_quant)

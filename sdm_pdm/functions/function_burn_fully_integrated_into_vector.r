@@ -2,13 +2,12 @@
 #'
 #' source('C:/Kaji/R/andropogon_integratedEcology/sdm_pdm/functions/function_burn_fully_integrated_into_vector.r')
 #'
-#' demesne				'nam' (North America) or '1930s' (Dust Bowl area) or '1950s' (post-Dust Bowl)
+#' demesne				'nam' (North America) or '1930s' (Dust Bowl area)
 #' chains				Chains from NIMBLE
 #' formula_occs			Formula for occurrences
 #' formula_bias	Formula for bias in sampling occurrences
-#' log_precip_occs		TRUE/FALSE: log precipitation predictors for occurrence submodel
 #' 
-#' formula_psi			Formula for presence/absences (assumes that we use the log/unlogged version of precipitation as per log_precip_occs)
+#' formula_psi			Formula for presence/absences (assumes that we use the log/unlogged version of precipitation as per formula_occs)
 #' 
 #' formula_biomass		Formula for biomass
 #' resp_distrib_biomass	Distribution for biomass (eg, 'gamma', 'hGamma' (zero-inflated gamma), 'lognormal', or 'hurdleLN' (zero-inflated lognormal))
@@ -16,18 +15,19 @@
 #' log_precip_biomass	TRUE/FALSE: log precipitation predictors for biomass submodel
 #' 
 #' nonbiomass_facets	Named list of non-biomass facets
+#' force_presence		If `TRUE`, force all predictions assuming presence (N > 0). If FALSE, allow presences and absences to be predicted.
 burn_fully_integrated_into_vector <- function(
 	demesne,
 	chains,
 	formula_occs,
 	formula_bias,
-	log_precip_occs,
 	formula_psi,
 	formula_biomass,
 	resp_distrib_biomass,
 	transform_biomass,
 	log_precip_biomass,
-	nonbiomass_facets
+	nonbiomass_facets,
+	force_presence = FALSE
 ) {
 
 	### occurrence data
@@ -42,7 +42,7 @@ burn_fully_integrated_into_vector <- function(
 
 	### predict present
 	###################
-	say('   predicting present occurrence, biomass, and non-biomass...')
+	say('   predicting present occurrence, biomass, and non-biomass... (force_presence = ', force_presence, ')')
 
 	if (demesne == 'nam') {
 		x_occs <- data_occs_counties$counties_x_sq
@@ -76,7 +76,8 @@ burn_fully_integrated_into_vector <- function(
 		x_biomass = x_biomass,
 		x_psi = x_psi,
 		x_nonbiomass = x_nonbiomass,
-		w_occs = if (demesne == 'nam') data_occs_counties$counties_w_sq else data_occs_counties$counties_w_thirties
+		w_occs = if (demesne == 'nam') data_occs_counties$counties_w_sq else data_occs_counties$counties_w_thirties,
+		force_presence = force_presence
 	)
 
 	preds_occs <- preds$preds_occs
@@ -163,7 +164,8 @@ burn_fully_integrated_into_vector <- function(
 				x_occs = x_occs,
 				x_biomass = x_biomass,
 				x_psi = x_psi,
-				x_nonbiomass = x_nonbiomass
+				x_nonbiomass = x_nonbiomass,
+				force_presence = force_presence
 			)
 
 			# zero-inflation
